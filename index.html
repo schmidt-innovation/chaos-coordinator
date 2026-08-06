@@ -674,8 +674,15 @@
   function dot(p,label,kind,name,pos){
     var x=p[0], y=p[1], out='';
     if(kind==='d'){
-      return '<rect x="'+(x-9)+'" y="'+(y-9)+'" width="18" height="18" rx="4" fill="#FF5A5F"/>'+
+      out = '<rect x="'+(x-9)+'" y="'+(y-9)+'" width="18" height="18" rx="4" fill="#FF5A5F"/>'+
         '<text x="'+x+'" y="'+(y+4)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="#2A0E0F">'+label+'</text>';
+      if(name){
+        var dnm = esc(firstName(name));
+        var dw = Math.max(dnm.length*5.6+12, 26);
+        out += '<rect x="'+(x-dw/2)+'" y="'+(y+13)+'" width="'+dw+'" height="14" rx="7" fill="rgba(7,23,20,.88)" stroke="rgba(255,90,95,.45)" stroke-width="1"/>'+
+          '<text x="'+x+'" y="'+(y+23.6)+'" text-anchor="middle" font-size="9" font-weight="700" font-family="Archivo,sans-serif" fill="#F6F1E4">'+dnm+'</text>';
+      }
+      return out;
     }
     var fill = kind==='ball' ? '#FFC93C' : '#123B33';
     var txt  = kind==='ball' ? '#0B211C' : '#F6F1E4';
@@ -1287,6 +1294,54 @@
   /* ================= game plan: series ================= */
   var seriesList = document.getElementById('seriesList');
 
+  /* ================= defense schemes ================= */
+  var DEFS = [
+    {key:'man',    name:'One each',   sub:'Man coverage', tip:'Point at your kid. Say their name. Stay closer than arm\'s length.', slots:[]},
+    {key:'zone',   name:'Zone boxes', sub:'Territory',    tip:'Own your box, never leave it. Three short, two deep.', slots:[['SL','Short left'],['SM','Short middle'],['SR','Short right'],['DL','Deep left'],['DR','Deep right']]},
+    {key:'chaser', name:'The chaser', sub:'Rush + man',   tip:'The chaser rushes with hands up. Everyone else plays one each.', slots:[['R','The chaser']]}
+  ];
+  function defByKey(k){ for(var i=0;i<DEFS.length;i++){ if(DEFS[i].key===k) return DEFS[i]; } return DEFS[0]; }
+  function sDef(s){
+    if(!s.def || !s.def.scheme){ s.def = {scheme:'man', slots:{}}; }
+    if(!s.def.slots) s.def.slots = {};
+    return s.def;
+  }
+  function onFieldIds(s){
+    return slotOrder(FORMS[s.form]||FORMS[0]).map(function(k){ return s.slots[k]; }).filter(Boolean);
+  }
+  function pNameOf(id){ var p = id ? playerById(id) : null; return p && p.name.trim() ? p.name : null; }
+
+  function defFieldSvg(s){
+    var d = sDef(s);
+    var inner = '';
+    if(d.scheme === 'zone'){
+      inner += '<g fill="rgba(255,90,95,.13)" stroke="rgba(255,90,95,.5)" stroke-width="1" stroke-dasharray="5 4">'+
+        '<rect x="4" y="96" width="94" height="44" rx="6"/><rect x="103" y="96" width="94" height="44" rx="6"/>'+
+        '<rect x="202" y="96" width="94" height="44" rx="6"/><rect x="4" y="28" width="143" height="60" rx="6"/>'+
+        '<rect x="153" y="28" width="143" height="60" rx="6"/></g>';
+      inner += offBase();
+      var Z = {SL:[50,120], SM:[150,120], SR:[250,120], DL:[76,56], DR:[224,56]};
+      Object.keys(Z).forEach(function(k,i){
+        inner += dot(Z[k], String(i+1), 'd', pNameOf(d.slots[k]));
+      });
+    } else if(d.scheme === 'chaser'){
+      inner += path([[150,66],[150,172]],{color:'#FF5A5F'});
+      inner += offBase();
+      var others = onFieldIds(s).filter(function(id){ return id !== d.slots.R; }).slice(0,4);
+      var POS = [[48,124],[106,100],[206,124],[262,124]];
+      POS.forEach(function(p,i){ inner += dot(p, String(i+1), 'd', pNameOf(others[i])); });
+      inner += dot([150,60],'R','d', pNameOf(d.slots.R));
+    } else {
+      inner += path([[48,138],[48,120]],{color:'#FF5A5F'})+path([[150,138],[150,120]],{color:'#FF5A5F'})+
+        path([[206,138],[206,120]],{color:'#FF5A5F'})+path([[262,138],[262,120]],{color:'#FF5A5F'});
+      inner += offBase();
+      var ids = onFieldIds(s).slice(0,5);
+      var POSM = [[48,116],[150,116],[206,116],[262,116],[106,74]];
+      POSM.forEach(function(p,i){ inner += dot(p, String(i+1), 'd', pNameOf(ids[i])); });
+    }
+    return svg(inner);
+  }
+
   function namesForForm(s, fi){
     var f = FORMS[fi]||FORMS[0];
     var slots = (fi === s.form) ? s.slots : remapSlots(s.slots, s.form, fi);
@@ -1319,6 +1374,17 @@
           '</select></div>';
       }).join('');
       var bench = benchOf(s);
+      var d = sDef(s), dm = defByKey(d.scheme);
+      var defOpts = onFieldIds(s).map(function(id){ return playerById(id); }).filter(function(p){ return p && p.name.trim(); });
+      if(!defOpts.length) defOpts = opts;
+      var dSlotsHtml = dm.slots.length ? '<div class="slots">'+dm.slots.map(function(sl){
+        var sel = d.slots[sl[0]]||'';
+        return '<div class="slot"><label class="flab"><b>'+sl[0]+'</b> · '+sl[1]+'</label>'+
+          '<select class="tin dpsel" data-slot="'+sl[0]+'" aria-label="'+sl[1]+'">'+
+          '<option value="">—</option>'+
+          defOpts.map(function(p){ return '<option value="'+esc(p.id)+'"'+(p.id===sel?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('')+
+          '</select></div>';
+      }).join('')+'</div>' : '<div class="benchline" style="margin-bottom:12px">'+dm.tip+'</div>';
       return '<div class="scard" data-i="'+si+'">'+
         '<div class="shead"><input class="tin slabel" type="text" value="'+esc(s.label)+'" aria-label="Series name">'+
         '<button type="button" class="iconbtn sdel" aria-label="Delete series">✕</button></div>'+
@@ -1328,6 +1394,11 @@
         '</select>'+
         '<div class="slots">'+slotsHtml+'</div>'+
         '<div class="benchline">Sitting out: <b>'+(bench.length?bench.map(function(p){return esc(firstName(p.name));}).join(', '):'—')+'</b></div>'+
+        '<label class="flab">Defense &middot; when they have the ball</label>'+
+        '<select class="tin dsel" aria-label="Defense">'+
+        DEFS.map(function(dd){ return '<option value="'+dd.key+'"'+(dd.key===d.scheme?' selected':'')+'>'+dd.name+' — '+dd.sub+'</option>'; }).join('')+
+        '</select>'+
+        dSlotsHtml+
         '<div class="field">'+formationSvg(f, seriesNames(s))+'</div>'+
         '</div>';
     }).join('');
@@ -1351,6 +1422,24 @@
             s.slots[slot] = pid;
           } else {
             delete s.slots[slot];
+          }
+          save(); renderSeriesList(); renderGameDay();
+        });
+      });
+      card.querySelector('.dsel').addEventListener('change', function(ev){
+        var d = sDef(s);
+        d.scheme = ev.target.value;
+        d.slots = {};
+        save(); renderSeriesList(); renderGameDay();
+      });
+      card.querySelectorAll('.dpsel').forEach(function(sel){
+        sel.addEventListener('change', function(){
+          var d = sDef(s), slot = sel.dataset.slot, pid = sel.value;
+          if(pid){
+            Object.keys(d.slots).forEach(function(k){ if(k!==slot && d.slots[k]===pid) delete d.slots[k]; });
+            d.slots[slot] = pid;
+          } else {
+            delete d.slots[slot];
           }
           save(); renderSeriesList(); renderGameDay();
         });
@@ -1487,6 +1576,40 @@
       '<span>'+(onField.length?esc(onField.join(', ')):'nobody assigned yet')+'</span></div><div class="chev">▼</div></summary>'+
       '<div class="pbody">'+lineup+benchHtml+subHtml+'</div></details>';
 
+    /* defense box: same five kids, other side of the ball */
+    var dCur = sDef(cs), dMeta = defByKey(dCur.scheme);
+    var prevDef = document.getElementById('defBox');
+    var defOpen = prevDef ? prevDef.open : false;
+    var dSummary;
+    if(dCur.scheme === 'chaser'){
+      var rn = pNameOf(dCur.slots.R);
+      dSummary = rn ? 'Chaser: '+firstName(rn)+' · others one each' : 'Pick your chaser in Game plan';
+    } else if(dCur.scheme === 'zone'){
+      var zc = defByKey('zone').slots.filter(function(sl){ return dCur.slots[sl[0]]; }).length;
+      dSummary = zc+' of 5 boxes assigned';
+    } else {
+      dSummary = dMeta.tip;
+    }
+    var dChips = '';
+    if(dMeta.slots.length){
+      dChips = '<div class="lineup">'+dMeta.slots.map(function(sl){
+        var nm2 = pNameOf(dCur.slots[sl[0]]);
+        return '<div class="pos"><span class="pb" style="background:var(--flag)">'+sl[0]+'</span>'+
+          (nm2?'<b>'+esc(firstName(nm2))+'</b>':'<b class="unset">not set</b>')+'</div>';
+      }).join('')+'</div>';
+    }
+    var defBox = '<details class="prac" id="defBox"'+(defOpen?' open':'')+'>'+
+      '<summary><div class="num" style="color:var(--flag)">D</div><div class="ptitle"><b>Defense — '+dMeta.name+'</b>'+
+      '<span>'+esc(dSummary)+'</span></div><div class="chev">▼</div></summary>'+
+      '<div class="pbody">'+
+      '<div class="picker" id="defpicker" role="group" aria-label="Defense call" style="padding-top:10px">'+
+      DEFS.map(function(dd){ return '<button type="button" data-dk="'+dd.key+'" aria-pressed="'+(dd.key===dCur.scheme)+'">'+dd.name+'</button>'; }).join('')+
+      '</div>'+
+      '<div class="field">'+defFieldSvg(cs)+'</div>'+
+      dChips+
+      '<p style="font-size:12.5px;color:var(--paper-dim);margin:10px 0 0">'+dMeta.tip+'</p>'+
+      '</div></details>';
+
     /* the call: formation, then play */
     var picker = '<h3 class="callhead">Formation</h3><div class="picker" id="gdpicker" role="group" aria-label="Call formation">'+
       chipSet.map(function(fi){
@@ -1529,13 +1652,22 @@
       ? playCardHtml(cf, play, names)
       : '<div class="empty">Tap a play above to put it on the board.</div>';
 
-    gd.innerHTML = chips+lineupBox+picker+grid+'<div id="gdplay">'+playHtml+'</div>';
+    gd.innerHTML = chips+lineupBox+defBox+picker+grid+'<div id="gdplay">'+playHtml+'</div>';
 
     gd.querySelectorAll('.serbar button').forEach(function(b){
       b.addEventListener('click', function(){
         state.current = +b.dataset.si;
         save(); renderGameDay();
         window.scrollTo({top:0,behavior:'smooth'});
+      });
+    });
+    gd.querySelectorAll('#defpicker button').forEach(function(b){
+      b.addEventListener('click', function(){
+        var d = sDef(cs);
+        if(d.scheme !== b.dataset.dk){ d.scheme = b.dataset.dk; d.slots = {}; }
+        save(); renderGameDay();
+        var box = document.getElementById('defBox');
+        if(box) box.open = true;
       });
     });
     gd.querySelectorAll('#gdpicker button').forEach(function(b){
