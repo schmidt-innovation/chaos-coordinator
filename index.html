@@ -182,6 +182,10 @@
   .subline b{color:var(--paper)}
   .subline .in{color:var(--whistle)}
   .keptstar{color:var(--whistle);font-size:14px}
+  .phead .rname{margin-left:auto;flex:0 0 auto;width:38px;height:32px;background:transparent;border:1px solid var(--line);
+    border-radius:8px;color:var(--paper-dim);cursor:pointer;font-size:14px;font-family:inherit}
+  .phead .rname:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
+  .aka{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--paper-dim);font-weight:600}
   .callhead{font-size:15px;color:var(--chalk);margin:16px 0 8px}
   .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px}
   .pgrid button{display:flex;align-items:center;justify-content:space-between;gap:6px;background:var(--turf);
@@ -345,6 +349,7 @@
       <li><b>White lines</b> are everyone else's routes.</li>
       <li><b>Numbers</b> on pass plays are the quarterback's reads, in order: look at 1, then 2, then 3.</li>
       <li><b>Dashed white</b> is a fake or an escort — no ball.</li>
+      <li><b>Tap ✎</b> on any play to rename it to whatever your kids call it. The nickname shows everywhere, saves with your team code, and the original stays underneath as "aka".</li>
       <li>Tap <b>Run it again</b> and hand the phone to the kids — the ball moves so they can watch their job happen.</li>
     </ul>
   </div>
@@ -582,7 +587,7 @@
     for(i=0;i<8;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, seq:9};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, seq:9};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -623,6 +628,7 @@
     if(Array.isArray(loaded.series) && loaded.series.length) state.series = loaded.series;
     if(typeof loaded.current === 'number') state.current = loaded.current;
     if(loaded.kept) state.kept = loaded.kept;
+    if(loaded.alias) state.alias = loaded.alias;
     if(loaded.seq) state.seq = loaded.seq;
     if(state.current >= state.series.length) state.current = 0;
     return true;
@@ -1094,11 +1100,18 @@
   });
 
   /* ================= shared play card ================= */
+  function displayName(f, p){
+    return (state.alias && state.alias[f.name+':'+p.n]) || p.n;
+  }
   function playCardHtml(f, p, names){
     var id = f.name+':'+p.n;
     var on = !!state.kept[id];
+    var dn = displayName(f, p);
     return '<div class="play'+(on?' kept':'')+'" data-id="'+esc(id)+'">'+
-      '<div class="phead"><h3>'+(on?'<span class="keptstar">★</span> ':'')+p.n+'</h3><div class="tag'+(p.t==='run'?' run':'')+'">'+(p.t==='run'?'Run':'Pass')+'</div></div>'+
+      '<div class="phead"><h3>'+(on?'<span class="keptstar">★</span> ':'')+esc(dn)+'</h3>'+
+      '<div class="tag'+(p.t==='run'?' run':'')+'">'+(p.t==='run'?'Run':'Pass')+'</div>'+
+      (dn!==p.n?'<span class="aka">aka '+esc(p.n)+'</span>':'')+
+      '<button type="button" class="rname" aria-label="Rename play" title="Rename play">✎</button></div>'+
       '<p>'+p.d+'</p>'+
       '<div class="field">'+playFieldSvg(f,p,names)+'</div>'+
       '<div class="btns">'+
@@ -1106,7 +1119,7 @@
         '<button type="button" class="keep" aria-pressed="'+on+'">'+(on?'Kept ✓':'Keep')+'</button>'+
       '</div></div>';
   }
-  function wirePlayCards(container, afterKeep){
+  function wirePlayCards(container, afterKeep, afterRename){
     hideRoutes(container);
     container.querySelectorAll('.replay').forEach(function(b){
       b.addEventListener('click', function(){
@@ -1122,6 +1135,36 @@
         card.classList.toggle('kept', !!state.kept[id]);
         save();
         if(afterKeep) afterKeep();
+      });
+    });
+    container.querySelectorAll('.rname').forEach(function(b){
+      b.addEventListener('click', function(){
+        var card = b.closest('.play'), id = card.dataset.id;
+        if(card.querySelector('.rin')) return;
+        var pName = id.split(':').slice(1).join(':');
+        var h3 = card.querySelector('.phead h3');
+        var inp = document.createElement('input');
+        inp.type = 'text'; inp.className = 'tin rin';
+        inp.value = (state.alias && state.alias[id]) || pName;
+        inp.setAttribute('aria-label','Play name');
+        inp.style.cssText = 'font-family:"Archivo Black",sans-serif;text-transform:uppercase;font-size:15px;padding:8px 10px;flex:1 1 120px;width:auto';
+        h3.replaceWith(inp);
+        inp.focus(); inp.select();
+        var done = false;
+        function commit(){
+          if(done) return; done = true;
+          var val = inp.value.trim();
+          if(!state.alias) state.alias = {};
+          if(!val || val === pName){ delete state.alias[id]; }
+          else { state.alias[id] = val; }
+          save();
+          if(afterRename) afterRename();
+        }
+        inp.addEventListener('keydown', function(ev){
+          if(ev.key === 'Enter'){ commit(); }
+          else if(ev.key === 'Escape'){ done = true; if(afterRename) afterRename(); }
+        });
+        inp.addEventListener('blur', commit);
       });
     });
     observeFields();
@@ -1398,7 +1441,7 @@
         var on = !!state.kept[cf.name+':'+p.n];
         var sel = !!(play && play.n===p.n);
         return '<button type="button" data-n="'+esc(p.n)+'"'+(on?' class="iskept"':'')+' aria-pressed="'+sel+'">'+
-          '<span>'+(on?'★ ':'')+p.n+'</span><span class="mini'+(p.t==='run'?' run':'')+'">'+(p.t==='run'?'Run':'Pass')+'</span></button>';
+          '<span>'+(on?'★ ':'')+esc(displayName(cf,p))+'</span><span class="mini'+(p.t==='run'?' run':'')+'">'+(p.t==='run'?'Run':'Pass')+'</span></button>';
       }).join('')+'</div>';
 
     var playHtml = play
@@ -1427,7 +1470,7 @@
         save(); renderGameDay({scrollToPlay:true});
       });
     });
-    wirePlayCards(gd, function(){ renderGameDay(); });
+    wirePlayCards(gd, function(){ renderGameDay(); }, function(){ renderGameDay(); });
     if(opts.scrollToPlay){
       setTimeout(function(){
         var card = document.querySelector('#gdplay .play');
@@ -1476,7 +1519,7 @@
     } else {
       list.innerHTML = items.map(function(p){ return playCardHtml(f,p,null); }).join('');
     }
-    wirePlayCards(list, function(){ countEl.textContent = 'Shortlist: '+keptCount(); });
+    wirePlayCards(list, function(){ countEl.textContent = 'Shortlist: '+keptCount(); }, function(){ renderPlays(); });
     countEl.textContent = 'Shortlist: '+keptCount();
   }
 
