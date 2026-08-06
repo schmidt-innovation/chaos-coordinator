@@ -327,13 +327,13 @@
 
 <!-- ================= PLAYBOOK ================= -->
 <section class="panel" id="playbook">
-  <p class="lede">Seven formations, ten plays each. Pick a formation, tap <b>Keep</b> on anything you like — kept plays show up first on Game day. Every run is a handoff or a pitch — the quarterback never carries it.</p>
+  <p class="lede">Seven formations, 100 plays. Pick a formation, tap <b>Keep</b> on anything you like — kept plays show up first on Game day. Every run is a handoff or a pitch — the quarterback never carries it.</p>
 
   <div class="picker" id="picker" role="group" aria-label="Formations"></div>
   <div id="fcard"></div>
 
   <div class="filters" role="group" aria-label="Filter plays">
-    <button data-f="all" aria-pressed="true">All 10</button>
+    <button data-f="all" aria-pressed="true">All</button>
     <button data-f="pass" aria-pressed="false">Pass</button>
     <button data-f="run" aria-pressed="false">Run</button>
     <button data-f="kept" aria-pressed="false">Kept</button>
@@ -350,6 +350,7 @@
       <li><b>Numbers</b> on pass plays are the quarterback's reads, in order: look at 1, then 2, then 3.</li>
       <li><b>Dashed white</b> is a fake or an escort — no ball.</li>
       <li><b>Tap ✎</b> on any play to rename it to whatever your kids call it. The nickname shows everywhere, saves with your team code, and the original stays underneath as "aka".</li>
+      <li><b>Tap Flip ↔</b> to run any play to the other side — the whole picture mirrors, players and all. The flip sticks until you flip it back, and saves with your team code.</li>
       <li>Tap <b>Run it again</b> and hand the phone to the kids — the ball moves so they can watch their job happen.</li>
     </ul>
   </div>
@@ -587,7 +588,7 @@
     for(i=0;i<8;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, seq:9};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, seq:9};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -629,6 +630,7 @@
     if(typeof loaded.current === 'number') state.current = loaded.current;
     if(loaded.kept) state.kept = loaded.kept;
     if(loaded.alias) state.alias = loaded.alias;
+    if(loaded.flip) state.flip = loaded.flip;
     if(loaded.seq) state.seq = loaded.seq;
     if(state.current >= state.series.length) state.current = 0;
     return true;
@@ -758,7 +760,13 @@
       {n:'Hippo',t:'run',d:'Quick handoff straight up the middle behind the center. Call it on fourth and short every time.',r:[run(dive(s_Y,1)),go(s_X),go(s_Z)]},
       {n:'Bunny',t:'run',d:'Underhand pitch to the outside receiver already running toward the sideline. Fastest way to the edge.',r:[ball(toss(s_Z,1)),run(pitchrun(s_Z,1)),go(s_X)]},
       {n:'Boomerang',t:'run',d:'Reverse. Hand it right, then that runner hands it to the left receiver coming back. Once a game, max.',r:[run([bk(s_Y),[124,180]]),run([bk(s_X),[120,184],[214,168],[240,110]]),go(s_Z)]},
-      {n:'Falcon',t:'run',d:'Looks like a pass, then a late handoff to the slot stepping in. The rusher runs right past it.',r:[run(draw(s_Y,1)),go(s_X),go(s_Z)]}
+      {n:'Falcon',t:'run',d:'Looks like a pass, then a late handoff to the slot stepping in. The rusher runs right past it.',r:[run(draw(s_Y,1)),go(s_X),go(s_Z)]},
+      {n:'Firefly',t:'pass',d:'Quick outs at five yards on both sides while the deep man clears. Take whichever sideline the defense forgot.',r:[out(s_Y,1),out(s_X,-1),go(s_Z)]},
+      {n:'Zebra',t:'pass',d:'Two slants firing into the middle at different depths. One step, plant, catch — the fastest pass play in the book.',r:[slant(s_X,1),slant(s_Y,-1),go(s_Z)]},
+      {n:'Pretzel',t:'pass',d:'Both inside players cross underneath while the outside man sits down. Three kids, three tangled defenders.',r:[cross(s_Y,-1),cross(s_X,1),hook(s_Z,1)]},
+      {n:'Volcano',t:'pass',d:'Everything erupts straight up the field, but the slot bends into the middle seam — that\'s the throw.',r:[seam(s_Y,-1),go(s_X),go(s_Z)]},
+      {n:'Yo-yo',t:'run',d:'Fake the pitch one way, hand it up the middle the other. The defense strings out, then the ball goes right past them.',r:[run(draw(s_Y,1)),{p:toss(s_Z,1),dashed:true},go(s_X)]},
+      {n:'Meteor',t:'run',d:'Jet sweep. The far receiver sprints across the formation at the snap and takes the handoff at full speed around the end.',r:[run([[48,140],[90,168],[150,176],[214,168],[248,128],[252,64]]),go(s_Z),{p:flat(s_Y,1),dashed:true}]}
     ]);
 
   /* --- 2. TWINS --- */
@@ -777,7 +785,11 @@
       {n:'Moose',t:'run',d:'Sweep left behind two receivers. Two blockers-in-front on the same side is the whole point of Twins.',r:[run(sweep(t_Y,-1)),go(t_Z),{p:flat(t_X,-1),dashed:true}]},
       {n:'Cannon',t:'run',d:'Pitch left to the wide receiver on the sideline. Get outside fast before the defense slides over.',r:[ball(toss(t_X,-1)),run(pitchrun(t_X,-1)),go(t_Z)]},
       {n:'Snake',t:'run',d:'Counter. The slot steps left, comes back right, and takes the handoff away from the crowd.',r:[run(counter(t_Y,1)),go(t_X),go(t_Z)]},
-      {n:'Tractor',t:'run',d:'Delayed handoff up the middle after the quarterback holds the ball up like a throw.',r:[run(draw(t_Y,-1)),go(t_X),go(t_Z)]}
+      {n:'Tractor',t:'run',d:'Delayed handoff up the middle after the quarterback holds the ball up like a throw.',r:[run(draw(t_Y,-1)),go(t_X),go(t_Z)]},
+      {n:'Domino',t:'pass',d:'The slot snaps to the left sideline while the outside man digs across behind him. Two levels, one side, easy read.',r:[out(t_Y,-1),dig(t_X,1),go(t_Z)]},
+      {n:'Walrus',t:'pass',d:'The lonely right receiver hooks at six yards — his defender is on an island with no help. Backside dig if he\'s covered.',r:[hook(t_Z,1),dig(t_Y,1),go(t_X)]},
+      {n:'Pelican',t:'pass',d:'The slot wheels up the left sideline behind the outside man slanting in. Their defenders trade kids or lose one.',r:[wheel(t_Y,-1),slant(t_X,1),hook(t_Z,1)]},
+      {n:'Corkscrew',t:'run',d:'Jet sweep away from the twins. The slot sprints across and takes it around the right end where nobody lives.',r:[run([[94,140],[130,170],[150,176],[214,168],[248,128],[252,64]]),go(t_Z),go(t_X)]}
     ]);
 
   /* --- 3. TRIPS --- */
@@ -796,7 +808,11 @@
       {n:'Hammer',t:'run',d:'Handoff left, away from everybody. The whole defense shifted to the trips side and nobody is home.',r:[run(dive(r_X,-1)),go(r_Y),go(r_Z)]},
       {n:'Slingshot',t:'run',d:'Pitch right to the middle receiver with two teammates already out in front of him.',r:[ball(toss(r_Y,1)),run(pitchrun(r_Y,1)),go(r_Z)]},
       {n:'Windmill',t:'run',d:'Reverse. Sweep right, then hand back to the outside receiver looping around to the left.',r:[run([bk(r_X),[214,182]]),run([bk(r_Z),[210,188],[110,172],[86,112]]),go(r_Y)]},
-      {n:'Tumble',t:'run',d:'Delayed handoff up the middle while all three receivers clear out to the right.',r:[run(draw(r_X,-1)),go(r_Y),go(r_Z)]}
+      {n:'Tumble',t:'run',d:'Delayed handoff up the middle while all three receivers clear out to the right.',r:[run(draw(r_X,-1)),go(r_Y),go(r_Z)]},
+      {n:'Waterfall',t:'pass',d:'All three pour deep, but the inside man bends his post back toward the empty left side. Big grass, one kid, no safety.',r:[post(r_X,-1),go(r_Y),go(r_Z)]},
+      {n:'Conveyor',t:'pass',d:'Inside man drags shallow left, middle man digs behind him at ten. Two moving targets crossing the whole field.',r:[cross(r_X,-1),dig(r_Y,-1),go(r_Z)]},
+      {n:'Octopus',t:'pass',d:'Quick bubble to the middle receiver behind the trips wall while the outside man clears his corner away.',r:[bubble(r_Y,1),go(r_Z),cross(r_X,-1)]},
+      {n:'Mustang',t:'run',d:'Jet sweep to the empty left side. The inside receiver sprints across the whole formation with the ball.',r:[run([[196,140],[170,170],[150,176],[86,168],[52,128],[48,64]]),go(r_Y),go(r_Z)]}
     ]);
 
   /* --- 4. WAGON --- */
@@ -811,11 +827,15 @@
       {n:'Thunder',t:'pass',d:'Fake the handoff first, then throw deep. The whole defense bites on the run and you go over the top.',r:[{p:[bk(w_H),[168,186],[196,176]],dashed:true},post(w_X,1),go(w_Z)]},
       {n:'Anchor',t:'pass',d:'Both receivers hook at six yards, the back sits down in the middle. Three easy targets, no deep throws.',r:[hook(w_X,-1),hook(w_Z,1),flat(w_H,-1)]},
       {n:'Tower',t:'pass',d:'Short on one side, deep corner on the other. The quarterback looks short first, then lets it go.',r:[hook(w_Z,1),corner(w_X,1),flat(w_H,1)]},
-      {n:'Tank',t:'run',d:'Handoff right, straight ahead. Shortest handoff on the page and almost impossible to fumble.',r:[run(dive(w_H,1)),go(w_X),go(w_Z)]},
-      {n:'Bulldozer',t:'run',d:'Same play going left. Run it right after Tank and let them chase the wrong way.',r:[run(dive(w_H,-1)),go(w_X),go(w_Z)]},
+      {n:'Tank',t:'run',d:'Handoff right, straight ahead. Shortest handoff on the page and almost impossible to fumble. Flip it and it\'s the same play going left.',r:[run(dive(w_H,1)),go(w_X),go(w_Z)]},
       {n:'Stampede',t:'run',d:'Sweep right from the backfield. The back is already moving before he gets the ball.',r:[run(sweep(w_H,1)),go(w_Z),go(w_X)]},
-      {n:'Landslide',t:'run',d:'Sweep left. Same footwork, other direction — one of the two will work every game.',r:[run(sweep(w_H,-1)),go(w_X),go(w_Z)]},
-      {n:'Twist',t:'run',d:'Counter. The back steps right, plants, and takes the handoff going left instead.',r:[run(counter(w_H,-1)),go(w_X),go(w_Z)]}
+      {n:'Twist',t:'run',d:'Counter. The back steps right, plants, and takes the handoff going left instead.',r:[run(counter(w_H,-1)),go(w_X),go(w_Z)]},
+      {n:'Gecko',t:'pass',d:'The back sneaks straight up the middle seam behind the linebackers while both receivers hook and hold the outside.',r:[seam(w_H,-1),hook(w_X,-1),hook(w_Z,1)]},
+      {n:'Trombone',t:'pass',d:'Fake the sweep left, then hit the left receiver snapping to the sideline. The corner follows the fake every time.',r:[{p:[[192,186],[166,184],[130,176]],dashed:true},out(w_X,-1),go(w_Z)]},
+      {n:'Compass',t:'pass',d:'Three different directions: post left-to-middle, out to the left sideline, back to the right flat. Pick the open compass point.',r:[post(w_Z,-1),out(w_X,-1),flat(w_H,1)]},
+      {n:'Blender',t:'run',d:'End-around. The right receiver loops behind the quarterback and takes the handoff all the way around the left side.',r:[run([[256,140],[230,168],[196,182],[150,186],[96,172],[64,128],[60,64]]),{p:[[192,186],[176,180]],dashed:true},go(w_X)]},
+      {n:'Porcupine',t:'run',d:'Fake the dive to the back, then pitch wide right. Two run threats on one play — somebody always bites inside.',r:[{p:[[192,186],[168,184],[158,180]],dashed:true},ball(toss(w_Z,1)),run(pitchrun(w_Z,1)),go(w_X)]},
+      {n:'Sasquatch',t:'run',d:'Delayed draw. The quarterback holds it up like a throw, counts one-banana, then slips it to the back up the middle.',r:[run(draw(w_H,1)),go(w_X),go(w_Z)]}
     ]);
 
   /* --- 5. BUNCH --- */
@@ -834,7 +854,11 @@
       {n:'Caravan',t:'run',d:'Sweep right behind the bunch. Two teammates are already standing between the runner and the defense.',r:[run(sweep(b_Y,1)),go(b_Z),{p:flat(b_X,1),dashed:true}]},
       {n:'Pivot',t:'run',d:'Counter. Fake right toward the crowd, then take the handoff back to the empty left side.',r:[run(counter(b_Y,-1)),go(b_X),go(b_Z)]},
       {n:'Slipknot',t:'run',d:'Pitch to the outside receiver in the cluster, who is already moving toward the sideline.',r:[ball(toss(b_Z,1)),run(pitchrun(b_Z,1)),go(b_X)]},
-      {n:'Quarry',t:'run',d:'Delayed handoff up the middle after everyone in the bunch releases downfield.',r:[run(draw(b_Y,1)),go(b_X),go(b_Z)]}
+      {n:'Quarry',t:'run',d:'Delayed handoff up the middle after everyone in the bunch releases downfield.',r:[run(draw(b_Y,1)),go(b_X),go(b_Z)]},
+      {n:'Beehive',t:'pass',d:'The whole bunch swarms the right side at three depths: flat, out, corner. Somebody comes out of the hive open.',r:[flat(b_Z,1),out(b_X,1),corner(b_Y,1)]},
+      {n:'Firecracker',t:'pass',d:'Quick bubble to the back man popping out the left side of the bunch while the other two clear straight ahead.',r:[bubble(b_Y,-1),go(b_X),go(b_Z)]},
+      {n:'Accordion',t:'pass',d:'The bunch stretches apart — one digs left, one hooks in place, one drifts to the flat. Squeeze and release.',r:[dig(b_Z,-1),hook(b_Y,1),flat(b_X,-1)]},
+      {n:'Tarantula',t:'run',d:'Jet sweep all the way to the far left side. Eight legs of fake traffic, one kid walking in around the empty edge.',r:[run([[250,140],[222,170],[150,180],[86,168],[52,128],[48,64]]),go(b_X),go(b_Y)]}
     ]);
 
   /* --- 6. I-FORM --- */
@@ -849,11 +873,15 @@
       {n:'Ferris',t:'pass',d:'The tailback swings right and turns straight upfield — a wheel out of the backfield that linebackers at this age never chase.',r:[wheel(i_T,1),hook(i_X,-1),go(i_Z)]},
       {n:'Seesaw',t:'pass',d:'Both receivers hook at five yards, tailback leaks left as the safety valve. Three easy targets, no deep throw needed.',r:[hook(i_X,-1),hook(i_Z,1),flat(i_T,-1)]},
       {n:'Lighthouse',t:'pass',d:'Quick slant on one side, deep corner on the other, tailback wide right. Look slant first, corner second.',r:[slant(i_X,1),corner(i_Z,1),flat(i_T,1)]},
-      {n:'Bison',t:'run',d:'Dive right. The shortest, fastest handoff in the book — the tailback is already moving downhill when the ball arrives.',r:[run(dive(i_T,1)),go(i_X),go(i_Z)]},
-      {n:'Rhino',t:'run',d:'Same dive going left. Call Bison and Rhino back to back and watch the defense guess wrong.',r:[run(dive(i_T,-1)),go(i_X),go(i_Z)]},
+      {n:'Bison',t:'run',d:'Dive right. The shortest, fastest handoff in the book — the tailback is already moving downhill when the ball arrives. Flip it to dive left.',r:[run(dive(i_T,1)),go(i_X),go(i_Z)]},
       {n:'Freight',t:'run',d:'Sweep right from deep. Starting three steps back gives the tailback a running start around the corner.',r:[run(sweep(i_T,1)),go(i_Z),go(i_X)]},
-      {n:'Caboose',t:'run',d:'Sweep left. Same footwork, other direction — the deep start makes both sides look identical until it\'s too late.',r:[run(sweep(i_T,-1)),go(i_X),go(i_Z)]},
-      {n:'Jackknife',t:'run',d:'Counter. The tailback jab-steps left, plants, and takes the handoff back to the right while the defense flows the wrong way.',r:[run(counter(i_T,1)),go(i_X),go(i_Z)]}
+      {n:'Jackknife',t:'run',d:'Counter. The tailback jab-steps left, plants, and takes the handoff back to the right while the defense flows the wrong way.',r:[run(counter(i_T,1)),go(i_X),go(i_Z)]},
+      {n:'Drawbridge',t:'run',d:'Draw from deep. The quarterback shows pass, the rusher flies by, and the tailback takes the late handoff through the empty middle.',r:[run(draw(i_T,1)),go(i_X),go(i_Z)]},
+      {n:'Cyclone',t:'run',d:'End-around to the left receiver looping behind the tailback. Slow to start, fast around the corner.',r:[run([[48,140],[80,172],[150,190],[210,176],[244,130],[248,64]]),{p:[[150,202],[164,192]],dashed:true},go(i_Z)]},
+      {n:'Grizzly',t:'run',d:'Quick pitch right to the tailback already leaning that way. Wider than Bison, faster than Freight.',r:[ball([[150,190],[196,186]]),run([[196,186],[240,160],[268,120],[272,58]]),go(i_X)]},
+      {n:'Trapdoor',t:'pass',d:'The tailback slips out the side door to the left flat while both receivers drag coverage away. Free yards, every time.',r:[flat(i_T,-1),go(i_X),dig(i_Z,-1)]},
+      {n:'Telescope',t:'pass',d:'Both receivers bend deep posts toward the middle. The quarterback throws to whichever safety-side opens first.',r:[post(i_X,1),post(i_Z,-1),flat(i_T,1)]},
+      {n:'Dragonfly',t:'pass',d:'The tailback wheels out of the backfield up the left sideline. Nobody at this age expects the deep ball from a running back.',r:[wheel(i_T,-1),dig(i_X,1),go(i_Z)]}
     ]);
 
   /* --- 7. LOADED --- */
@@ -868,11 +896,15 @@
       {n:'Fountain',t:'pass',d:'Fake the handoff to the left back, then throw the post over the top. Two backs means everyone believes the run.',r:[{p:[[104,198],[126,192],[140,186]],dashed:true},post(l_X,1),flat(l_H,1)]},
       {n:'Skyhook',t:'pass',d:'The lone receiver streaks deep one-on-one while both backs hold the defense with flare routes. Your shot play.',r:[go(l_X),flat(l_H,1),flat(l_F,-1)]},
       {n:'Magnet',t:'pass',d:'The right back sneaks up the middle seam behind the linebackers. Left back and receiver keep everything shallow.',r:[seam(l_H,-1),flat(l_F,-1),hook(l_X,-1)]},
-      {n:'Piston',t:'run',d:'Dive right to the right back with the left back leading through the hole in front of him.',r:[run(dive(l_H,1)),{p:[[104,198],[158,186],[164,142]],dashed:true},go(l_X)]},
-      {n:'Anvil',t:'run',d:'Dive left to the left back, right back leads. The mirror of Piston — one of the two is always there.',r:[run(dive(l_F,-1)),{p:[[196,198],[142,186],[136,142]],dashed:true},go(l_X)]},
+      {n:'Piston',t:'run',d:'Dive right to the right back with the left back leading through the hole in front of him. Flip it to run behind the other back.',r:[run(dive(l_H,1)),{p:[[104,198],[158,186],[164,142]],dashed:true},go(l_X)]},
       {n:'Chariot',t:'run',d:'Sweep right into the empty side with a lead blocker out front the whole way. Your bread-and-butter from Loaded.',r:[run(sweep(l_H,1)),{p:[[104,198],[152,194],[216,178],[248,148]],dashed:true},go(l_X)]},
-      {n:'Steamroller',t:'run',d:'Sweep left behind the receiver and a lead back. Slower to develop but heavy — call it near the goal line.',r:[run(sweep(l_F,-1)),{p:[[196,198],[148,194],[84,178],[52,148]],dashed:true},go(l_X)]},
-      {n:'Switchback',t:'run',d:'Counter. The right back crosses all the way behind the quarterback and takes it left while everyone chases the fake.',r:[run(counter(l_H,-1)),{p:[[104,198],[128,190]],dashed:true},go(l_X)]}
+      {n:'Switchback',t:'run',d:'Counter. The right back crosses all the way behind the quarterback and takes it left while everyone chases the fake.',r:[run(counter(l_H,-1)),{p:[[104,198],[128,190]],dashed:true},go(l_X)]},
+      {n:'Crossfire',t:'run',d:'The backs cross behind the quarterback — left back takes it right while the right back fakes left. The defense follows the wrong one.',r:[run(dive(l_F,1)),{p:[[196,198],[150,190],[128,184]],dashed:true},go(l_X)]},
+      {n:'Catapult',t:'run',d:'Quick pitch right to the right back already in motion. The fastest way to the empty side of the field.',r:[ball([[162,182],[210,184]]),run([[210,184],[252,158],[274,116],[276,58]]),go(l_X)]},
+      {n:'Bulldog',t:'run',d:'Draw to the right back while the left back swings wide as a decoy. Looks like a pass for exactly long enough.',r:[run(draw(l_H,1)),{p:[[104,198],[80,188]],dashed:true},go(l_X)]},
+      {n:'Scorpion',t:'pass',d:'Both backs sprint to opposite sidelines and turn upfield — two wheels at once. The receiver hooks middle as the safe answer.',r:[wheel(l_H,1),wheel(l_F,-1),hook(l_X,-1)]},
+      {n:'Pancake',t:'pass',d:'Both backs stay home and block while the lone receiver runs as deep as he wants. Maximum protection, one big shot.',r:[{p:[[196,198],[188,182]],dashed:true},{p:[[104,198],[112,182]],dashed:true},go(l_X)]},
+      {n:'Dynamite',t:'pass',d:'The left back sneaks up the seam while the right back flares wide. Two levels on the same side of the field.',r:[seam(l_F,1),flat(l_H,1),hook(l_X,-1)]}
     ]);
 
   var FORMS = [SPREAD, TWINS, TRIPS, WAGON, BUNCH, IFORM, LOADED];
@@ -919,6 +951,8 @@
 
   function playFieldSvg(f, play, names){
     var entries = (play && play.r) || [];
+    var flipped = !!(play && state.flip && state.flip[f.name+':'+play.n]);
+    function FX(pts){ return flipped ? pts.map(function(q){ return [300-q[0], q[1]]; }) : pts; }
     var firstRouteIdx = -1, i, e;
     if(play && play.t==='pass'){
       for(i=0;i<entries.length;i++){ e=entries[i]; if(Array.isArray(e) || (e.p && !e.dashed)){ firstRouteIdx=i; break; } }
@@ -928,6 +962,7 @@
       e = entries[i];
       var pts = Array.isArray(e) ? e : e.p;
       if(!pts) continue;
+      pts = FX(pts);
       var kind = entryKind(e, play?play.t:'', firstRouteIdx, i);
       if(kind==='carry'){
         inner += pathEl(pts,{color:'#FFC93C',width:3.6,ball:true});
@@ -953,18 +988,24 @@
     }
     /* throw flight for pass plays: QB to first read */
     if(play && play.t==='pass' && firstRouteIdx>-1){
-      var prim = Array.isArray(entries[firstRouteIdx]) ? entries[firstRouteIdx] : entries[firstRouteIdx].p;
+      var prim = FX(Array.isArray(entries[firstRouteIdx]) ? entries[firstRouteIdx] : entries[firstRouteIdx].p);
       var pend = prim[prim.length-1];
       var qb = null;
       for(i=0;i<f.spots.length;i++){ if(f.spots[i][0]==='QB') qb = f.spots[i][1]; }
       if(qb){
+        var qx = flipped ? 300-qb[0] : qb[0];
         var ex = clampX(pend[0]), ey = clampY(pend[1]);
-        var mx = (qb[0]+ex)/2, my = Math.min(qb[1],ey)-42;
-        inner += '<path d="M'+qb[0]+','+(qb[1]-12)+' Q'+mx+','+clampY(my)+' '+ex+','+ey+'" fill="none" stroke="none" data-ball="1"/>';
+        var mx = (qx+ex)/2, my = Math.min(qb[1],ey)-42;
+        inner += '<path d="M'+qx+','+(qb[1]-12)+' Q'+mx+','+clampY(my)+' '+ex+','+ey+'" fill="none" stroke="none" data-ball="1"/>';
       }
     }
     inner += reads;
-    inner += f.spots.map(function(s){ return dot(s[1], s[0], s[2], names ? names[s[0]] : null, s[3]); }).join('');
+    inner += f.spots.map(function(s){
+      var sp = flipped ? [300-s[1][0], s[1][1]] : s[1];
+      var lp = s[3];
+      if(flipped){ if(lp==='l') lp='r'; else if(lp==='r') lp='l'; }
+      return dot(sp, s[0], s[2], names ? names[s[0]] : null, lp);
+    }).join('');
     return svg(inner);
   }
 
@@ -1106,16 +1147,19 @@
   function playCardHtml(f, p, names){
     var id = f.name+':'+p.n;
     var on = !!state.kept[id];
+    var fl = !!(state.flip && state.flip[id]);
     var dn = displayName(f, p);
     return '<div class="play'+(on?' kept':'')+'" data-id="'+esc(id)+'">'+
       '<div class="phead"><h3>'+(on?'<span class="keptstar">★</span> ':'')+esc(dn)+'</h3>'+
       '<div class="tag'+(p.t==='run'?' run':'')+'">'+(p.t==='run'?'Run':'Pass')+'</div>'+
+      (fl?'<div class="tag">Flipped ↔</div>':'')+
       (dn!==p.n?'<span class="aka">aka '+esc(p.n)+'</span>':'')+
       '<button type="button" class="rname" aria-label="Rename play" title="Rename play">✎</button></div>'+
       '<p>'+p.d+'</p>'+
       '<div class="field">'+playFieldSvg(f,p,names)+'</div>'+
       '<div class="btns">'+
         '<button type="button" class="replay">Run it again</button>'+
+        '<button type="button" class="flip">Flip ↔</button>'+
         '<button type="button" class="keep" aria-pressed="'+on+'">'+(on?'Kept ✓':'Keep')+'</button>'+
       '</div></div>';
   }
@@ -1135,6 +1179,16 @@
         card.classList.toggle('kept', !!state.kept[id]);
         save();
         if(afterKeep) afterKeep();
+      });
+    });
+    container.querySelectorAll('.flip').forEach(function(b){
+      b.addEventListener('click', function(){
+        var id = b.closest('.play').dataset.id;
+        if(!state.flip) state.flip = {};
+        state.flip[id] = !state.flip[id];
+        if(!state.flip[id]) delete state.flip[id];
+        save();
+        if(afterRename) afterRename();
       });
     });
     container.querySelectorAll('.rname').forEach(function(b){
@@ -1447,7 +1501,7 @@
     if(!anyKept){
       gridNote = 'Showing everything — star plays with Keep in the Playbook tab and game day trims down to your game plan.';
     } else if(!formKept.length){
-      gridNote = 'Nothing kept in '+esc(cf.name)+' yet — showing all 10.';
+      gridNote = 'Nothing kept in '+esc(cf.name)+' yet — showing everything.';
     }
     var sorted = pool.slice().sort(function(a,b){
       var ka = state.kept[cf.name+':'+a.n]?0:1, kb = state.kept[cf.name+':'+b.n]?0:1;
@@ -1468,7 +1522,7 @@
         var on = !!state.kept[cf.name+':'+p.n];
         var sel = !!(play && play.n===p.n);
         return '<button type="button" data-n="'+esc(p.n)+'"'+(on?' class="iskept"':'')+' aria-pressed="'+sel+'">'+
-          '<span>'+(on?'★ ':'')+esc(displayName(cf,p))+'</span><span class="mini'+(p.t==='run'?' run':'')+'">'+(p.t==='run'?'Run':'Pass')+'</span></button>';
+          '<span>'+(on?'★ ':'')+esc(displayName(cf,p))+(state.flip&&state.flip[cf.name+':'+p.n]?' ↔':'')+'</span><span class="mini'+(p.t==='run'?' run':'')+'">'+(p.t==='run'?'Run':'Pass')+'</span></button>';
       }).join('')+'</div>';
 
     var playHtml = play
