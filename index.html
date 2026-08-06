@@ -1366,6 +1366,22 @@
     if(state.current >= state.series.length) state.current = 0;
     var cs = state.series[state.current];
     if(cs.callForm == null || !FORMS[cs.callForm]) cs.callForm = cs.form;
+
+    /* game day shows only formations with kept plays (plus the series' planned one) */
+    var keptFormIdx = [];
+    FORMS.forEach(function(ff,fi){
+      if(ff.plays.some(function(p){ return state.kept[ff.name+':'+p.n]; })) keptFormIdx.push(fi);
+    });
+    var anyKept = keptFormIdx.length > 0;
+    var chipSet = anyKept ? keptFormIdx.slice() : FORMS.map(function(_,i){ return i; });
+    if(anyKept && chipSet.indexOf(cs.form) === -1){
+      chipSet.push(cs.form);
+      chipSet.sort(function(a,b){ return a-b; });
+    }
+    if(chipSet.indexOf(cs.callForm) === -1){
+      cs.callForm = (chipSet.indexOf(cs.form) > -1) ? cs.form : chipSet[0];
+    }
+
     var lf = FORMS[cs.form]||FORMS[0];      /* formation the series was planned in */
     var cf = FORMS[cs.callForm]||FORMS[0];  /* formation being called right now */
     var names = namesForForm(cs, cs.callForm);
@@ -1419,24 +1435,35 @@
 
     /* the call: formation, then play */
     var picker = '<h3 class="callhead">Formation</h3><div class="picker" id="gdpicker" role="group" aria-label="Call formation">'+
-      FORMS.map(function(ff,fi){
+      chipSet.map(function(fi){
+        var ff = FORMS[fi];
         return '<button type="button" data-fi="'+fi+'" aria-pressed="'+(fi===cs.callForm)+'">'+ff.name+
           (fi===cs.form?' ·':'')+'</button>';
       }).join('')+'</div>';
 
-    var sorted = cf.plays.slice().sort(function(a,b){
+    var formKept = cf.plays.filter(function(p){ return state.kept[cf.name+':'+p.n]; });
+    var pool = formKept.length ? formKept : cf.plays;
+    var gridNote = '';
+    if(!anyKept){
+      gridNote = 'Showing everything — star plays with Keep in the Playbook tab and game day trims down to your game plan.';
+    } else if(!formKept.length){
+      gridNote = 'Nothing kept in '+esc(cf.name)+' yet — showing all 10.';
+    }
+    var sorted = pool.slice().sort(function(a,b){
       var ka = state.kept[cf.name+':'+a.n]?0:1, kb = state.kept[cf.name+':'+b.n]?0:1;
       return ka-kb;
     });
     var play = null;
     if(cs.callPlay){
-      for(var pi=0;pi<cf.plays.length;pi++){ if(cf.plays[pi].n===cs.callPlay){ play = cf.plays[pi]; break; } }
+      for(var pi=0;pi<pool.length;pi++){ if(pool[pi].n===cs.callPlay){ play = pool[pi]; break; } }
     }
     if(!play){
       for(var ki=0;ki<sorted.length;ki++){ if(state.kept[cf.name+':'+sorted[ki].n]){ play = sorted[ki]; break; } }
     }
 
-    var grid = '<h3 class="callhead">Play</h3><div class="pgrid" id="gdgrid" role="group" aria-label="Call play">'+
+    var grid = '<h3 class="callhead">Play</h3>'+
+      (gridNote ? '<div class="benchline" style="margin:0 0 8px">'+gridNote+'</div>' : '')+
+      '<div class="pgrid" id="gdgrid" role="group" aria-label="Call play">'+
       sorted.map(function(p){
         var on = !!state.kept[cf.name+':'+p.n];
         var sel = !!(play && play.n===p.n);
