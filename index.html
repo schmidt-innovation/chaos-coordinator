@@ -2117,8 +2117,8 @@
       if(playsOf(ff).some(function(p){ return state.kept[ff.name+':'+p.n]; })) keptFormIdx.push(fi);
     });
     var anyKept = keptFormIdx.length > 0;
-    var chipSet = anyKept ? keptFormIdx.slice() : FORMS.map(function(_,i){ return i; });
-    if(chipSet.indexOf(cs.callForm) === -1){
+    var chipSet = keptFormIdx.slice();
+    if(chipSet.length && chipSet.indexOf(cs.callForm) === -1){
       cs.callForm = (chipSet.indexOf(cs.form) > -1) ? cs.form : chipSet[0];
     }
 
@@ -2218,25 +2218,19 @@
       '<button type="button" data-gt="off" aria-pressed="'+(gdTab==='off')+'">🏈 Offense</button>'+
       '<button type="button" data-gt="def" aria-pressed="'+(gdTab==='def')+'">🛡 Defense</button></div>';
 
-    /* the call: formation, then play */
-    var picker = '<h3 class="callhead">Formation</h3><div class="picker" id="gdpicker" role="group" aria-label="Call formation">'+
-      chipSet.map(function(fi){
-        var ff = FORMS[fi];
-        return '<button type="button" data-fi="'+fi+'" aria-pressed="'+(fi===cs.callForm)+'">'+ff.name+
-          (fi===cs.form?' ·':'')+'</button>';
-      }).join('')+'</div>';
+    /* the call: formation, then play — kept plays only, always */
+    var picker = chipSet.length
+      ? '<h3 class="callhead">Formation</h3><div class="picker" id="gdpicker" role="group" aria-label="Call formation">'+
+        chipSet.map(function(fi){
+          var ff = FORMS[fi];
+          return '<button type="button" data-fi="'+fi+'" aria-pressed="'+(fi===cs.callForm)+'">'+ff.name+
+            (fi===cs.form?' ·':'')+'</button>';
+        }).join('')+'</div>'
+      : '';
 
     var allPlays = playsOf(cf);
     var formKept = allPlays.filter(function(p){ return state.kept[cf.name+':'+p.n]; });
-    var pool, gridNote = '';
-    if(formKept.length){
-      pool = formKept;
-    } else if(!anyKept){
-      pool = allPlays;
-      gridNote = 'Showing everything — star plays with Keep in the Playbook tab and game day trims down to your game plan.';
-    } else {
-      pool = [];
-    }
+    var pool = formKept.length ? formKept : [];
     var sorted = pool.slice().sort(function(a,b){
       var ka = state.kept[cf.name+':'+a.n]?0:1, kb = state.kept[cf.name+':'+b.n]?0:1;
       return ka-kb;
@@ -2250,12 +2244,16 @@
     }
 
     var grid;
-    if(!pool.length){
+    if(!anyKept){
+      grid = '<div class="card" style="margin-top:14px"><h3>No plays in the game plan yet</h3>'+
+        '<p>Game day only shows plays you\'ve starred. Browse the playbook, tap <b>Keep</b> on four to six plays — or draw your own — and they\'ll be ready to call here.</p>'+
+        '<button type="button" class="ghostbtn solid gold" id="gdGoPlaybook">Open the playbook →</button></div>';
+    } else if(!pool.length){
       grid = '<h3 class="callhead">Play</h3>'+
-        '<div class="empty">No plays kept in '+esc(cf.name)+' yet. Star some with Keep in the Playbook tab, or call a different formation.</div>';
+        '<div class="empty">No plays kept in '+esc(cf.name)+' yet.</div>'+
+        '<button type="button" class="ghostbtn" id="gdGoPlaybook">Keep plays in the playbook →</button>';
     } else {
       grid = '<h3 class="callhead">Play</h3>'+
-        (gridNote ? '<div class="benchline" style="margin:0 0 8px">'+gridNote+'</div>' : '')+
         '<div class="pgrid" id="gdgrid" role="group" aria-label="Call play">'+
         sorted.map(function(p){
           var on = !!state.kept[cf.name+':'+p.n];
@@ -2293,6 +2291,13 @@
         save(); renderGameDay();
       });
     });
+    var gpb = document.getElementById('gdGoPlaybook');
+    if(gpb){
+      gpb.addEventListener('click', function(){
+        showTab('playbook');
+        showPbTab('stock');
+      });
+    }
     gd.querySelectorAll('.gdlineup').forEach(function(sel){
       sel.addEventListener('change', function(){
         var lv = ensureLive(cs);
