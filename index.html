@@ -1416,12 +1416,36 @@
     {key:'zone',   name:'Zone boxes', sub:'Territory',    tip:'Own your box, never leave it. Three short, two deep.', slots:[['SL','Short left'],['SM','Short middle'],['SR','Short right'],['DL','Deep left'],['DR','Deep right']]},
     {key:'chaser', name:'The chaser', sub:'Rush + man',   tip:'The chaser rushes with hands up. Everyone else plays one each.', slots:[['R','The chaser']]}
   ];
+  var DEF_ROLE_NAMES = {man:'Man', zone:'Zone', blitz:'Blitz'};
+  function cdRoles(cd){
+    var r = cd.roles || [];
+    var out = [];
+    for(var i=0;i<5;i++){ out.push(DEF_ROLE_NAMES[r[i]] ? r[i] : 'zone'); }
+    return out;
+  }
   function customDefSchemes(){
     return ((state && state.customDefs) || []).map(function(cd){
-      return {key:cd.id, name:cd.name, sub:'Custom', custom:true, pos:cd.pos,
-        tip:'Your defense — line up exactly like the diagram.',
-        slots:[['D1','Spot 1'],['D2','Spot 2'],['D3','Spot 3'],['D4','Spot 4'],['D5','Spot 5']]};
+      var roles = cdRoles(cd);
+      return {key:cd.id, name:cd.name, sub:'Custom', custom:true, pos:cd.pos, roles:roles,
+        tip:'Your defense — line up exactly like the diagram. Arrows play man, boxes own their zone, the long arrow blitzes.',
+        slots:roles.map(function(role,i){ return ['D'+(i+1), 'Spot '+(i+1)+' · '+DEF_ROLE_NAMES[role]]; })};
     });
+  }
+  /* what each defender's job looks like on the field */
+  function defRoleGlyph(p, role){
+    if(role === 'blitz'){
+      var sy = p[1]-13;
+      var ex = Math.round(p[0] + (150-p[0])*0.85), ey = 46;
+      if(sy - 14 < ey){ ex = p[0]; ey = Math.max(30, sy-14); }
+      return pathEl([[p[0],sy],[ex,ey]], {color:'#FF5A5F', width:3.2});
+    }
+    if(role === 'man'){
+      return pathEl([[p[0],p[1]-13],[p[0],p[1]-34]], {color:'#FF5A5F'});
+    }
+    var x0 = Math.max(2, p[0]-44), x1 = Math.min(298, p[0]+44);
+    var y0 = Math.max(76, p[1]-26), y1 = Math.min(204, p[1]+22);
+    return '<rect x="'+x0+'" y="'+y0+'" width="'+(x1-x0)+'" height="'+(y1-y0)+'" rx="6" '+
+      'fill="rgba(255,90,95,.10)" stroke="rgba(255,90,95,.45)" stroke-width="1" stroke-dasharray="5 4"/>';
   }
   function allDefs(){ return DEFS.concat(customDefSchemes()); }
   function defByKey(k){
@@ -1475,6 +1499,7 @@
     var dm = defByKey(d.scheme);
     var inner = '';
     if(dm.custom){
+      dm.pos.forEach(function(p,i){ inner += defRoleGlyph(p, dm.roles[i]); });
       inner += oppBase();
       var used = {};
       dm.pos.forEach(function(p,i){
@@ -2507,23 +2532,47 @@
   function openDfEditor(did){
     var cd = null;
     if(did){ cd = (state.customDefs||[]).filter(function(x){ return x.id === did; })[0] || null; }
-    dfState = { pos: JSON.parse(JSON.stringify(cd ? cd.pos : [[50,110],[150,110],[250,110],[76,174],[224,174]])) };
+    dfState = {
+      pos: JSON.parse(JSON.stringify(cd ? cd.pos : [[50,110],[150,110],[250,110],[76,174],[224,174]])),
+      roles: cd ? cdRoles(cd) : ['zone','zone','zone','zone','zone'],
+      sel: 0
+    };
     dfHost.hidden = false;
     dfHost.innerHTML =
       '<div class="card" style="border-color:var(--flag);margin-top:12px">'+
       '<h3>'+(cd?'Edit defense':'New defense')+'</h3>'+
-      '<p class="edhint">Drag the five defenders where you want them. The dashed circles are the other team\'s usual spots; you\'re defending the bottom end zone.</p>'+
+      '<p class="edhint">Drag the five defenders where you want them, then tap one and give it a job: Man chases a kid (short arrow), Zone owns a box, Blitz crosses the line at the quarterback. You\'re defending the bottom end zone.</p>'+
       '<input class="tin" id="dfName" type="text" autocomplete="off" placeholder="Defense name" style="margin:10px 0 12px">'+
       '<div class="field" id="dfField" style="touch-action:none"></div>'+
+      '<div class="edchips" id="dfRoles">'+
+      ['man','zone','blitz'].map(function(r){
+        return '<button type="button" data-role="'+r+'">'+DEF_ROLE_NAMES[r]+'</button>';
+      }).join('')+'</div>'+
       '<div class="btns"><button type="button" id="dfSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(cd?'Save changes':'Save defense')+'</button>'+
       '<button type="button" id="dfCancel">Cancel</button></div></div>';
     if(cd){ document.getElementById('dfName').value = cd.name; }
     var field = document.getElementById('dfField');
     function draw(){
-      field.innerHTML = svgD(oppBase() + dfState.pos.map(function(p,i){
-        return dot(p, String(i+1), 'd');
-      }).join(''));
+      var inner = '';
+      dfState.pos.forEach(function(p,i){ inner += defRoleGlyph(p, dfState.roles[i]); });
+      inner += oppBase();
+      dfState.pos.forEach(function(p,i){
+        if(i === dfState.sel){
+          inner += '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="16" fill="none" stroke="#FFC93C" stroke-width="2" stroke-dasharray="4 3"/>';
+        }
+        inner += dot(p, String(i+1), 'd');
+      });
+      field.innerHTML = svgD(inner);
+      document.querySelectorAll('#dfRoles button').forEach(function(b){
+        b.setAttribute('aria-pressed', b.dataset.role === dfState.roles[dfState.sel] ? 'true' : 'false');
+      });
     }
+    document.getElementById('dfRoles').addEventListener('click', function(ev){
+      var b = ev.target.closest('button[data-role]');
+      if(!b) return;
+      dfState.roles[dfState.sel] = b.dataset.role;
+      draw();
+    });
     var dragIdx = -1, raf = 0;
     function evPos(ev){
       var svgEl = field.querySelector('svg');
@@ -2536,7 +2585,12 @@
         var d = Math.sqrt(Math.pow(q[0]-p[0],2)+Math.pow(q[1]-p[1],2));
         if(d < bd){ bd = d; dragIdx = i; }
       });
-      if(dragIdx > -1){ try{ field.setPointerCapture(ev.pointerId); }catch(e){} ev.preventDefault(); }
+      if(dragIdx > -1){
+        dfState.sel = dragIdx;
+        draw();
+        try{ field.setPointerCapture(ev.pointerId); }catch(e){}
+        ev.preventDefault();
+      }
     });
     field.addEventListener('pointermove', function(ev){
       if(dragIdx < 0) return;
@@ -2558,11 +2612,11 @@
       var base = name, k = 2;
       while(taken.indexOf(name.toLowerCase()) > -1){ name = base+' '+k; k++; }
       if(cd){
-        cd.name = name; cd.pos = dfState.pos;
+        cd.name = name; cd.pos = dfState.pos; cd.roles = dfState.roles;
       } else {
         state.seq++;
         state.customDefs = state.customDefs||[];
-        state.customDefs.push({id:'d'+state.seq, name:name, pos:dfState.pos});
+        state.customDefs.push({id:'d'+state.seq, name:name, pos:dfState.pos, roles:dfState.roles});
       }
       save(); closeDfEditor(); renderDefList(); renderGameDay();
     });
