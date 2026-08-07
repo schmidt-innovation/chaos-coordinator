@@ -1065,13 +1065,17 @@
   /* custom plays: stored as {id, form, n, t, d, routes:[{slot, pts, carry}]} */
   function customPlays(fi){
     return (state.custom||[]).filter(function(c){ return c.form === fi; }).map(function(c){
-      var r = [];
+      var r = [], firstRt = null, rest = [];
       c.routes.forEach(function(rt){
-        if(rt.slot === 'QB'){ r.unshift({p: rt.pts, qb:true}); }
+        if(rt.slot === 'QB'){ r.push({p: rt.pts, qb:true}); return; }
+        if(c.t === 'pass' && rt.first && !rt.fake && !firstRt){ firstRt = rt; return; }
+        rest.push(rt);
       });
-      c.routes.forEach(function(rt){
-        if(rt.slot === 'QB') return;
-        r.push(rt.carry ? {p: rt.pts, carry:true} : rt.pts);
+      var ordered = firstRt ? [firstRt].concat(rest) : rest;
+      ordered.forEach(function(rt){
+        if(rt.fake){ r.push({p: rt.pts, dashed:true}); }
+        else if(rt.carry){ r.push({p: rt.pts, carry:true}); }
+        else { r.push(rt.pts); }
       });
       return {n:c.n, t:c.t, d:c.d || 'Custom play — drawn by coach.', r:r, c:'none', custom:true, cid:c.id};
     });
@@ -2341,6 +2345,8 @@
       if(rt.pts.length > 1){
         if(rt.carry){ inner += pathEl(rt.pts,{color:'#FFC93C',width:3.6}); }
         else if(rt.slot === 'QB'){ inner += pathEl(rt.pts,{color:'#FFC93C',width:rt.slot===edState.active?3:2.4,dashed:true,dash:'3 6'}); }
+        else if(rt.fake){ inner += pathEl(rt.pts,{color:'#DCD5C4',width:2.2,dashed:true,marker:'url(#arp)',op:.65}); }
+        else if(edState.t==='pass' && rt.first){ inner += pathEl(rt.pts,{color:'#FFC93C',width:3.2}); }
         else if(rt.slot === edState.active){ inner += pathEl(rt.pts,{color:'#FFC93C',width:2.8}); }
         else { inner += pathEl(rt.pts,{color:'#DCD5C4',width:2.2,marker:'url(#arp)',op:.8}); }
       }
@@ -2362,8 +2368,14 @@
     var chips = document.getElementById('edChips');
     chips.innerHTML = slotOrder(f).map(function(l){
       var rt = edRouteOf(l);
-      return '<button type="button" data-slot="'+l+'" aria-pressed="'+(l===edState.active)+'">'+
-        l+(rt && rt.carry ? ' 🏈' : (rt && rt.pts.length>1 ? ' ✓' : ''))+'</button>';
+      var ind = '';
+      if(rt){
+        if(rt.carry) ind = ' 🏈';
+        else if(rt.fake) ind = ' 🎭';
+        else if(edState.t==='pass' && rt.first) ind = ' ①';
+        else if(rt.pts.length > 1) ind = ' ✓';
+      }
+      return '<button type="button" data-slot="'+l+'" aria-pressed="'+(l===edState.active)+'">'+l+ind+'</button>';
     }).join('');
     document.getElementById('edField').innerHTML = edSvg();
     var cb = document.getElementById('edCarry');
@@ -2371,6 +2383,12 @@
     var carrier = null;
     edState.routes.forEach(function(rt){ if(rt.carry) carrier = rt.slot; });
     cb.textContent = carrier ? ('Ball carrier: '+carrier+' 🏈') : ('Make '+edState.active+' the ball carrier');
+    var fb = document.getElementById('edFirst');
+    fb.hidden = edState.t !== 'pass';
+    var art = edRouteOf(edState.active);
+    fb.textContent = (art && art.first) ? ('① First look: '+edState.active) : ('Make '+edState.active+' the first look');
+    var kb = document.getElementById('edFake');
+    kb.textContent = (art && art.fake) ? ('🎭 '+edState.active+' is a fake — undo') : ('Mark '+edState.active+' as fake run');
   }
   function closeEditor(){
     edState = null;
@@ -2402,14 +2420,16 @@
     edHost.innerHTML =
       '<div class="card" id="editorCard" style="border-color:var(--whistle)">'+
       '<h3>'+(c?'Edit play':'New play')+' — '+esc(f.name)+'</h3>'+
-      '<p class="edhint">Tap a player, then tap the field to draw their route point by point. The order you draw pass routes is the quarterback\'s read order. Draw a QB path for rollouts — it shows dashed gold and the ball follows it before the throw or handoff.</p>'+
+      '<p class="edhint">Tap a player, then tap the field to draw their route point by point. On pass plays, pick the <b>first look</b> — it goes gold and gets the throw. Mark any path as a <b>fake run</b> to sell play-action. Draw a QB path for rollouts — the ball follows it before the throw or handoff.</p>'+
       '<div class="edrow"><input class="tin" id="edName" type="text" autocomplete="off" placeholder="Play name (what the kids will yell)">'+
       '<select class="tin" id="edType" style="flex:0 0 92px"><option value="pass">Pass</option><option value="run">Run</option></select></div>'+
       '<div class="edchips" id="edChips"></div>'+
       '<div class="field" id="edField"></div>'+
       '<div class="btns"><button type="button" id="edUndo">Undo point</button>'+
       '<button type="button" id="edClear">Clear route</button>'+
-      '<button type="button" id="edCarry" hidden></button></div>'+
+      '<button type="button" id="edCarry" hidden></button>'+
+      '<button type="button" id="edFirst" hidden></button>'+
+      '<button type="button" id="edFake"></button></div>'+
       '<input class="tin" id="edDesc" type="text" autocomplete="off" placeholder="One-line description (optional)" style="margin-top:10px">'+
       '<div class="btns"><button type="button" id="edSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(c?'Save changes':'Save play')+'</button>'+
       '<button type="button" id="edCancel">Cancel</button></div>'+
@@ -2464,7 +2484,30 @@
       var rt = edRouteOf(edState.active);
       if(!rt){ edMsg('Draw '+edState.active+'\'s path first, then mark them as the carrier.'); return; }
       edState.routes.forEach(function(x){ delete x.carry; });
+      delete rt.fake;
       rt.carry = true;
+      refreshEd();
+    });
+    document.getElementById('edFirst').addEventListener('click', function(){
+      if(edState.t !== 'pass') return;
+      if(edState.active === 'QB'){ edMsg('The QB throws it — pick a receiver for the first look.'); return; }
+      var rt = edRouteOf(edState.active);
+      if(!rt){ edMsg('Draw '+edState.active+'\'s route first, then make it the first look.'); return; }
+      if(rt.fake){ edMsg('A fake can\'t be the first look — undo the fake first.'); return; }
+      edState.routes.forEach(function(x){ delete x.first; });
+      rt.first = true;
+      refreshEd();
+    });
+    document.getElementById('edFake').addEventListener('click', function(){
+      if(edState.active === 'QB'){ edMsg('QB paths are movement — draw the fake on the runner instead.'); return; }
+      var rt = edRouteOf(edState.active);
+      if(!rt){ edMsg('Draw '+edState.active+'\'s path first, then mark it as a fake.'); return; }
+      if(rt.fake){ delete rt.fake; }
+      else {
+        delete rt.carry;
+        delete rt.first;
+        rt.fake = true;
+      }
       refreshEd();
     });
     document.getElementById('edCancel').addEventListener('click', closeEditor);
@@ -2475,7 +2518,12 @@
         edMsg('Run plays need a ball carrier — tap a player with a route, then "Make … the ball carrier".');
         return;
       }
+      if(edState.t === 'pass' && !routes.some(function(rt){ return rt.slot !== 'QB' && !rt.fake; })){
+        edMsg('A pass play needs at least one real route to throw to — everything is a fake right now.');
+        return;
+      }
       if(edState.t === 'pass'){ routes.forEach(function(rt){ delete rt.carry; }); }
+      else { routes.forEach(function(rt){ delete rt.first; }); }
       var f3 = FORMS[edState.form];
       var name = (document.getElementById('edName').value || '').trim() || 'Custom';
       var taken = playsOf(f3).filter(function(p){ return !(p.custom && p.cid === edState.editing); })
