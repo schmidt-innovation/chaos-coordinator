@@ -1492,6 +1492,9 @@
         state.players = state.players.filter(function(p){ return p.id!==id; });
         state.series.forEach(function(s){
           Object.keys(s.slots).forEach(function(k){ if(s.slots[k]===id) delete s.slots[k]; });
+          if(s.live && s.live.slots){
+            Object.keys(s.live.slots).forEach(function(k){ if(s.live.slots[k]===id) delete s.live.slots[k]; });
+          }
         });
         save(); renderRoster(); renderSeriesList(); renderGameDay();
       });
@@ -1620,8 +1623,25 @@
     if(!ok){ s.def.scheme = defaultSchemeKey(); }
     return s.def;
   }
+  /* game-day subs live in s.live.slots so the planned lineup survives; reset = drop the override */
+  function liveSlots(s){ return (s.live && s.live.slots) ? s.live.slots : s.slots; }
+  function ensureLive(s){
+    if(!s.live){
+      s.live = {slots:{}};
+      Object.keys(s.slots).forEach(function(k){ s.live.slots[k] = s.slots[k]; });
+    }
+    return s.live.slots;
+  }
+  function liveDiffers(s){
+    if(!s.live) return false;
+    var keys = {};
+    Object.keys(s.slots).forEach(function(k){ keys[k] = 1; });
+    Object.keys(s.live.slots).forEach(function(k){ keys[k] = 1; });
+    return Object.keys(keys).some(function(k){ return s.slots[k] !== s.live.slots[k]; });
+  }
   function onFieldIds(s){
-    return slotOrder(FORMS[s.form]||FORMS[0]).map(function(k){ return s.slots[k]; }).filter(Boolean);
+    var ls = liveSlots(s);
+    return slotOrder(FORMS[s.form]||FORMS[0]).map(function(k){ return ls[k]; }).filter(Boolean);
   }
   function pNameOf(id){ var p = id ? playerById(id) : null; return p && p.name.trim() ? p.name : null; }
 
@@ -1705,7 +1725,8 @@
 
   function namesForForm(s, fi){
     var f = FORMS[fi]||FORMS[0];
-    var slots = (fi === s.form) ? s.slots : remapSlots(s.slots, s.form, fi);
+    var base = liveSlots(s);
+    var slots = (fi === s.form) ? base : remapSlots(base, s.form, fi);
     var names = {};
     f.spots.forEach(function(sp){
       var pid = slots[sp[0]];
@@ -1717,7 +1738,8 @@
   function seriesNames(s){ return namesForForm(s, s.form); }
   function benchOf(s){
     var used = {};
-    Object.keys(s.slots).forEach(function(k){ if(s.slots[k]) used[s.slots[k]] = true; });
+    var ls = liveSlots(s);
+    Object.keys(ls).forEach(function(k){ if(ls[k]) used[ls[k]] = true; });
     return namedPlayers().filter(function(p){ return !used[p.id]; });
   }
 
@@ -1769,6 +1791,7 @@
           } else {
             delete s.slots[slot];
           }
+          delete s.live;
           save(); renderSeriesList(); renderGameDay();
         });
       });
@@ -1814,6 +1837,7 @@
       }
       var ser = state.series[s];
       ser.slots = {};
+      delete ser.live;
       var order = slotOrder(FORMS[ser.form]||FORMS[0]);
       for(k=0;k<5;k++){
         ser.slots[order[k]] = named[(s*5+k)%n].id;
@@ -1883,12 +1907,16 @@
         return '<button type="button" data-si="'+i+'" aria-pressed="'+(i===state.current)+'">'+esc(s.label||('Series '+(i+1)))+'</button>';
       }).join('')+'</div>';
 
-    var lineup = '<div class="lineup">'+order.map(function(slot){
-      var pid = cs.slots[slot];
-      var p = pid ? playerById(pid) : null;
-      var nm = p && p.name.trim() ? esc(firstName(p.name)) : null;
-      return '<div class="pos"><span class="pb">'+slot+'</span>'+(nm?'<b>'+nm+'</b>':'<b class="unset">not set</b>')+'</div>';
-    }).join('')+'</div>';
+    var allRoster = namedPlayers();
+    var lineup = '<div class="slots">'+order.map(function(slot){
+      var sel = liveSlots(cs)[slot]||'';
+      return '<div class="slot"><label class="flab"><b>'+slot+'</b> · '+slotHuman(slot)+'</label>'+
+        '<select class="tin gdlineup" data-slot="'+slot+'" aria-label="'+slotHuman(slot)+'">'+
+        '<option value="">—</option>'+
+        allRoster.map(function(p){ return '<option value="'+esc(p.id)+'"'+(p.id===sel?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('')+
+        '</select></div>';
+    }).join('')+'</div>'+
+    (liveDiffers(cs) ? '<button type="button" class="ghostbtn solid" id="gdResetLineup" style="border-color:var(--whistle);color:var(--whistle);margin:2px 0 8px">↺ Reset to series lineup</button>' : '');
 
     var benchHtml = '<div class="benchrow"><span class="blab">Sitting:</span>'+
       (bench.length ? bench.map(function(p){ return '<span class="bchip">'+esc(firstName(p.name))+'</span>'; }).join('') : '<span class="bchip" style="border-color:var(--line)">nobody</span>')+'</div>';
@@ -1898,8 +1926,9 @@
       var ni = (state.current+1)%state.series.length;
       var ns = state.series[ni];
       var cur = {}, nxt = {};
-      Object.keys(cs.slots).forEach(function(k){ if(cs.slots[k]) cur[cs.slots[k]]=true; });
-      Object.keys(ns.slots).forEach(function(k){ if(ns.slots[k]) nxt[ns.slots[k]]=true; });
+      var csLs = liveSlots(cs), nsLs = liveSlots(ns);
+      Object.keys(csLs).forEach(function(k){ if(csLs[k]) cur[csLs[k]]=true; });
+      Object.keys(nsLs).forEach(function(k){ if(nsLs[k]) nxt[nsLs[k]]=true; });
       var coming = Object.keys(nxt).filter(function(id){ return !cur[id]; }).map(function(id){ var p=playerById(id); return p?firstName(p.name):null; }).filter(Boolean);
       var leaving = Object.keys(cur).filter(function(id){ return !nxt[id]; }).map(function(id){ var p=playerById(id); return p?firstName(p.name):null; }).filter(Boolean);
       if(coming.length || leaving.length){
@@ -1911,11 +1940,12 @@
     }
 
     var onField = order.map(function(slot){
-      var p = cs.slots[slot] ? playerById(cs.slots[slot]) : null;
+      var lid = liveSlots(cs)[slot];
+      var p = lid ? playerById(lid) : null;
       return p && p.name.trim() ? firstName(p.name) : null;
     }).filter(Boolean);
     var lineupBox = '<details class="prac" id="lineupBox"'+(boxOpen?' open':'')+'>'+
-      '<summary><div class="num">'+onField.length+'</div><div class="ptitle"><b>'+esc(cs.label||'Series')+' — on the field</b>'+
+      '<summary><div class="num">'+onField.length+'</div><div class="ptitle"><b>'+esc(cs.label||'Series')+' — on the field'+(liveDiffers(cs)?' · subbed':'')+'</b>'+
       '<span>'+(onField.length?esc(onField.join(', ')):'nobody assigned yet')+'</span></div><div class="chev">▼</div></summary>'+
       '<div class="pbody">'+
       '<div class="field" id="gdLineup" style="touch-action:none;margin-top:12px">'+formationSvg(lf, namesForForm(cs, cs.form))+'</div>'+
@@ -2032,6 +2062,27 @@
         save(); renderGameDay();
       });
     });
+    gd.querySelectorAll('.gdlineup').forEach(function(sel){
+      sel.addEventListener('change', function(){
+        var lv = ensureLive(cs);
+        var slot = sel.dataset.slot, pid = sel.value;
+        if(pid){
+          Object.keys(lv).forEach(function(k){ if(k!==slot && lv[k]===pid) delete lv[k]; });
+          lv[slot] = pid;
+        } else {
+          delete lv[slot];
+        }
+        if(!liveDiffers(cs)) delete cs.live;
+        save(); renderGameDay(); renderSeriesList();
+      });
+    });
+    var rlb = document.getElementById('gdResetLineup');
+    if(rlb){
+      rlb.addEventListener('click', function(){
+        delete cs.live;
+        save(); renderGameDay(); renderSeriesList();
+      });
+    }
     var dfb = document.getElementById('gdDefFlip');
     if(dfb){
       dfb.addEventListener('click', function(){
@@ -2095,7 +2146,7 @@
       host.addEventListener('pointerdown', function(ev){
         var p = evPos(ev);
         var s = slotAt(p[0], p[1]);
-        if(!s || !cs.slots[s]) return;
+        if(!s || !liveSlots(cs)[s]) return;
         drag = s;
         try{ host.setPointerCapture(ev.pointerId); }catch(e){}
         ghost = document.createElementNS(NS,'g');
@@ -2135,9 +2186,11 @@
         var from = drag;
         cleanup();
         if(t && t !== from){
-          var tmp = cs.slots[t];
-          if(cs.slots[from]) cs.slots[t] = cs.slots[from]; else delete cs.slots[t];
-          if(tmp) cs.slots[from] = tmp; else delete cs.slots[from];
+          var lv = ensureLive(cs);
+          var tmp = lv[t];
+          if(lv[from]) lv[t] = lv[from]; else delete lv[t];
+          if(tmp) lv[from] = tmp; else delete lv[from];
+          if(!liveDiffers(cs)) delete cs.live;
           save(); renderGameDay(); renderSeriesList();
         }
       });
