@@ -310,6 +310,8 @@
     <p id="saveStatus"></p>
     <div class="btns" style="margin:0">
       <button type="button" id="copyCode">Copy team code</button>
+      <button type="button" id="copyOffCode">Copy playbook code</button>
+      <button type="button" id="copyDefCode">Copy defense code</button>
       <button type="button" id="shareCode" hidden>Share…</button>
     </div>
     <textarea class="tin" id="codeOut" rows="3" hidden readonly
@@ -651,19 +653,103 @@
   var saveT = null;
   function save(){ clearTimeout(saveT); saveT = setTimeout(saveNow, 300); }
 
-  function encodeState(){
-    var b = btoa(unescape(encodeURIComponent(JSON.stringify(state))));
-    return 'FF1.'+b.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  function b64urlEncode(obj){
+    var b = btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+    return b.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  function b64urlDecode(txt){
+    txt = txt.replace(/-/g,'+').replace(/_/g,'/');
+    while(txt.length%4){ txt += '='; }
+    return JSON.parse(decodeURIComponent(escape(atob(txt))));
+  }
+  function encodeState(){ return 'FF1.'+b64urlEncode(state); }
+  function encodeOffCode(){
+    return 'FFO1.'+b64urlEncode({v:2, part:'off',
+      kept:state.kept, alias:state.alias, flip:state.flip,
+      custom:state.custom, customForms:state.customForms});
+  }
+  function encodeDefCode(){
+    return 'FFD1.'+b64urlEncode({v:2, part:'def',
+      customDefs:state.customDefs, keptDefs:state.keptDefs});
   }
   function decodeCode(txt){
     txt = String(txt||'').replace(/\s+/g,'');
     if(!txt) return null;
     var m = txt.match(/#d=([^&#]+)/);
     if(m){ try{ return JSON.parse(decodeURIComponent(m[1])); }catch(e){ return null; } }
-    if(txt.indexOf('FF1.')===0) txt = txt.slice(4);
-    txt = txt.replace(/-/g,'+').replace(/_/g,'/');
-    while(txt.length%4){ txt += '='; }
-    try{ return JSON.parse(decodeURIComponent(escape(atob(txt)))); }catch(e){ return null; }
+    if(txt.indexOf('FFO1.')===0){ txt = txt.slice(5); }
+    else if(txt.indexOf('FFD1.')===0){ txt = txt.slice(5); }
+    else if(txt.indexOf('FF1.')===0){ txt = txt.slice(4); }
+    try{ return b64urlDecode(txt); }catch(e){ return null; }
+  }
+
+  /* merge a playbook (offense) code from another coach into this device */
+  function mergeOffense(o){
+    var stockN = STOCK_FORMS.length;
+    var nameMap = {}, idxMap = {};
+    var existingNames = FORMS.map(function(f){ return f.name.toLowerCase(); });
+    (o.customForms||[]).forEach(function(cf, k){
+      var nm = cf.name, base = nm, j = 2;
+      while(existingNames.indexOf(nm.toLowerCase()) > -1){ nm = base+' '+j; j++; }
+      existingNames.push(nm.toLowerCase());
+      if(nm !== cf.name) nameMap[cf.name] = nm;
+      state.seq++;
+      state.customForms.push({id:'f'+state.seq, name:nm, spots:cf.spots});
+      idxMap[stockN+k] = stockN + state.customForms.length - 1;
+    });
+    rebuildForms();
+    var keyMap = {}, plays = 0;
+    (o.custom||[]).forEach(function(cp){
+      var fi = cp.form;
+      if(fi >= stockN){
+        fi = idxMap[fi];
+        if(fi == null) return;
+      }
+      var f = FORMS[fi];
+      if(!f) return;
+      var pn = cp.n, base = pn, j = 2;
+      var taken = playsOf(f).map(function(p){ return p.n.toLowerCase(); });
+      while(taken.indexOf(pn.toLowerCase()) > -1){ pn = base+' '+j; j++; }
+      state.seq++;
+      state.custom.push({id:'c'+state.seq, form:fi, n:pn, t:cp.t, d:cp.d, routes:cp.routes});
+      plays++;
+      var oldFName = (cp.form >= stockN && o.customForms && o.customForms[cp.form-stockN])
+        ? o.customForms[cp.form-stockN].name
+        : (STOCK_FORMS[cp.form] ? STOCK_FORMS[cp.form].name : f.name);
+      keyMap[oldFName+':'+cp.n] = f.name+':'+pn;
+    });
+    ['kept','alias','flip'].forEach(function(key){
+      Object.keys(o[key]||{}).forEach(function(k){
+        if(!o[key][k]) return;
+        var nk = keyMap[k];
+        if(!nk){
+          var parts = k.split(':');
+          var fn = nameMap[parts[0]] || parts[0];
+          nk = fn+':'+parts.slice(1).join(':');
+        }
+        state[key][nk] = o[key][k];
+      });
+    });
+    return {forms:(o.customForms||[]).length, plays:plays, kept:Object.keys(o.kept||{}).length};
+  }
+  /* merge a defense code from another coach into this device */
+  function mergeDefense(o){
+    var existing = allDefs().map(function(d){ return d.name.toLowerCase(); });
+    var count = 0;
+    (o.customDefs||[]).forEach(function(cd){
+      var nm = cd.name, base = nm, j = 2;
+      while(existing.indexOf(nm.toLowerCase()) > -1){ nm = base+' '+j; j++; }
+      existing.push(nm.toLowerCase());
+      state.seq++;
+      var nid = 'd'+state.seq;
+      state.customDefs.push({id:nid, name:nm, pos:cd.pos, roles:cd.roles, sizes:cd.sizes, moves:cd.moves});
+      if(o.keptDefs && o.keptDefs[cd.id]){
+        if(!state.keptDefs) state.keptDefs = {};
+        state.keptDefs[nid] = true;
+      }
+      count++;
+    });
+    return {defs:count};
   }
 
   function mergeLoaded(loaded){
@@ -2770,29 +2856,31 @@
     codeMsgEl.style.color = ok ? 'var(--whistle)' : '';
   }
   function renderSaveCard(){
-    document.getElementById('saveStatus').innerHTML = canPersist
-      ? 'This device auto-saves your setup. The team code is your backup — one paste-able string holding the whole roster and every series.'
-      : '<b style="color:var(--flag)">Heads up: this view can\'t auto-save between visits.</b> After you make changes, copy your team code and keep it in Notes or a text to yourself — paste it back in next time and everything returns.';
+    document.getElementById('saveStatus').innerHTML = (canPersist
+      ? 'This device auto-saves your setup. The team code is the full backup — roster, series, everything; loading one replaces this device\'s setup.'
+      : '<b style="color:var(--flag)">Heads up: this view can\'t auto-save between visits.</b> After you make changes, copy your team code and keep it in Notes or a text to yourself — paste it back in next time and everything returns.')+
+      ' The <b>playbook</b> and <b>defense</b> codes carry just that side of the ball and <b>merge</b> when loaded — so one coach can build the offense, another the defense, and paste each other\'s codes without losing their own work.';
     if(navigator.share){ document.getElementById('shareCode').hidden = false; }
   }
-  document.getElementById('copyCode').addEventListener('click', function(){
+  function doCopy(code, label){
     saveNow();
-    var code = encodeState();
     var out = document.getElementById('codeOut');
     out.hidden = false; out.value = code;
+    var okMsg = label+' copied — keep it in Notes or text it to the other coach.';
     var fallback = function(){
       try{
         out.focus(); out.select();
-        if(document.execCommand('copy')){ codeMsg('Copied — keep it in Notes or text it to yourself.', true); return; }
+        if(document.execCommand('copy')){ codeMsg(okMsg, true); return; }
       }catch(e){}
       codeMsg('Long-press the code above and copy it.', false);
     };
     if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(code).then(function(){
-        codeMsg('Copied — keep it in Notes or text it to yourself.', true);
-      }, fallback);
+      navigator.clipboard.writeText(code).then(function(){ codeMsg(okMsg, true); }, fallback);
     } else { fallback(); }
-  });
+  }
+  document.getElementById('copyCode').addEventListener('click', function(){ doCopy(encodeState(), 'Team code'); });
+  document.getElementById('copyOffCode').addEventListener('click', function(){ doCopy(encodeOffCode(), 'Playbook code'); });
+  document.getElementById('copyDefCode').addEventListener('click', function(){ doCopy(encodeDefCode(), 'Defense code'); });
   document.getElementById('shareCode').addEventListener('click', function(){
     saveNow();
     try{ navigator.share({title:'Coach Card team code', text: encodeState()}); }catch(e){}
@@ -2803,12 +2891,26 @@
       codeMsg('That code didn\'t work — make sure you copied the whole thing.', false);
       return;
     }
+    document.getElementById('codeIn').value = '';
+    if(loaded.part === 'off'){
+      var ro = mergeOffense(loaded);
+      saveNow(); rebuildForms();
+      renderKept(); renderMine(); renderMineForm(); renderFmList(); renderGameDay(); renderPlays();
+      codeMsg('Playbook merged ✓ — '+ro.plays+' custom play'+(ro.plays===1?'':'s')+', '+ro.forms+' formation'+(ro.forms===1?'':'s')+', '+ro.kept+' kept.', true);
+      return;
+    }
+    if(loaded.part === 'def'){
+      var rd = mergeDefense(loaded);
+      saveNow();
+      renderDefList(); renderGameDay(); renderSeriesList();
+      codeMsg('Defense merged ✓ — '+rd.defs+' defense'+(rd.defs===1?'':'s')+' added.', true);
+      return;
+    }
     state = defaultState();
     mergeLoaded(loaded);
     saveNow();
     rebuildForms();
     renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMine(); renderMineForm(); renderFmList(); renderDefList(); renderSaveCard();
-    document.getElementById('codeIn').value = '';
     var np = namedPlayers().length;
     codeMsg('Loaded ✓ — '+np+' player'+(np===1?'':'s')+', '+state.series.length+' series.', true);
   });
