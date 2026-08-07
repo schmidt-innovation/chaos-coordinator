@@ -209,6 +209,9 @@
   .pgrid button[aria-pressed="true"] .mini{border-color:rgba(11,33,28,.45);color:var(--deeper)}
   .play{scroll-margin-top:118px}
 
+  .pmodal{position:fixed;inset:0;z-index:60;background:rgba(7,23,20,.94);overflow:auto;padding:14px;display:flex}
+  .pmodal-inner{margin:auto;width:100%;max-width:560px}
+  .pmodal .play{margin:0}
   @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
   @media(min-width:620px){
     body{font-size:17px}
@@ -619,6 +622,8 @@
 </section>
 
 </main>
+
+<div class="pmodal" id="playModal" hidden></div>
 
 <footer>Built for a first season. Fundamentals, fun, and eight kids who want to come back.</footer>
 
@@ -1639,6 +1644,22 @@
     Object.keys(s.live.slots).forEach(function(k){ keys[k] = 1; });
     return Object.keys(keys).some(function(k){ return s.slots[k] !== s.live.slots[k]; });
   }
+  function idsForForm(s, fi){
+    var f = FORMS[fi]||FORMS[0];
+    var base = liveSlots(s);
+    var slots = (fi === s.form) ? base : remapSlots(base, s.form, fi);
+    var ids = {};
+    f.spots.forEach(function(sp){ if(slots[sp[0]]) ids[sp[0]] = slots[sp[0]]; });
+    return ids;
+  }
+  function swapPlayers(s, idA, idB){
+    var lv = ensureLive(s);
+    Object.keys(lv).forEach(function(k){
+      if(lv[k] === idA) lv[k] = idB;
+      else if(lv[k] === idB) lv[k] = idA;
+    });
+    if(!liveDiffers(s)) delete s.live;
+  }
   function onFieldIds(s){
     var ls = liveSlots(s);
     return slotOrder(FORMS[s.form]||FORMS[0]).map(function(k){ return ls[k]; }).filter(Boolean);
@@ -1861,6 +1882,118 @@
   /* ================= game day: execute screen ================= */
   var gd = document.getElementById('gdcontent');
   var gdTab = 'off';
+
+  /* full-screen play modal: big diagram, replay, drag kids to swap spots */
+  var playModal = document.getElementById('playModal');
+  function closePlayModal(){ playModal.hidden = true; playModal.innerHTML = ''; }
+  playModal.addEventListener('click', function(ev){ if(ev.target === playModal) closePlayModal(); });
+  function openPlayModal(cf, play){
+    var cs = state.series[state.current];
+    function renderModal(){
+      var names = namesForForm(cs, cs.callForm);
+      var fl = !!(state.flip && state.flip[cf.name+':'+play.n]);
+      playModal.innerHTML = '<div class="pmodal-inner"><div class="play">'+
+        '<div class="phead"><h3>'+esc(displayName(cf, play))+'</h3>'+
+        '<div class="tag'+(play.t==='run'?' run':'')+'">'+(play.t==='run'?'Run':'Pass')+'</div>'+
+        (fl?'<div class="tag">Flipped ↔</div>':'')+'</div>'+
+        '<div class="field" id="modalField" style="touch-action:none">'+playFieldSvg(cf, play, names)+'</div>'+
+        '<p class="edhint">Drag a player onto a teammate to swap their spots.</p>'+
+        '<div class="btns"><button type="button" id="modalRun">Run it ▶</button>'+
+        '<button type="button" id="modalClose">Close</button></div>'+
+        '</div></div>';
+      var field = document.getElementById('modalField');
+      hideRoutes(playModal);
+      playAnim(field);
+      document.getElementById('modalRun').addEventListener('click', function(){ playAnim(field); });
+      document.getElementById('modalClose').addEventListener('click', closePlayModal);
+
+      /* drag on the play itself */
+      var svgEl = field.querySelector('svg');
+      var NS = 'http://www.w3.org/2000/svg';
+      var drag = null, ghost = null, ring = null;
+      function spotPos(label){
+        for(var i=0;i<cf.spots.length;i++){
+          if(cf.spots[i][0] === label){
+            var p = cf.spots[i][1];
+            return fl ? [300-p[0], p[1]] : p;
+          }
+        }
+        return null;
+      }
+      function evPos(ev){
+        var r = svgEl.getBoundingClientRect();
+        return [(ev.clientX-r.left)/r.width*300, (ev.clientY-r.top)/r.height*230];
+      }
+      function slotAt(x, y){
+        var best = null, bd = 24;
+        cf.spots.forEach(function(sp){
+          var p = spotPos(sp[0]);
+          var d2 = Math.sqrt(Math.pow(p[0]-x,2)+Math.pow(p[1]-y,2));
+          if(d2 < bd){ bd = d2; best = sp[0]; }
+        });
+        return best;
+      }
+      function cleanup(){
+        if(ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+        if(ring && ring.parentNode) ring.parentNode.removeChild(ring);
+        drag = null; ghost = null; ring = null;
+      }
+      field.addEventListener('pointerdown', function(ev){
+        var ids = idsForForm(cs, cs.callForm);
+        var p = evPos(ev);
+        var sl = slotAt(p[0], p[1]);
+        if(!sl || !ids[sl]) return;
+        drag = sl;
+        try{ field.setPointerCapture(ev.pointerId); }catch(e){}
+        ghost = document.createElementNS(NS,'g');
+        ghost.setAttribute('pointer-events','none');
+        ghost.innerHTML = '<circle r="13" fill="rgba(255,201,60,.9)" stroke="#0B211C" stroke-width="1.5"/>'+
+          '<text y="4" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="#0B211C">'+esc(sl)+'</text>';
+        ghost.setAttribute('transform','translate('+p[0]+','+p[1]+')');
+        ring = document.createElementNS(NS,'circle');
+        ring.setAttribute('r','17'); ring.setAttribute('fill','none');
+        ring.setAttribute('stroke','#FFC93C'); ring.setAttribute('stroke-width','2.5');
+        ring.setAttribute('stroke-dasharray','5 4');
+        ring.setAttribute('visibility','hidden');
+        ring.setAttribute('pointer-events','none');
+        svgEl.appendChild(ring);
+        svgEl.appendChild(ghost);
+        ev.preventDefault();
+      });
+      field.addEventListener('pointermove', function(ev){
+        if(!drag || !ghost) return;
+        var ids = idsForForm(cs, cs.callForm);
+        var p = evPos(ev);
+        ghost.setAttribute('transform','translate('+p[0]+','+p[1]+')');
+        var t = slotAt(p[0], p[1]);
+        if(t && t !== drag && ids[t]){
+          var sp = spotPos(t);
+          ring.setAttribute('cx', sp[0]); ring.setAttribute('cy', sp[1]);
+          ring.setAttribute('visibility','visible');
+        } else {
+          ring.setAttribute('visibility','hidden');
+        }
+        ev.preventDefault();
+      });
+      field.addEventListener('pointerup', function(ev){
+        if(!drag) return;
+        var ids = idsForForm(cs, cs.callForm);
+        var p = evPos(ev);
+        var t = slotAt(p[0], p[1]);
+        var from = drag;
+        cleanup();
+        if(t && t !== from && ids[from] && ids[t]){
+          swapPlayers(cs, ids[from], ids[t]);
+          save();
+          renderGameDay(); renderSeriesList();
+          renderModal();
+        }
+      });
+      field.addEventListener('pointercancel', cleanup);
+    }
+    playModal.hidden = false;
+    renderModal();
+  }
 
   function lineupReady(){
     return state.series.some(function(s){ return Object.keys(s.slots).some(function(k){ return s.slots[k]; }); });
@@ -2277,6 +2410,17 @@
     })();
 
     wirePlayCards(gd, function(){ renderGameDay(); }, function(){ renderGameDay(); });
+    /* the board's replay becomes "Run it" and opens the modal */
+    if(gdTab === 'off' && play){
+      var boardBtn = gd.querySelector('#gdplay .replay');
+      if(boardBtn){
+        var nb = boardBtn.cloneNode(false);
+        nb.type = 'button'; nb.className = boardBtn.className; nb.textContent = 'Run it ▶';
+        boardBtn.parentNode.replaceChild(nb, boardBtn);
+        var mCf = cf, mPlay = play;
+        nb.addEventListener('click', function(){ openPlayModal(mCf, mPlay); });
+      }
+    }
     if(opts.scrollToPlay){
       setTimeout(function(){
         var card = document.querySelector('#gdplay .play');
