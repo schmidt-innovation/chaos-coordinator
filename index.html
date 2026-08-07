@@ -286,7 +286,7 @@
 
 <!-- ================= GAME PLAN (SETUP) ================= -->
 <section class="panel" id="gameplan">
-  <p class="lede">Do this before the game: put in your roster, then build each series — who's on the field, what formation, and who plays where. On game day you just tap the series and call plays. Check <b>Save &amp; transfer</b> below to make sure your setup sticks on this device.</p>
+  <p class="lede">Do this before the game: put in your roster, then build each series — who's on the field, who plays where, and who owns each defensive zone. Formations get called on Game day from your kept plays. Check <b>Save &amp; transfer</b> below to make sure your setup sticks on this device.</p>
 
   <div class="card">
     <h3>Roster</h3>
@@ -1409,7 +1409,7 @@
   ];
   function defByKey(k){ for(var i=0;i<DEFS.length;i++){ if(DEFS[i].key===k) return DEFS[i]; } return DEFS[0]; }
   function sDef(s){
-    if(!s.def || !s.def.scheme){ s.def = {scheme:'man', slots:{}}; }
+    if(!s.def || !s.def.scheme){ s.def = {scheme:'zone', slots:{}}; }
     if(!s.def.slots) s.def.slots = {};
     return s.def;
   }
@@ -1481,31 +1481,24 @@
           '</select></div>';
       }).join('');
       var bench = benchOf(s);
-      var d = sDef(s), dm = defByKey(d.scheme);
+      var d = sDef(s);
       var defOpts = onFieldIds(s).map(function(id){ return playerById(id); }).filter(function(p){ return p && p.name.trim(); });
       if(!defOpts.length) defOpts = opts;
-      var dSlotsHtml = dm.slots.length ? '<div class="slots">'+dm.slots.map(function(sl){
+      var zoneSlotsHtml = '<div class="slots">'+defByKey('zone').slots.map(function(sl){
         var sel = d.slots[sl[0]]||'';
         return '<div class="slot"><label class="flab"><b>'+sl[0]+'</b> · '+sl[1]+'</label>'+
           '<select class="tin dpsel" data-slot="'+sl[0]+'" aria-label="'+sl[1]+'">'+
           '<option value="">—</option>'+
           defOpts.map(function(p){ return '<option value="'+esc(p.id)+'"'+(p.id===sel?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('')+
           '</select></div>';
-      }).join('')+'</div>' : '<div class="benchline" style="margin-bottom:12px">'+dm.tip+'</div>';
+      }).join('')+'</div>';
       return '<div class="scard" data-i="'+si+'">'+
         '<div class="shead"><input class="tin slabel" type="text" value="'+esc(s.label)+'" aria-label="Series name">'+
         '<button type="button" class="iconbtn sdel" aria-label="Delete series">✕</button></div>'+
-        '<label class="flab">Formation</label>'+
-        '<select class="tin fsel" aria-label="Formation">'+
-        FORMS.map(function(ff,fi){ return '<option value="'+fi+'"'+(fi===s.form?' selected':'')+'>'+ff.name+' — '+ff.sub+'</option>'; }).join('')+
-        '</select>'+
         '<div class="slots">'+slotsHtml+'</div>'+
         '<div class="benchline">Sitting out: <b>'+(bench.length?bench.map(function(p){return esc(firstName(p.name));}).join(', '):'—')+'</b></div>'+
-        '<label class="flab">Defense &middot; when they have the ball</label>'+
-        '<select class="tin dsel" aria-label="Defense">'+
-        DEFS.map(function(dd){ return '<option value="'+dd.key+'"'+(dd.key===d.scheme?' selected':'')+'>'+dd.name+' — '+dd.sub+'</option>'; }).join('')+
-        '</select>'+
-        dSlotsHtml+
+        '<label class="flab">Defense zones &middot; when they have the ball</label>'+
+        zoneSlotsHtml+
         '<div class="field">'+formationSvg(f, seriesNames(s))+'</div>'+
         '</div>';
     }).join('');
@@ -1514,13 +1507,6 @@
       var si = +card.dataset.i, s = state.series[si];
       card.querySelector('.slabel').addEventListener('input', function(ev){ s.label = ev.target.value; save(); });
       card.querySelector('.slabel').addEventListener('change', function(){ renderGameDay(); });
-      card.querySelector('.fsel').addEventListener('change', function(ev){
-        var nf = +ev.target.value;
-        s.slots = remapSlots(s.slots, s.form, nf);
-        s.form = nf;
-        if(s.callForm != null) s.callForm = nf;
-        save(); renderSeriesList(); renderGameDay();
-      });
       card.querySelectorAll('.psel').forEach(function(sel){
         sel.addEventListener('change', function(){
           var slot = sel.dataset.slot, pid = sel.value;
@@ -1532,12 +1518,6 @@
           }
           save(); renderSeriesList(); renderGameDay();
         });
-      });
-      card.querySelector('.dsel').addEventListener('change', function(ev){
-        var d = sDef(s);
-        d.scheme = ev.target.value;
-        d.slots = {};
-        save(); renderSeriesList(); renderGameDay();
       });
       card.querySelectorAll('.dpsel').forEach(function(sel){
         sel.addEventListener('change', function(){
@@ -1690,7 +1670,7 @@
     var dSummary;
     if(dCur.scheme === 'chaser'){
       var rn = pNameOf(dCur.slots.R);
-      dSummary = rn ? 'Chaser: '+firstName(rn)+' · others one each' : 'Pick your chaser in Game plan';
+      dSummary = rn ? 'Chaser: '+firstName(rn)+' · others one each' : 'Point at a kid in the huddle — they\'re the chaser';
     } else if(dCur.scheme === 'zone'){
       var zc = defByKey('zone').slots.filter(function(sl){ return dCur.slots[sl[0]]; }).length;
       dSummary = zc+' of 5 boxes assigned';
@@ -1780,7 +1760,7 @@
     gd.querySelectorAll('#defpicker button').forEach(function(b){
       b.addEventListener('click', function(){
         var d = sDef(cs);
-        if(d.scheme !== b.dataset.dk){ d.scheme = b.dataset.dk; d.slots = {}; }
+        d.scheme = b.dataset.dk;
         save(); renderGameDay();
         var box = document.getElementById('defBox');
         if(box) box.open = true;
