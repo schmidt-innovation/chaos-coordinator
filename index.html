@@ -110,8 +110,8 @@
   .play > p{font-size:13.5px;color:var(--paper-dim);margin:6px 0 12px}
   .field{background:linear-gradient(180deg,#0E2E28,#0A241F);border:1px solid var(--line);border-radius:10px;overflow:hidden}
   .field svg{display:block;width:100%;height:auto}
-  .btns{display:flex;gap:8px;margin-top:10px}
-  .btns button{flex:1;background:transparent;border:1px solid var(--line);color:var(--paper);font-family:inherit;
+  .btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .btns button{flex:1 1 28%;background:transparent;border:1px solid var(--line);color:var(--paper);font-family:inherit;
     font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:12px 6px;border-radius:9px;cursor:pointer}
   .btns button:focus-visible{outline:2px solid var(--whistle);outline-offset:2px}
   .btns .keep[aria-pressed="true"]{background:var(--whistle);color:var(--deeper);border-color:var(--whistle)}
@@ -1221,6 +1221,7 @@
         '<button type="button" class="replay">Run it again</button>'+
         '<button type="button" class="flip">Flip ↔</button>'+
         '<button type="button" class="keep" aria-pressed="'+on+'">'+(on?'Kept ✓':'Keep')+'</button>'+
+        (p.custom?'<button type="button" class="pedit">Edit</button>':'')+
         (p.custom?'<button type="button" class="pdel" style="color:var(--flag);border-color:var(--flag)">Delete</button>':'')+
       '</div></div>';
   }
@@ -1240,6 +1241,11 @@
         card.classList.toggle('kept', !!state.kept[id]);
         save();
         if(afterKeep) afterKeep();
+      });
+    });
+    container.querySelectorAll('.pedit').forEach(function(b){
+      b.addEventListener('click', function(){
+        editCustomPlay(b.closest('.play').dataset.cid);
       });
     });
     container.querySelectorAll('.pdel').forEach(function(b){
@@ -2009,15 +2015,31 @@
     edHost.hidden = true;
     edHost.innerHTML = '';
   }
-  function openEditor(){
-    var fi = +document.getElementById('mineForm').value || 0;
+  function editCustomPlay(cid){
+    showTab('playbook');
+    showPbTab('mine');
+    openEditor(cid);
+  }
+  function openEditor(editCid){
+    var c = null;
+    if(editCid){
+      c = (state.custom||[]).filter(function(x){ return x.id === editCid; })[0] || null;
+    }
+    var fi = c ? c.form : (+document.getElementById('mineForm').value || 0);
     var f = FORMS[fi];
-    var firstSlot = slotOrder(f).filter(function(l){ return l!=='QB'; })[0];
-    edState = {form:fi, t:'pass', routes:[], active:firstSlot};
+    var firstSlot = c && c.routes.length ? c.routes[0].slot
+      : slotOrder(f).filter(function(l){ return l!=='QB'; })[0];
+    edState = {
+      form: fi,
+      t: c ? c.t : 'pass',
+      routes: c ? JSON.parse(JSON.stringify(c.routes)) : [],
+      active: firstSlot,
+      editing: c ? c.id : null
+    };
     edHost.hidden = false;
     edHost.innerHTML =
       '<div class="card" id="editorCard" style="border-color:var(--whistle)">'+
-      '<h3>New play — '+esc(f.name)+'</h3>'+
+      '<h3>'+(c?'Edit play':'New play')+' — '+esc(f.name)+'</h3>'+
       '<p class="edhint">Tap a player, then tap the field to draw their route point by point. The order you draw pass routes is the quarterback\'s read order.</p>'+
       '<div class="edrow"><input class="tin" id="edName" type="text" autocomplete="off" placeholder="Play name (what the kids will yell)">'+
       '<select class="tin" id="edType" style="flex:0 0 92px"><option value="pass">Pass</option><option value="run">Run</option></select></div>'+
@@ -2027,7 +2049,7 @@
       '<button type="button" id="edClear">Clear route</button>'+
       '<button type="button" id="edCarry" hidden></button></div>'+
       '<input class="tin" id="edDesc" type="text" autocomplete="off" placeholder="One-line description (optional)" style="margin-top:10px">'+
-      '<div class="btns"><button type="button" id="edSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">Save play</button>'+
+      '<div class="btns"><button type="button" id="edSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(c?'Save changes':'Save play')+'</button>'+
       '<button type="button" id="edCancel">Cancel</button></div>'+
       '<p class="hintline" id="edMsg" hidden></p>'+
       '</div>';
@@ -2093,19 +2115,43 @@
       if(edState.t === 'pass'){ routes.forEach(function(rt){ delete rt.carry; }); }
       var f3 = FORMS[edState.form];
       var name = (document.getElementById('edName').value || '').trim() || 'Custom';
-      var taken = playsOf(f3).map(function(p){ return p.n.toLowerCase(); });
+      var taken = playsOf(f3).filter(function(p){ return !(p.custom && p.cid === edState.editing); })
+        .map(function(p){ return p.n.toLowerCase(); });
       var base = name, k = 2;
       while(taken.indexOf(name.toLowerCase()) > -1){ name = base+' '+k; k++; }
-      state.seq++;
-      state.custom.push({
-        id:'c'+state.seq, form:edState.form, n:name, t:edState.t,
-        d:(document.getElementById('edDesc').value || '').trim(),
-        routes:routes
-      });
+      var desc = (document.getElementById('edDesc').value || '').trim();
+      if(edState.editing){
+        var cur = (state.custom||[]).filter(function(x){ return x.id === edState.editing; })[0];
+        if(cur){
+          if(cur.n !== name){
+            var oldId = f3.name+':'+cur.n, newId = f3.name+':'+name;
+            ['kept','alias','flip'].forEach(function(key){
+              if(state[key] && state[key][oldId] !== undefined){
+                state[key][newId] = state[key][oldId];
+                delete state[key][oldId];
+              }
+            });
+            state.series.forEach(function(s){ if(s.callPlay === cur.n) s.callPlay = name; });
+          }
+          cur.n = name; cur.t = edState.t; cur.d = desc; cur.routes = routes;
+        }
+      } else {
+        state.seq++;
+        state.custom.push({
+          id:'c'+state.seq, form:edState.form, n:name, t:edState.t,
+          d:desc, routes:routes
+        });
+      }
       save();
       closeEditor();
-      renderMine(); renderGameDay();
+      renderMine(); renderKept(); renderGameDay();
     });
+    if(c){
+      document.getElementById('edName').value = c.n;
+      document.getElementById('edDesc').value = c.d || '';
+      document.getElementById('edType').value = c.t;
+      document.getElementById('mineForm').value = fi;
+    }
     refreshEd();
     edHost.scrollIntoView({behavior: REDUCE?'auto':'smooth', block:'start'});
   }
@@ -2113,7 +2159,7 @@
     var m = document.getElementById('edMsg');
     if(m){ m.hidden = false; m.textContent = t; setTimeout(function(){ m.hidden = true; }, 3500); }
   }
-  document.getElementById('newPlay').addEventListener('click', openEditor);
+  document.getElementById('newPlay').addEventListener('click', function(){ openEditor(null); });
 
   /* ================= defense diagrams ================= */
   function offBase(){
