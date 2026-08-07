@@ -633,7 +633,7 @@
     for(i=0;i<8;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, custom:[], customForms:[], customDefs:[], keptDefs:{}, seq:9};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:9};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -670,7 +670,7 @@
   }
   function encodeDefCode(){
     return 'FFD1.'+b64urlEncode({v:2, part:'def',
-      customDefs:state.customDefs, keptDefs:state.keptDefs});
+      customDefs:state.customDefs, keptDefs:state.keptDefs, defFlip:state.defFlip});
   }
   function decodeCode(txt){
     txt = String(txt||'').replace(/\s+/g,'');
@@ -747,6 +747,10 @@
         if(!state.keptDefs) state.keptDefs = {};
         state.keptDefs[nid] = true;
       }
+      if(o.defFlip && o.defFlip[cd.id]){
+        if(!state.defFlip) state.defFlip = {};
+        state.defFlip[nid] = true;
+      }
       count++;
     });
     return {defs:count};
@@ -764,6 +768,7 @@
     if(Array.isArray(loaded.customForms)) state.customForms = loaded.customForms;
     if(Array.isArray(loaded.customDefs)) state.customDefs = loaded.customDefs;
     if(loaded.keptDefs) state.keptDefs = loaded.keptDefs;
+    if(loaded.defFlip) state.defFlip = loaded.defFlip;
     if(loaded.seq) state.seq = loaded.seq;
     if(state.current >= state.series.length) state.current = 0;
     return true;
@@ -1594,7 +1599,8 @@
     var dm = defByKey(d.scheme);
     if(dm.custom){
       var m = {};
-      dm.pos.forEach(function(p,i){ m['D'+(i+1)] = p; });
+      var fl = !!(state.defFlip && state.defFlip[d.scheme]);
+      dm.pos.forEach(function(p,i){ m['D'+(i+1)] = fl ? [300-p[0], p[1]] : p; });
       return m;
     }
     return null;
@@ -1645,15 +1651,21 @@
     var dm = defByKey(d.scheme);
     var inner = '';
     if(dm.custom){
-      inner += defRoleGlyphsAll(dm.pos, dm.roles, dm.sizes, dm.moves);
+      var dFlip = !!(state.defFlip && state.defFlip[d.scheme]);
+      var pos2 = dFlip ? dm.pos.map(function(p){ return [300-p[0], p[1]]; }) : dm.pos;
+      var moves2 = dm.moves ? dm.moves.map(function(mv){
+        if(!mv || !mv.length) return null;
+        return dFlip ? mv.map(function(q){ return [300-q[0], q[1]]; }) : mv;
+      }) : null;
+      inner += defRoleGlyphsAll(pos2, dm.roles, dm.sizes, moves2);
       inner += oppBase();
       var used = {};
-      dm.pos.forEach(function(p,i){
+      pos2.forEach(function(p,i){
         var v = d.slots['D'+(i+1)];
         if(v) used[v] = true;
       });
       var free = onFieldIds(s).filter(function(id){ return !used[id]; });
-      dm.pos.forEach(function(p,i){
+      pos2.forEach(function(p,i){
         var key = 'D'+(i+1);
         if(!d.slots[key] && free.length){ d.slots[key] = free.shift(); }
         inner += dot(p, String(i+1), 'd', pNameOf(d.slots[key]));
@@ -1930,11 +1942,14 @@
       '<div class="picker" id="defpicker" role="group" aria-label="Defense call">'+
       gameDayDefList().map(function(dd){
         var kd = dd.custom && state.keptDefs && state.keptDefs[dd.key];
-        return '<button type="button" data-dk="'+esc(dd.key)+'" aria-pressed="'+(dd.key===dCur.scheme)+'">'+(kd?'★ ':'')+esc(dd.name)+'</button>';
+        var fl = dd.custom && state.defFlip && state.defFlip[dd.key];
+        return '<button type="button" data-dk="'+esc(dd.key)+'" aria-pressed="'+(dd.key===dCur.scheme)+'">'+(kd?'★ ':'')+esc(dd.name)+(fl?' ↔':'')+'</button>';
       }).join('')+
       '</div>'+
       defField+
       (schemePosMap(dCur) ? '<p class="edhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
+      (dMeta.custom ? '<div class="btns" style="margin:8px 0 0"><button type="button" id="gdDefFlip">Flip ↔'+
+        (state.defFlip && state.defFlip[dCur.scheme] ? ' ✓' : '')+'</button></div>' : '')+
       dSlotsUi+
       '<p style="font-size:12.5px;color:var(--paper-dim);margin:10px 0 0">'+dMeta.tip+'</p>';
 
@@ -2017,6 +2032,16 @@
         save(); renderGameDay();
       });
     });
+    var dfb = document.getElementById('gdDefFlip');
+    if(dfb){
+      dfb.addEventListener('click', function(){
+        if(!state.defFlip) state.defFlip = {};
+        var k = sDef(cs).scheme;
+        state.defFlip[k] = !state.defFlip[k];
+        if(!state.defFlip[k]) delete state.defFlip[k];
+        save(); renderGameDay();
+      });
+    }
     gd.querySelectorAll('.gdps').forEach(function(sel){
       sel.addEventListener('change', function(){
         var d = sDef(cs), slot = sel.dataset.slot, pid = sel.value;
@@ -2734,6 +2759,7 @@
   function deleteDef(did){
     state.customDefs = (state.customDefs||[]).filter(function(c){ return c.id !== did; });
     if(state.keptDefs) delete state.keptDefs[did];
+    if(state.defFlip) delete state.defFlip[did];
     state.series.forEach(function(s){
       var d = sDef(s);
       if(d.scheme === did){ d.scheme = 'zone'; }
