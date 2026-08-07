@@ -336,19 +336,33 @@
 
 <!-- ================= PLAYBOOK ================= -->
 <section class="panel" id="playbook">
-  <p class="lede">Seven formations, 100 plays. Pick a formation, tap <b>Keep</b> on anything you like — kept plays show up first on Game day. Every run is a handoff or a pitch — the quarterback never carries it.</p>
+  <p class="lede"><b>★ Kept</b> is your game plan — those plays lead on Game day. Draw your own in <b>Custom</b>, or browse the hundred stock plays and keep what fits your kids. Every run is a handoff or a pitch — the quarterback never carries it.</p>
 
+  <div class="picker" id="pbTabs" role="group" aria-label="Playbook sections">
+    <button type="button" data-pt="kept" aria-pressed="true">★ Kept</button>
+    <button type="button" data-pt="mine" aria-pressed="false">✏ Custom</button>
+    <button type="button" data-pt="stock" aria-pressed="false">Stock</button>
+  </div>
+
+  <div id="pbKept"></div>
+
+  <div id="pbMine" hidden>
+    <div class="edrow" style="margin:0 0 14px">
+      <select class="tin" id="mineForm" aria-label="Formation for the new play"></select>
+      <button type="button" class="ghostbtn solid gold" id="newPlay" style="margin:0;width:auto;flex:0 0 auto;padding:13px 16px">✏ Draw a play</button>
+    </div>
+    <div id="edHost" hidden></div>
+    <div id="mineList"></div>
+  </div>
+
+  <div id="pbStock" hidden>
   <div class="picker" id="picker" role="group" aria-label="Formations"></div>
   <div id="fcard"></div>
-
-  <button type="button" class="ghostbtn solid gold" id="newPlay" style="margin:0 0 14px">✏ Draw a custom play in this formation</button>
-  <div id="edHost" hidden></div>
 
   <div class="filters" role="group" aria-label="Filter plays">
     <button data-f="all" aria-pressed="true">All</button>
     <button data-f="pass" aria-pressed="false">Pass</button>
     <button data-f="run" aria-pressed="false">Run</button>
-    <button data-f="kept" aria-pressed="false">Kept</button>
     <span class="count" id="count">Shortlist: 0</span>
   </div>
 
@@ -371,6 +385,7 @@
   <div class="card">
     <h3>How many should you actually keep?</h3>
     <p>Fifty plays is a menu, not a game plan. For a first season with first-graders, four to six total is the real number — two runs, two throws, and maybe one trick play they get excited about. One formation for everything is completely fine and probably better.</p>
+  </div>
   </div>
 </section>
 
@@ -1535,7 +1550,7 @@
   armButton(document.getElementById('resetAll'), function(){
     state = defaultState();
     saveNow();
-    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation();
+    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMine();
   });
 
   /* ================= game day: execute screen ================= */
@@ -1823,12 +1838,78 @@
     }
   }
 
-  /* ================= playbook (browse + keep) ================= */
+  /* ================= playbook (kept / custom / stock) ================= */
   var active = 0, filter = 'all';
   var picker = document.getElementById('picker');
   var fcard  = document.getElementById('fcard');
   var list   = document.getElementById('plays');
   var countEl= document.getElementById('count');
+
+  var PB_PANES = {kept:'pbKept', mine:'pbMine', stock:'pbStock'};
+  function showPbTab(t){
+    document.querySelectorAll('#pbTabs button').forEach(function(b){
+      b.setAttribute('aria-pressed', b.dataset.pt===t ? 'true':'false');
+    });
+    Object.keys(PB_PANES).forEach(function(k){
+      document.getElementById(PB_PANES[k]).hidden = (k !== t);
+    });
+    if(t==='kept') renderKept();
+    if(t==='mine') renderMine();
+    setTimeout(drawVisible, 140);
+  }
+  document.querySelectorAll('#pbTabs button').forEach(function(b){
+    b.addEventListener('click', function(){ showPbTab(b.dataset.pt); });
+  });
+
+  function renderKept(){
+    var host = document.getElementById('pbKept');
+    var html = '', total = 0;
+    FORMS.forEach(function(f){
+      var items = playsOf(f).filter(function(p){ return state.kept[f.name+':'+p.n]; });
+      if(!items.length) return;
+      total += items.length;
+      html += '<h3 class="callhead">'+f.name+' · '+esc(f.sub)+'</h3>'+
+        items.map(function(p){ return playCardHtml(f, p, null); }).join('');
+    });
+    if(total){
+      host.innerHTML = '<div class="benchline" style="margin:0 0 4px">'+total+' play'+(total===1?'':'s')+' in the game plan.</div>'+html;
+    } else {
+      host.innerHTML = '<div class="card"><h3>No plays kept yet</h3>'+
+        '<p>Browse the Stock tab, pick a formation, and tap <b>Keep</b> on four to six plays — that\'s a first-season game plan. Kept plays land here and lead on Game day.</p>'+
+        '<button type="button" class="ghostbtn solid gold" id="goStock">Browse the stock playbook →</button></div>';
+      document.getElementById('goStock').addEventListener('click', function(){ showPbTab('stock'); });
+    }
+    wirePlayCards(host,
+      function(){ renderKept(); updateCount(); renderGameDay(); },
+      function(){ renderKept(); renderGameDay(); });
+  }
+
+  function renderMine(){
+    var host = document.getElementById('mineList');
+    var html = '', total = 0;
+    FORMS.forEach(function(f){
+      var items = customPlays(f.idx);
+      if(!items.length) return;
+      total += items.length;
+      html += '<h3 class="callhead">'+f.name+' · '+esc(f.sub)+'</h3>'+
+        items.map(function(p){ return playCardHtml(f, p, null); }).join('');
+    });
+    host.innerHTML = total ? html :
+      '<div class="empty">No custom plays yet. Pick a formation above and draw your first — it\'ll work everywhere the stock plays do.</div>';
+    wirePlayCards(host,
+      function(){ renderMine(); updateCount(); renderGameDay(); },
+      function(){ renderMine(); renderGameDay(); });
+  }
+
+  function updateCount(){ countEl.textContent = 'Shortlist: '+keptCount(); }
+
+  var mineFormSel = document.getElementById('mineForm');
+  FORMS.forEach(function(f,i){
+    var o = document.createElement('option');
+    o.value = i; o.textContent = f.name+' — '+f.sub;
+    mineFormSel.appendChild(o);
+  });
+  mineFormSel.addEventListener('change', closeEditor);
 
   FORMS.forEach(function(f,i){
     var b = document.createElement('button');
@@ -1854,18 +1935,13 @@
 
   function renderPlays(){
     var f = FORMS[active];
-    var items = playsOf(f).filter(function(p){
+    var items = f.plays.filter(function(p){
       if(filter==='all') return true;
-      if(filter==='kept') return state.kept[f.name+':'+p.n];
       return p.t===filter;
     });
-    if(!items.length){
-      list.innerHTML = '<div class="empty">Nothing kept in this formation yet. Tap Keep on a play to shortlist it.</div>';
-    } else {
-      list.innerHTML = items.map(function(p){ return playCardHtml(f,p,null); }).join('');
-    }
-    wirePlayCards(list, function(){ countEl.textContent = 'Shortlist: '+keptCount(); }, function(){ renderPlays(); });
-    countEl.textContent = 'Shortlist: '+keptCount();
+    list.innerHTML = items.map(function(p){ return playCardHtml(f,p,null); }).join('');
+    wirePlayCards(list, function(){ updateCount(); renderGameDay(); }, function(){ renderPlays(); renderGameDay(); });
+    updateCount();
   }
 
   document.querySelectorAll('#playbook .filters button').forEach(function(b){
@@ -1934,9 +2010,10 @@
     edHost.innerHTML = '';
   }
   function openEditor(){
-    var f = FORMS[active];
+    var fi = +document.getElementById('mineForm').value || 0;
+    var f = FORMS[fi];
     var firstSlot = slotOrder(f).filter(function(l){ return l!=='QB'; })[0];
-    edState = {form:active, t:'pass', routes:[], active:firstSlot};
+    edState = {form:fi, t:'pass', routes:[], active:firstSlot};
     edHost.hidden = false;
     edHost.innerHTML =
       '<div class="card" id="editorCard" style="border-color:var(--whistle)">'+
@@ -2027,7 +2104,7 @@
       });
       save();
       closeEditor();
-      renderPlays(); renderGameDay();
+      renderMine(); renderGameDay();
     });
     refreshEd();
     edHost.scrollIntoView({behavior: REDUCE?'auto':'smooth', block:'start'});
@@ -2108,7 +2185,7 @@
     state = defaultState();
     mergeLoaded(loaded);
     saveNow();
-    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderSaveCard();
+    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMine(); renderSaveCard();
     document.getElementById('codeIn').value = '';
     var np = namedPlayers().length;
     codeMsg('Loaded ✓ — '+np+' player'+(np===1?'':'s')+', '+state.series.length+' series.', true);
@@ -2126,6 +2203,8 @@
   renderSeriesList();
   renderGameDay();
   renderFormation();
+  renderKept();
+  renderMine();
   if(!lineupReady()){ showTab('gameplan'); } else { setTimeout(drawVisible,140); }
 })();
 </script>
