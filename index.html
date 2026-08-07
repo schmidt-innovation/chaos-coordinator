@@ -631,7 +631,7 @@
     for(i=0;i<8;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, custom:[], customForms:[], customDefs:[], seq:9};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, custom:[], customForms:[], customDefs:[], keptDefs:{}, seq:9};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -677,6 +677,7 @@
     if(Array.isArray(loaded.custom)) state.custom = loaded.custom;
     if(Array.isArray(loaded.customForms)) state.customForms = loaded.customForms;
     if(Array.isArray(loaded.customDefs)) state.customDefs = loaded.customDefs;
+    if(loaded.keptDefs) state.keptDefs = loaded.keptDefs;
     if(loaded.seq) state.seq = loaded.seq;
     if(state.current >= state.series.length) state.current = 0;
     return true;
@@ -1414,8 +1415,15 @@
   var DEFS = [
     {key:'man',    name:'One each',   sub:'Man coverage', tip:'Point at your kid. Say their name. Stay closer than arm\'s length.', slots:[]},
     {key:'zone',   name:'Zone boxes', sub:'Territory',    tip:'Own your box, never leave it. Three short, two deep.', slots:[['SL','Short left'],['SM','Short middle'],['SR','Short right'],['DL','Deep left'],['DR','Deep right']]},
-    {key:'chaser', name:'The chaser', sub:'Rush + man',   tip:'The chaser rushes with hands up. Everyone else plays one each.', slots:[['R','The chaser']]}
+    {key:'zone41', name:'Zone 4-1',   sub:'Four across · one deep', tip:'Four defenders each own a lane across the field. The safety owns everything deep behind them.', slots:[['L','Left lane'],['ML','Middle left'],['MR','Middle right'],['R','Right lane'],['S','Deep safety']]}
   ];
+  var ZONE41_POS = {L:[39,112], ML:[114,112], MR:[189,112], R:[262,112], S:[150,172]};
+  function defaultSchemeKey(){
+    var kd = ((state && state.customDefs) || []).filter(function(cd){
+      return state.keptDefs && state.keptDefs[cd.id];
+    });
+    return kd.length ? kd[0].id : 'zone';
+  }
   var DEF_ROLE_NAMES = {man:'Man', zone:'Zone', blitz:'Blitz'};
   function cdRoles(cd){
     var r = cd.roles || [];
@@ -1426,26 +1434,63 @@
   function customDefSchemes(){
     return ((state && state.customDefs) || []).map(function(cd){
       var roles = cdRoles(cd);
-      return {key:cd.id, name:cd.name, sub:'Custom', custom:true, pos:cd.pos, roles:roles,
+      return {key:cd.id, name:cd.name, sub:'Custom', custom:true, pos:cd.pos, roles:roles, sizes:cd.sizes||null, moves:cd.moves||null,
         tip:'Your defense — line up exactly like the diagram. Arrows play man, boxes own their zone, the long arrow blitzes.',
         slots:roles.map(function(role,i){ return ['D'+(i+1), 'Spot '+(i+1)+' · '+DEF_ROLE_NAMES[role]]; })};
     });
   }
-  /* what each defender's job looks like on the field */
-  function defRoleGlyph(p, role){
-    if(role === 'blitz'){
-      var sy = p[1]-13;
-      var ex = Math.round(p[0] + (150-p[0])*0.85), ey = 46;
-      if(sy - 14 < ey){ ex = p[0]; ey = Math.max(30, sy-14); }
-      return pathEl([[p[0],sy],[ex,ey]], {color:'#FF5A5F', width:3.2});
+  /* draw every defender's job; zone boxes are resizable and never overlap each other.
+     a movement path shifts the job to where the path ends (drop-back zones, custom rushes) */
+  function defRoleGlyphsAll(pos, roles, sizes, moves){
+    var out = '', rects = [];
+    pos.forEach(function(p,i){
+      var mv = moves && moves[i] && moves[i].length ? moves[i] : null;
+      var base = mv ? mv[mv.length-1] : p;
+      if(mv){
+        out += pathEl([p].concat(mv), {color:'#FF5A5F', width: roles[i]==='blitz'?3.2:2.4, dashed:true, dash:'4 4'});
+      }
+      if(roles[i] === 'zone'){
+        var w = (sizes && sizes[i] && sizes[i][0]) || 88;
+        var h = (sizes && sizes[i] && sizes[i][1]) || 48;
+        rects.push({
+          x0: Math.max(2, base[0]-w/2), x1: Math.min(298, base[0]+w/2),
+          y0: Math.max(76, base[1]-h/2-2), y1: Math.min(204, base[1]+h/2-2),
+          cx: base[0], cy: base[1]
+        });
+      } else if(roles[i] === 'man'){
+        if(!mv){ out += pathEl([[base[0],base[1]-13],[base[0],base[1]-34]], {color:'#FF5A5F'}); }
+      } else if(!mv){
+        var sy = p[1]-13;
+        var ex = Math.round(p[0] + (150-p[0])*0.85), ey = 46;
+        if(sy - 14 < ey){ ex = p[0]; ey = Math.max(30, sy-14); }
+        out += pathEl([[p[0],sy],[ex,ey]], {color:'#FF5A5F', width:3.2});
+      }
+    });
+    for(var pass=0; pass<2; pass++){
+      for(var a=0; a<rects.length; a++){
+        for(var b=a+1; b<rects.length; b++){
+          var r1 = rects[a], r2 = rects[b];
+          var ox = Math.min(r1.x1,r2.x1) - Math.max(r1.x0,r2.x0);
+          var oy = Math.min(r1.y1,r2.y1) - Math.max(r1.y0,r2.y0);
+          if(ox > 2 && oy > 2){
+            if(ox <= oy){
+              var hx = ox/2;
+              if(r1.cx <= r2.cx){ r1.x1 -= hx; r2.x0 += hx; } else { r1.x0 += hx; r2.x1 -= hx; }
+            } else {
+              var hy = oy/2;
+              if(r1.cy <= r2.cy){ r1.y1 -= hy; r2.y0 += hy; } else { r1.y0 += hy; r2.y1 -= hy; }
+            }
+          }
+        }
+      }
     }
-    if(role === 'man'){
-      return pathEl([[p[0],p[1]-13],[p[0],p[1]-34]], {color:'#FF5A5F'});
-    }
-    var x0 = Math.max(2, p[0]-44), x1 = Math.min(298, p[0]+44);
-    var y0 = Math.max(76, p[1]-26), y1 = Math.min(204, p[1]+22);
-    return '<rect x="'+x0+'" y="'+y0+'" width="'+(x1-x0)+'" height="'+(y1-y0)+'" rx="6" '+
-      'fill="rgba(255,90,95,.10)" stroke="rgba(255,90,95,.45)" stroke-width="1" stroke-dasharray="5 4"/>';
+    rects.forEach(function(r){
+      if(r.x1-r.x0 > 8 && r.y1-r.y0 > 8){
+        out += '<rect x="'+r.x0.toFixed(1)+'" y="'+r.y0.toFixed(1)+'" width="'+(r.x1-r.x0).toFixed(1)+'" height="'+(r.y1-r.y0).toFixed(1)+'" rx="6" '+
+          'fill="rgba(255,90,95,.10)" stroke="rgba(255,90,95,.45)" stroke-width="1" stroke-dasharray="5 4"/>';
+      }
+    });
+    return out;
   }
   function allDefs(){ return DEFS.concat(customDefSchemes()); }
   function defByKey(k){
@@ -1455,6 +1500,7 @@
   }
   function schemePosMap(d){
     if(d.scheme === 'zone') return ZONE_POS;
+    if(d.scheme === 'zone41') return ZONE41_POS;
     var dm = defByKey(d.scheme);
     if(dm.custom){
       var m = {};
@@ -1463,9 +1509,19 @@
     }
     return null;
   }
+  /* game day chip order: kept customs, other customs, then stock */
+  function gameDayDefList(){
+    var customs = customDefSchemes();
+    var kept = customs.filter(function(c){ return state.keptDefs && state.keptDefs[c.key]; });
+    var rest = customs.filter(function(c){ return !(state.keptDefs && state.keptDefs[c.key]); });
+    return kept.concat(rest).concat(DEFS);
+  }
   function sDef(s){
-    if(!s.def || !s.def.scheme){ s.def = {scheme:'zone', slots:{}}; }
+    if(!s.def || !s.def.scheme){ s.def = {scheme:defaultSchemeKey(), slots:{}}; }
     if(!s.def.slots) s.def.slots = {};
+    var all = allDefs(), ok = false;
+    for(var i=0;i<all.length;i++){ if(all[i].key === s.def.scheme){ ok = true; break; } }
+    if(!ok){ s.def.scheme = defaultSchemeKey(); }
     return s.def;
   }
   function onFieldIds(s){
@@ -1499,7 +1555,7 @@
     var dm = defByKey(d.scheme);
     var inner = '';
     if(dm.custom){
-      dm.pos.forEach(function(p,i){ inner += defRoleGlyph(p, dm.roles[i]); });
+      inner += defRoleGlyphsAll(dm.pos, dm.roles, dm.sizes, dm.moves);
       inner += oppBase();
       var used = {};
       dm.pos.forEach(function(p,i){
@@ -1512,6 +1568,19 @@
         if(!d.slots[key] && free.length){ d.slots[key] = free.shift(); }
         inner += dot(p, String(i+1), 'd', pNameOf(d.slots[key]));
       });
+    } else if(d.scheme === 'zone41'){
+      inner += '<g fill="rgba(255,90,95,.13)" stroke="rgba(255,90,95,.5)" stroke-width="1" stroke-dasharray="5 4">'+
+        '<rect x="4" y="90" width="70" height="44" rx="6"/><rect x="79" y="90" width="70" height="44" rx="6"/>'+
+        '<rect x="154" y="90" width="70" height="44" rx="6"/><rect x="229" y="90" width="67" height="44" rx="6"/>'+
+        '<rect x="4" y="142" width="292" height="60" rx="6"/></g>';
+      inner += oppBase();
+      var used41 = {};
+      Object.keys(ZONE41_POS).forEach(function(k){ if(d.slots[k]) used41[d.slots[k]] = true; });
+      var free41 = onFieldIds(s).filter(function(id){ return !used41[id]; });
+      Object.keys(ZONE41_POS).forEach(function(k,i){
+        if(!d.slots[k] && free41.length){ d.slots[k] = free41.shift(); }
+        inner += dot(ZONE41_POS[k], String(i+1), 'd', pNameOf(d.slots[k]));
+      });
     } else if(d.scheme === 'zone'){
       inner += '<g fill="rgba(255,90,95,.13)" stroke="rgba(255,90,95,.5)" stroke-width="1" stroke-dasharray="5 4">'+
         '<rect x="4" y="90" width="94" height="44" rx="6"/><rect x="103" y="90" width="94" height="44" rx="6"/>'+
@@ -1521,13 +1590,6 @@
       Object.keys(ZONE_POS).forEach(function(k,i){
         inner += dot(ZONE_POS[k], String(i+1), 'd', pNameOf(d.slots[k]));
       });
-    } else if(d.scheme === 'chaser'){
-      inner += path([[150,164],[150,46]],{color:'#FF5A5F'});
-      inner += oppBase();
-      var others = onFieldIds(s).filter(function(id){ return id !== d.slots.R; }).slice(0,4);
-      var POS = [[48,106],[106,130],[206,106],[262,106]];
-      POS.forEach(function(p,i){ inner += dot(p, String(i+1), 'd', pNameOf(others[i])); });
-      inner += dot([150,170],'R','d', pNameOf(d.slots.R));
     } else {
       inner += path([[48,92],[48,110]],{color:'#FF5A5F'})+path([[150,92],[150,110]],{color:'#FF5A5F'})+
         path([[206,92],[206,110]],{color:'#FF5A5F'})+path([[262,92],[262,110]],{color:'#FF5A5F'});
@@ -1776,7 +1838,10 @@
     }
     var defPane = '<h3 class="callhead">Defense</h3>'+
       '<div class="picker" id="defpicker" role="group" aria-label="Defense call">'+
-      allDefs().map(function(dd){ return '<button type="button" data-dk="'+esc(dd.key)+'" aria-pressed="'+(dd.key===dCur.scheme)+'">'+esc(dd.name)+'</button>'; }).join('')+
+      gameDayDefList().map(function(dd){
+        var kd = dd.custom && state.keptDefs && state.keptDefs[dd.key];
+        return '<button type="button" data-dk="'+esc(dd.key)+'" aria-pressed="'+(dd.key===dCur.scheme)+'">'+(kd?'★ ':'')+esc(dd.name)+'</button>';
+      }).join('')+
       '</div>'+
       defField+
       (schemePosMap(dCur) ? '<p class="edhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
@@ -2508,11 +2573,23 @@
     var host = document.getElementById('dfList');
     var cds = state.customDefs||[];
     host.innerHTML = cds.length ? cds.map(function(cd){
+      var kd = state.keptDefs && state.keptDefs[cd.id];
       return '<div class="rrow" data-did="'+esc(cd.id)+'"><div class="jersey" style="color:var(--flag)">D</div>'+
         '<b style="flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(cd.name)+'</b>'+
+        '<button type="button" class="iconbtn dkeep" aria-label="Keep defense" aria-pressed="'+(!!kd)+'"'+
+        (kd?' style="color:var(--whistle);border-color:var(--whistle)"':'')+'>★</button>'+
         '<button type="button" class="iconbtn dedit" aria-label="Edit defense">✎</button>'+
         '<button type="button" class="iconbtn ddel" aria-label="Delete defense">✕</button></div>';
     }).join('') : '<p class="edhint" style="margin:0 0 10px">No custom defenses yet.</p>';
+    host.querySelectorAll('.dkeep').forEach(function(b){
+      b.addEventListener('click', function(){
+        var did = b.closest('.rrow').dataset.did;
+        if(!state.keptDefs) state.keptDefs = {};
+        state.keptDefs[did] = !state.keptDefs[did];
+        if(!state.keptDefs[did]) delete state.keptDefs[did];
+        save(); renderDefList(); renderGameDay();
+      });
+    });
     host.querySelectorAll('.dedit').forEach(function(b){
       b.addEventListener('click', function(){ openDfEditor(b.closest('.rrow').dataset.did); });
     });
@@ -2522,6 +2599,7 @@
   }
   function deleteDef(did){
     state.customDefs = (state.customDefs||[]).filter(function(c){ return c.id !== did; });
+    if(state.keptDefs) delete state.keptDefs[did];
     state.series.forEach(function(s){
       var d = sDef(s);
       if(d.scheme === did){ d.scheme = 'zone'; }
@@ -2535,26 +2613,31 @@
     dfState = {
       pos: JSON.parse(JSON.stringify(cd ? cd.pos : [[50,110],[150,110],[250,110],[76,174],[224,174]])),
       roles: cd ? cdRoles(cd) : ['zone','zone','zone','zone','zone'],
+      sizes: JSON.parse(JSON.stringify((cd && cd.sizes) || [[88,48],[88,48],[88,48],[88,48],[88,48]])),
+      moves: JSON.parse(JSON.stringify((cd && cd.moves) || [null,null,null,null,null])),
       sel: 0
     };
     dfHost.hidden = false;
     dfHost.innerHTML =
       '<div class="card" style="border-color:var(--flag);margin-top:12px">'+
       '<h3>'+(cd?'Edit defense':'New defense')+'</h3>'+
-      '<p class="edhint">Drag the five defenders where you want them, then tap one and give it a job: Man chases a kid (short arrow), Zone owns a box, Blitz crosses the line at the quarterback. You\'re defending the bottom end zone.</p>'+
+      '<p class="edhint">Drag the five defenders where you want them, then tap one and give it a job: Man chases a kid, Zone owns a box, Blitz crosses the line. Tap open grass to draw a movement path for the selected defender — like a line kid dropping back to cover while the safety blitzes. You\'re defending the bottom end zone.</p>'+
       '<input class="tin" id="dfName" type="text" autocomplete="off" placeholder="Defense name" style="margin:10px 0 12px">'+
       '<div class="field" id="dfField" style="touch-action:none"></div>'+
       '<div class="edchips" id="dfRoles">'+
       ['man','zone','blitz'].map(function(r){
         return '<button type="button" data-role="'+r+'">'+DEF_ROLE_NAMES[r]+'</button>';
       }).join('')+'</div>'+
+      '<div class="btns" id="dfSize"><button type="button" id="dfSmaller">– Smaller zone</button>'+
+      '<button type="button" id="dfBigger">+ Bigger zone</button></div>'+
+      '<div class="btns"><button type="button" id="dfUndoMove">Undo move point</button>'+
+      '<button type="button" id="dfClearMove">Clear movement</button></div>'+
       '<div class="btns"><button type="button" id="dfSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(cd?'Save changes':'Save defense')+'</button>'+
       '<button type="button" id="dfCancel">Cancel</button></div></div>';
     if(cd){ document.getElementById('dfName').value = cd.name; }
     var field = document.getElementById('dfField');
     function draw(){
-      var inner = '';
-      dfState.pos.forEach(function(p,i){ inner += defRoleGlyph(p, dfState.roles[i]); });
+      var inner = defRoleGlyphsAll(dfState.pos, dfState.roles, dfState.sizes, dfState.moves);
       inner += oppBase();
       dfState.pos.forEach(function(p,i){
         if(i === dfState.sel){
@@ -2566,11 +2649,30 @@
       document.querySelectorAll('#dfRoles button').forEach(function(b){
         b.setAttribute('aria-pressed', b.dataset.role === dfState.roles[dfState.sel] ? 'true' : 'false');
       });
+      document.getElementById('dfSize').hidden = dfState.roles[dfState.sel] !== 'zone';
     }
     document.getElementById('dfRoles').addEventListener('click', function(ev){
       var b = ev.target.closest('button[data-role]');
       if(!b) return;
       dfState.roles[dfState.sel] = b.dataset.role;
+      draw();
+    });
+    document.getElementById('dfSmaller').addEventListener('click', function(){
+      var sz = dfState.sizes[dfState.sel];
+      sz[0] = Math.max(48, sz[0]-16); sz[1] = Math.max(32, sz[1]-10);
+      draw();
+    });
+    document.getElementById('dfBigger').addEventListener('click', function(){
+      var sz = dfState.sizes[dfState.sel];
+      sz[0] = Math.min(200, sz[0]+16); sz[1] = Math.min(110, sz[1]+10);
+      draw();
+    });
+    document.getElementById('dfUndoMove').addEventListener('click', function(){
+      var mv = dfState.moves[dfState.sel];
+      if(mv && mv.length){ mv.pop(); if(!mv.length) dfState.moves[dfState.sel] = null; draw(); }
+    });
+    document.getElementById('dfClearMove').addEventListener('click', function(){
+      dfState.moves[dfState.sel] = null;
       draw();
     });
     var dragIdx = -1, raf = 0;
@@ -2589,6 +2691,14 @@
         dfState.sel = dragIdx;
         draw();
         try{ field.setPointerCapture(ev.pointerId); }catch(e){}
+        ev.preventDefault();
+      } else {
+        /* open grass: add a movement waypoint for the selected defender */
+        var mx = Math.round(Math.max(16, Math.min(284, p[0])));
+        var my = Math.round(Math.max(30, Math.min(204, p[1])));
+        if(!dfState.moves[dfState.sel]) dfState.moves[dfState.sel] = [];
+        dfState.moves[dfState.sel].push([mx, my]);
+        draw();
         ev.preventDefault();
       }
     });
@@ -2613,10 +2723,11 @@
       while(taken.indexOf(name.toLowerCase()) > -1){ name = base+' '+k; k++; }
       if(cd){
         cd.name = name; cd.pos = dfState.pos; cd.roles = dfState.roles;
+        cd.sizes = dfState.sizes; cd.moves = dfState.moves;
       } else {
         state.seq++;
         state.customDefs = state.customDefs||[];
-        state.customDefs.push({id:'d'+state.seq, name:name, pos:dfState.pos, roles:dfState.roles});
+        state.customDefs.push({id:'d'+state.seq, name:name, pos:dfState.pos, roles:dfState.roles, sizes:dfState.sizes, moves:dfState.moves});
       }
       save(); closeDfEditor(); renderDefList(); renderGameDay();
     });
