@@ -1624,7 +1624,10 @@
     var lineupBox = '<details class="prac" id="lineupBox"'+(boxOpen?' open':'')+'>'+
       '<summary><div class="num">'+onField.length+'</div><div class="ptitle"><b>'+esc(cs.label||'Series')+' — on the field</b>'+
       '<span>'+(onField.length?esc(onField.join(', ')):'nobody assigned yet')+'</span></div><div class="chev">▼</div></summary>'+
-      '<div class="pbody">'+lineup+benchHtml+subHtml+'</div></details>';
+      '<div class="pbody">'+
+      '<div class="field" id="gdLineup" style="touch-action:none;margin-top:12px">'+formationSvg(lf, namesForForm(cs, cs.form))+'</div>'+
+      '<p class="edhint">Drag a player onto a teammate to swap their spots.</p>'+
+      lineup+benchHtml+subHtml+'</div></details>';
 
     /* defense box: same five kids, other side of the ball */
     var dCur = sDef(cs), dMeta = defByKey(dCur.scheme);
@@ -1734,6 +1737,83 @@
         save(); renderGameDay({scrollToPlay:true});
       });
     });
+    /* drag a dot onto another to swap the two kids' positions */
+    (function wireLineupDrag(){
+      var host = document.getElementById('gdLineup');
+      if(!host) return;
+      var svgEl = host.querySelector('svg');
+      if(!svgEl) return;
+      var NS = 'http://www.w3.org/2000/svg';
+      var drag = null, ghost = null, ring = null;
+      function evPos(ev){
+        var r = svgEl.getBoundingClientRect();
+        return [(ev.clientX - r.left) / r.width * 300, (ev.clientY - r.top) / r.height * 230];
+      }
+      function slotAt(x, y){
+        var best = null, bd = 24;
+        lf.spots.forEach(function(s){
+          var d = Math.sqrt(Math.pow(s[1][0]-x,2) + Math.pow(s[1][1]-y,2));
+          if(d < bd){ bd = d; best = s[0]; }
+        });
+        return best;
+      }
+      function cleanup(){
+        if(ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+        if(ring && ring.parentNode) ring.parentNode.removeChild(ring);
+        drag = null; ghost = null; ring = null;
+      }
+      host.addEventListener('pointerdown', function(ev){
+        var p = evPos(ev);
+        var s = slotAt(p[0], p[1]);
+        if(!s || !cs.slots[s]) return;
+        drag = s;
+        try{ host.setPointerCapture(ev.pointerId); }catch(e){}
+        ghost = document.createElementNS(NS,'g');
+        ghost.setAttribute('pointer-events','none');
+        ghost.innerHTML = '<circle r="13" fill="rgba(255,201,60,.9)" stroke="#0B211C" stroke-width="1.5"/>'+
+          '<text y="4" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="#0B211C">'+esc(s)+'</text>';
+        ghost.setAttribute('transform','translate('+p[0]+','+p[1]+')');
+        ring = document.createElementNS(NS,'circle');
+        ring.setAttribute('r','17'); ring.setAttribute('fill','none');
+        ring.setAttribute('stroke','#FFC93C'); ring.setAttribute('stroke-width','2.5');
+        ring.setAttribute('stroke-dasharray','5 4');
+        ring.setAttribute('visibility','hidden');
+        ring.setAttribute('pointer-events','none');
+        svgEl.appendChild(ring);
+        svgEl.appendChild(ghost);
+        ev.preventDefault();
+      });
+      host.addEventListener('pointermove', function(ev){
+        if(!drag || !ghost) return;
+        var p = evPos(ev);
+        ghost.setAttribute('transform','translate('+p[0]+','+p[1]+')');
+        var t = slotAt(p[0], p[1]);
+        if(t && t !== drag){
+          var sp = null;
+          lf.spots.forEach(function(s){ if(s[0]===t) sp = s[1]; });
+          ring.setAttribute('cx', sp[0]); ring.setAttribute('cy', sp[1]);
+          ring.setAttribute('visibility','visible');
+        } else {
+          ring.setAttribute('visibility','hidden');
+        }
+        ev.preventDefault();
+      });
+      host.addEventListener('pointerup', function(ev){
+        if(!drag){ return; }
+        var p = evPos(ev);
+        var t = slotAt(p[0], p[1]);
+        var from = drag;
+        cleanup();
+        if(t && t !== from){
+          var tmp = cs.slots[t];
+          if(cs.slots[from]) cs.slots[t] = cs.slots[from]; else delete cs.slots[t];
+          if(tmp) cs.slots[from] = tmp; else delete cs.slots[from];
+          save(); renderGameDay(); renderSeriesList();
+        }
+      });
+      host.addEventListener('pointercancel', cleanup);
+    })();
+
     wirePlayCards(gd, function(){ renderGameDay(); }, function(){ renderGameDay(); });
     if(opts.scrollToPlay){
       setTimeout(function(){
