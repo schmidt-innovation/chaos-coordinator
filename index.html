@@ -347,6 +347,13 @@
   <div id="pbKept"></div>
 
   <div id="pbMine" hidden>
+    <div class="card" style="margin-bottom:14px">
+      <h3>Your formations</h3>
+      <p>Draw plays in any stock formation, or build your own alignment first — it works everywhere the stock ones do.</p>
+      <div id="fmList"></div>
+      <button type="button" class="ghostbtn" id="newForm">⊕ New formation</button>
+      <div id="fmHost" hidden></div>
+    </div>
     <div class="edrow" style="margin:0 0 14px">
       <select class="tin" id="mineForm" aria-label="Formation for the new play"></select>
       <button type="button" class="ghostbtn solid gold" id="newPlay" style="margin:0;width:auto;flex:0 0 auto;padding:13px 16px">✏ Draw a play</button>
@@ -616,7 +623,7 @@
     for(i=0;i<8;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, custom:[], seq:9};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, custom:[], customForms:[], seq:9};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -660,6 +667,7 @@
     if(loaded.alias) state.alias = loaded.alias;
     if(loaded.flip) state.flip = loaded.flip;
     if(Array.isArray(loaded.custom)) state.custom = loaded.custom;
+    if(Array.isArray(loaded.customForms)) state.customForms = loaded.customForms;
     if(loaded.seq) state.seq = loaded.seq;
     if(state.current >= state.series.length) state.current = 0;
     return true;
@@ -943,14 +951,31 @@
       {n:'Dynamite',t:'pass',d:'The left back sneaks up the seam while the right back flares wide. Two levels on the same side of the field.',r:[seam(l_F,1),flat(l_H,1),hook(l_X,-1)]}
     ]);
 
-  var FORMS = [SPREAD, TWINS, TRIPS, WAGON, BUNCH, IFORM, LOADED];
-  FORMS.forEach(function(f,i){ f.idx = i; });
+  var STOCK_FORMS = [SPREAD, TWINS, TRIPS, WAGON, BUNCH, IFORM, LOADED];
+  var FORMS = [];
+  function makeCustomForm(cf){
+    return {name:cf.name, sub:'Custom', custom:true, cfid:cf.id,
+      why:'Your own alignment, built in the Custom tab.',
+      setup:'Line up exactly like the diagram — you built it.',
+      spots:cf.spots, plays:[]};
+  }
+  function rebuildForms(){
+    var customs = (state && state.customForms) ? state.customForms : [];
+    FORMS = STOCK_FORMS.concat(customs.map(makeCustomForm));
+    FORMS.forEach(function(f,i){ f.idx = i; });
+  }
+  rebuildForms();
 
   /* custom plays: stored as {id, form, n, t, d, routes:[{slot, pts, carry}]} */
   function customPlays(fi){
     return (state.custom||[]).filter(function(c){ return c.form === fi; }).map(function(c){
-      var r = c.routes.map(function(rt){
-        return rt.carry ? {p: rt.pts, carry:true} : rt.pts;
+      var r = [];
+      c.routes.forEach(function(rt){
+        if(rt.slot === 'QB'){ r.unshift({p: rt.pts, qb:true}); }
+      });
+      c.routes.forEach(function(rt){
+        if(rt.slot === 'QB') return;
+        r.push(rt.carry ? {p: rt.pts, carry:true} : rt.pts);
       });
       return {n:c.n, t:c.t, d:c.d || 'Custom play — drawn by coach.', r:r, c:'none', custom:true, cid:c.id};
     });
@@ -989,6 +1014,7 @@
   /* ================= play rendering ================= */
   /* Gold = the ball (carry, toss, or first read). White = other routes. Dashed white = fake/escort. */
   function entryKind(entry, playType, firstRouteIdx, idx){
+    if(entry.qb) return 'qb';
     if(entry.carry) return 'carry';
     if(entry.toss) return 'toss';
     var isRoute = Array.isArray(entry) || !entry.dashed;
@@ -1014,7 +1040,7 @@
     function FX(pts){ return flipped ? pts.map(function(q){ return [300-q[0], q[1]]; }) : pts; }
     var firstRouteIdx = -1, i, e;
     if(play && play.t==='pass'){
-      for(i=0;i<entries.length;i++){ e=entries[i]; if(Array.isArray(e) || (e.p && !e.dashed)){ firstRouteIdx=i; break; } }
+      for(i=0;i<entries.length;i++){ e=entries[i]; if(Array.isArray(e) || (e.p && !e.dashed && !e.qb)){ firstRouteIdx=i; break; } }
     }
     var inner = '', readN = 0, reads = '';
     for(i=0;i<entries.length;i++){
@@ -1023,7 +1049,9 @@
       if(!pts) continue;
       pts = FX(pts);
       var kind = entryKind(e, play?play.t:'', firstRouteIdx, i);
-      if(kind==='carry'){
+      if(kind==='qb'){
+        inner += pathEl(pts,{color:'#FFC93C',width:2.4,dashed:true,dash:'3 6',ball:true});
+      } else if(kind==='carry'){
         inner += pathEl(pts,{color:'#FFC93C',width:3.6,ball:true});
       } else if(kind==='toss'){
         inner += pathEl(pts,{color:'#FFC93C',width:2.4,dashed:true,dash:'4 5',ball:true});
@@ -1053,9 +1081,17 @@
       for(i=0;i<f.spots.length;i++){ if(f.spots[i][0]==='QB') qb = f.spots[i][1]; }
       if(qb){
         var qx = flipped ? 300-qb[0] : qb[0];
+        var qy = qb[1]-12;
+        var qbEnt = null;
+        for(i=0;i<entries.length;i++){ if(entries[i].qb){ qbEnt = entries[i]; break; } }
+        if(qbEnt){
+          var qpts = FX(qbEnt.p);
+          qx = clampX(qpts[qpts.length-1][0]);
+          qy = clampY(qpts[qpts.length-1][1]);
+        }
         var ex = clampX(pend[0]), ey = clampY(pend[1]);
-        var mx = (qx+ex)/2, my = Math.min(qb[1],ey)-42;
-        inner += '<path d="M'+qx+','+(qb[1]-12)+' Q'+mx+','+clampY(my)+' '+ex+','+ey+'" fill="none" stroke="none" data-ball="1"/>';
+        var mx = (qx+ex)/2, my = Math.min(qy,ey)-42;
+        inner += '<path d="M'+qx+','+qy+' Q'+mx+','+clampY(my)+' '+ex+','+ey+'" fill="none" stroke="none" data-ball="1"/>';
       }
     }
     inner += reads;
@@ -1306,7 +1342,7 @@
   function keptCount(){ return Object.keys(state.kept).filter(function(k){ return state.kept[k]; }).length; }
 
   /* ================= two-tap confirm helper ================= */
-  function armButton(btn, fn){
+  function armButton(btn, fn, confirmText){
     btn.addEventListener('click', function(){
       if(btn.dataset.armed){
         delete btn.dataset.armed;
@@ -1318,7 +1354,7 @@
       btn.dataset.armed = '1';
       btn.__orig = btn.textContent;
       btn.classList.add('warn');
-      btn.textContent = 'Tap again to confirm';
+      btn.textContent = confirmText || 'Tap again to confirm';
       setTimeout(function(){
         if(btn.dataset.armed){
           delete btn.dataset.armed;
@@ -1556,7 +1592,8 @@
   armButton(document.getElementById('resetAll'), function(){
     state = defaultState();
     saveNow();
-    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMine();
+    rebuildForms();
+    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMine(); renderMineForm(); renderFmList();
   });
 
   /* ================= game day: execute screen ================= */
@@ -1910,14 +1947,16 @@
   function updateCount(){ countEl.textContent = 'Shortlist: '+keptCount(); }
 
   var mineFormSel = document.getElementById('mineForm');
-  FORMS.forEach(function(f,i){
-    var o = document.createElement('option');
-    o.value = i; o.textContent = f.name+' — '+f.sub;
-    mineFormSel.appendChild(o);
-  });
+  function renderMineForm(){
+    var cur = mineFormSel.value;
+    mineFormSel.innerHTML = FORMS.map(function(f,i){
+      return '<option value="'+i+'">'+esc(f.name)+' — '+esc(f.sub)+'</option>';
+    }).join('');
+    if(cur !== '' && +cur < FORMS.length){ mineFormSel.value = cur; }
+  }
   mineFormSel.addEventListener('change', closeEditor);
 
-  FORMS.forEach(function(f,i){
+  STOCK_FORMS.forEach(function(f,i){
     var b = document.createElement('button');
     b.type='button'; b.textContent=f.name; b.setAttribute('aria-pressed', i===0?'true':'false');
     b.addEventListener('click', function(){
@@ -1979,6 +2018,7 @@
     edState.routes.forEach(function(rt){
       if(rt.pts.length > 1){
         if(rt.carry){ inner += pathEl(rt.pts,{color:'#FFC93C',width:3.6}); }
+        else if(rt.slot === 'QB'){ inner += pathEl(rt.pts,{color:'#FFC93C',width:rt.slot===edState.active?3:2.4,dashed:true,dash:'3 6'}); }
         else if(rt.slot === edState.active){ inner += pathEl(rt.pts,{color:'#FFC93C',width:2.8}); }
         else { inner += pathEl(rt.pts,{color:'#DCD5C4',width:2.2,marker:'url(#arp)',op:.8}); }
       }
@@ -1998,7 +2038,7 @@
     if(!edState) return;
     var f = FORMS[edState.form];
     var chips = document.getElementById('edChips');
-    chips.innerHTML = slotOrder(f).filter(function(l){ return l!=='QB'; }).map(function(l){
+    chips.innerHTML = slotOrder(f).map(function(l){
       var rt = edRouteOf(l);
       return '<button type="button" data-slot="'+l+'" aria-pressed="'+(l===edState.active)+'">'+
         l+(rt && rt.carry ? ' 🏈' : (rt && rt.pts.length>1 ? ' ✓' : ''))+'</button>';
@@ -2040,7 +2080,7 @@
     edHost.innerHTML =
       '<div class="card" id="editorCard" style="border-color:var(--whistle)">'+
       '<h3>'+(c?'Edit play':'New play')+' — '+esc(f.name)+'</h3>'+
-      '<p class="edhint">Tap a player, then tap the field to draw their route point by point. The order you draw pass routes is the quarterback\'s read order.</p>'+
+      '<p class="edhint">Tap a player, then tap the field to draw their route point by point. The order you draw pass routes is the quarterback\'s read order. Draw a QB path for rollouts — it shows dashed gold and the ball follows it before the throw or handoff.</p>'+
       '<div class="edrow"><input class="tin" id="edName" type="text" autocomplete="off" placeholder="Play name (what the kids will yell)">'+
       '<select class="tin" id="edType" style="flex:0 0 92px"><option value="pass">Pass</option><option value="run">Run</option></select></div>'+
       '<div class="edchips" id="edChips"></div>'+
@@ -2072,7 +2112,7 @@
       var f2 = FORMS[edState.form];
       for(var i=0;i<f2.spots.length;i++){
         var sp = f2.spots[i][1];
-        if(f2.spots[i][0] !== 'QB' && Math.abs(sp[0]-x) < 17 && Math.abs(sp[1]-y) < 17){
+        if(Math.abs(sp[0]-x) < 17 && Math.abs(sp[1]-y) < 17){
           edState.active = f2.spots[i][0];
           refreshEd();
           return;
@@ -2098,6 +2138,7 @@
       refreshEd();
     });
     document.getElementById('edCarry').addEventListener('click', function(){
+      if(edState.active === 'QB'){ edMsg('The quarterback can\'t carry the ball — handoffs and pitches only.'); return; }
       var rt = edRouteOf(edState.active);
       if(!rt){ edMsg('Draw '+edState.active+'\'s path first, then mark them as the carrier.'); return; }
       edState.routes.forEach(function(x){ delete x.carry; });
@@ -2160,6 +2201,134 @@
     if(m){ m.hidden = false; m.textContent = t; setTimeout(function(){ m.hidden = true; }, 3500); }
   }
   document.getElementById('newPlay').addEventListener('click', function(){ openEditor(null); });
+
+  /* ================= custom formation builder ================= */
+  var fmHost = document.getElementById('fmHost');
+  var fmState = null;
+  function fmTemplate(){
+    return [['X',[48,150]],['C',[150,148]],['Y',[206,150]],['Z',[262,150]],['QB',[150,182],'ball']];
+  }
+  function afterFormChange(){
+    renderMineForm(); renderFmList(); renderMine(); renderKept(); renderSeriesList(); renderGameDay();
+  }
+  function renderFmList(){
+    var host = document.getElementById('fmList');
+    var cfs = state.customForms||[];
+    host.innerHTML = cfs.length ? cfs.map(function(cf){
+      return '<div class="rrow" data-fid="'+esc(cf.id)+'"><div class="jersey">F</div>'+
+        '<b style="flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(cf.name)+'</b>'+
+        '<button type="button" class="iconbtn fedit" aria-label="Edit formation">✎</button>'+
+        '<button type="button" class="iconbtn fdel" aria-label="Delete formation">✕</button></div>';
+    }).join('') : '<p class="edhint" style="margin:0 0 10px">No custom formations yet.</p>';
+    host.querySelectorAll('.fedit').forEach(function(b){
+      b.addEventListener('click', function(){ openFmEditor(b.closest('.rrow').dataset.fid); });
+    });
+    host.querySelectorAll('.fdel').forEach(function(b){
+      armButton(b, function(){ deleteFormation(b.closest('.rrow').dataset.fid); }, '✕?');
+    });
+  }
+  function deleteFormation(fid){
+    var cfs = state.customForms||[];
+    var pos = -1;
+    cfs.forEach(function(c,i){ if(c.id===fid) pos = i; });
+    if(pos < 0) return;
+    var idx = STOCK_FORMS.length + pos;
+    var name = cfs[pos].name;
+    state.customForms = cfs.filter(function(c){ return c.id !== fid; });
+    state.custom = (state.custom||[]).filter(function(p){ return p.form !== idx; });
+    ['kept','alias','flip'].forEach(function(key){
+      Object.keys(state[key]||{}).forEach(function(k){
+        if(k.indexOf(name+':') === 0) delete state[key][k];
+      });
+    });
+    state.custom.forEach(function(p){ if(p.form > idx) p.form--; });
+    state.series.forEach(function(s){
+      if(s.form === idx){ s.form = 0; s.callPlay = null; }
+      else if(s.form > idx){ s.form--; }
+      if(s.callForm != null){
+        if(s.callForm === idx){ s.callForm = s.form; s.callPlay = null; }
+        else if(s.callForm > idx){ s.callForm--; }
+      }
+    });
+    closeEditor();
+    save(); rebuildForms(); afterFormChange();
+  }
+  function closeFmEditor(){ fmState = null; fmHost.hidden = true; fmHost.innerHTML = ''; }
+  function openFmEditor(fid){
+    var cf = null;
+    if(fid){ cf = (state.customForms||[]).filter(function(x){ return x.id === fid; })[0] || null; }
+    fmState = { spots: JSON.parse(JSON.stringify(cf ? cf.spots : fmTemplate())) };
+    fmHost.hidden = false;
+    fmHost.innerHTML =
+      '<div class="card" style="border-color:var(--whistle);margin-top:12px">'+
+      '<h3>'+(cf?'Edit formation':'New formation')+'</h3>'+
+      '<p class="edhint">Drag the five players where you want them to line up. C snaps the ball to the QB. Editing spots doesn\'t move routes already drawn in this formation.</p>'+
+      '<input class="tin" id="fmName" type="text" autocomplete="off" placeholder="Formation name" style="margin:10px 0 12px">'+
+      '<div class="field" id="fmField" style="touch-action:none"></div>'+
+      '<div class="btns"><button type="button" id="fmSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(cf?'Save changes':'Save formation')+'</button>'+
+      '<button type="button" id="fmCancel">Cancel</button></div>'+
+      '<p class="hintline" id="fmMsg" hidden></p></div>';
+    if(cf){ document.getElementById('fmName').value = cf.name; }
+    var field = document.getElementById('fmField');
+    function draw(){
+      field.innerHTML = svg(fmState.spots.map(function(s){ return dot(s[1], s[0], s[2]); }).join(''));
+    }
+    var dragIdx = -1, raf = 0;
+    function evPos(ev){
+      var svgEl = field.querySelector('svg');
+      var r = svgEl.getBoundingClientRect();
+      return [(ev.clientX-r.left)/r.width*300, (ev.clientY-r.top)/r.height*230];
+    }
+    field.addEventListener('pointerdown', function(ev){
+      var p = evPos(ev); dragIdx = -1; var bd = 22;
+      fmState.spots.forEach(function(s,i){
+        var d = Math.sqrt(Math.pow(s[1][0]-p[0],2)+Math.pow(s[1][1]-p[1],2));
+        if(d < bd){ bd = d; dragIdx = i; }
+      });
+      if(dragIdx > -1){ try{ field.setPointerCapture(ev.pointerId); }catch(e){} ev.preventDefault(); }
+    });
+    field.addEventListener('pointermove', function(ev){
+      if(dragIdx < 0) return;
+      var p = evPos(ev);
+      fmState.spots[dragIdx][1] = [
+        Math.round(Math.max(16, Math.min(284, p[0]))),
+        Math.round(Math.max(34, Math.min(208, p[1])))
+      ];
+      cancelAnimationFrame(raf); raf = requestAnimationFrame(draw);
+      ev.preventDefault();
+    });
+    field.addEventListener('pointerup', function(){ dragIdx = -1; });
+    field.addEventListener('pointercancel', function(){ dragIdx = -1; });
+    document.getElementById('fmCancel').addEventListener('click', closeFmEditor);
+    document.getElementById('fmSave').addEventListener('click', function(){
+      var name = (document.getElementById('fmName').value||'').trim() || 'My formation';
+      var taken = FORMS.filter(function(f){ return !(cf && f.cfid === cf.id); })
+        .map(function(f){ return f.name.toLowerCase(); });
+      var base = name, k = 2;
+      while(taken.indexOf(name.toLowerCase()) > -1){ name = base+' '+k; k++; }
+      if(cf){
+        if(cf.name !== name){
+          ['kept','alias','flip'].forEach(function(key){
+            Object.keys(state[key]||{}).forEach(function(kk){
+              if(kk.indexOf(cf.name+':') === 0){
+                state[key][name+kk.slice(cf.name.length)] = state[key][kk];
+                delete state[key][kk];
+              }
+            });
+          });
+        }
+        cf.name = name; cf.spots = fmState.spots;
+      } else {
+        state.seq++;
+        state.customForms = state.customForms||[];
+        state.customForms.push({id:'f'+state.seq, name:name, spots:fmState.spots});
+      }
+      save(); rebuildForms(); closeFmEditor(); afterFormChange();
+    });
+    draw();
+    fmHost.scrollIntoView({behavior: REDUCE?'auto':'smooth', block:'start'});
+  }
+  document.getElementById('newForm').addEventListener('click', function(){ openFmEditor(null); });
 
   /* ================= defense diagrams ================= */
   function offBase(){
@@ -2231,7 +2400,8 @@
     state = defaultState();
     mergeLoaded(loaded);
     saveNow();
-    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMine(); renderSaveCard();
+    rebuildForms();
+    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMine(); renderMineForm(); renderFmList(); renderSaveCard();
     document.getElementById('codeIn').value = '';
     var np = namedPlayers().length;
     codeMsg('Loaded ✓ — '+np+' player'+(np===1?'':'s')+', '+state.series.length+' series.', true);
@@ -2244,6 +2414,7 @@
 
   /* ================= init ================= */
   loadState();
+  rebuildForms();
   renderSaveCard();
   renderRoster();
   renderSeriesList();
@@ -2251,6 +2422,8 @@
   renderFormation();
   renderKept();
   renderMine();
+  renderMineForm();
+  renderFmList();
   if(!lineupReady()){ showTab('gameplan'); } else { setTimeout(drawVisible,140); }
 })();
 </script>
