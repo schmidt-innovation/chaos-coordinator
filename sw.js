@@ -1,5 +1,5 @@
 /* Coach Card offline cache — bump the version when files change */
-var CACHE = 'coach-card-v23';
+var CACHE = 'coach-card-v24';
 var FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', function(e){
