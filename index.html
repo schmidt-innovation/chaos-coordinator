@@ -1625,10 +1625,6 @@
     });
     var anyKept = keptFormIdx.length > 0;
     var chipSet = anyKept ? keptFormIdx.slice() : FORMS.map(function(_,i){ return i; });
-    if(anyKept && chipSet.indexOf(cs.form) === -1){
-      chipSet.push(cs.form);
-      chipSet.sort(function(a,b){ return a-b; });
-    }
     if(chipSet.indexOf(cs.callForm) === -1){
       cs.callForm = (chipSet.indexOf(cs.form) > -1) ? cs.form : chipSet[0];
     }
