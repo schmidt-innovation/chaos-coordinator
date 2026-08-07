@@ -354,6 +354,13 @@
       <button type="button" class="ghostbtn" id="newForm">⊕ New formation</button>
       <div id="fmHost" hidden></div>
     </div>
+    <div class="card" style="margin-bottom:14px">
+      <h3>Your defenses</h3>
+      <p>One each, Zone boxes, and The chaser cover most games. Build your own look — a 3-2 wall, a goal-line stack — and call it from the Defense tab on Game day.</p>
+      <div id="dfList"></div>
+      <button type="button" class="ghostbtn" id="newDef">⊕ New defense</button>
+      <div id="dfHost" hidden></div>
+    </div>
     <div class="edrow" style="margin:0 0 14px">
       <select class="tin" id="mineForm" aria-label="Formation for the new play"></select>
       <button type="button" class="ghostbtn solid gold" id="newPlay" style="margin:0;width:auto;flex:0 0 auto;padding:13px 16px">✏ Draw a play</button>
@@ -623,7 +630,7 @@
     for(i=0;i<8;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, custom:[], customForms:[], seq:9};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, custom:[], customForms:[], customDefs:[], seq:9};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -668,6 +675,7 @@
     if(loaded.flip) state.flip = loaded.flip;
     if(Array.isArray(loaded.custom)) state.custom = loaded.custom;
     if(Array.isArray(loaded.customForms)) state.customForms = loaded.customForms;
+    if(Array.isArray(loaded.customDefs)) state.customDefs = loaded.customDefs;
     if(loaded.seq) state.seq = loaded.seq;
     if(state.current >= state.series.length) state.current = 0;
     return true;
@@ -1407,7 +1415,29 @@
     {key:'zone',   name:'Zone boxes', sub:'Territory',    tip:'Own your box, never leave it. Three short, two deep.', slots:[['SL','Short left'],['SM','Short middle'],['SR','Short right'],['DL','Deep left'],['DR','Deep right']]},
     {key:'chaser', name:'The chaser', sub:'Rush + man',   tip:'The chaser rushes with hands up. Everyone else plays one each.', slots:[['R','The chaser']]}
   ];
-  function defByKey(k){ for(var i=0;i<DEFS.length;i++){ if(DEFS[i].key===k) return DEFS[i]; } return DEFS[0]; }
+  function customDefSchemes(){
+    return ((state && state.customDefs) || []).map(function(cd){
+      return {key:cd.id, name:cd.name, sub:'Custom', custom:true, pos:cd.pos,
+        tip:'Your defense — line up exactly like the diagram.',
+        slots:[['D1','Spot 1'],['D2','Spot 2'],['D3','Spot 3'],['D4','Spot 4'],['D5','Spot 5']]};
+    });
+  }
+  function allDefs(){ return DEFS.concat(customDefSchemes()); }
+  function defByKey(k){
+    var all = allDefs();
+    for(var i=0;i<all.length;i++){ if(all[i].key===k) return all[i]; }
+    return DEFS[1]; /* zone is the sane fallback */
+  }
+  function schemePosMap(d){
+    if(d.scheme === 'zone') return ZONE_POS;
+    var dm = defByKey(d.scheme);
+    if(dm.custom){
+      var m = {};
+      dm.pos.forEach(function(p,i){ m['D'+(i+1)] = p; });
+      return m;
+    }
+    return null;
+  }
   function sDef(s){
     if(!s.def || !s.def.scheme){ s.def = {scheme:'zone', slots:{}}; }
     if(!s.def.slots) s.def.slots = {};
@@ -1441,8 +1471,22 @@
   }
   function defFieldSvg(s){
     var d = sDef(s);
+    var dm = defByKey(d.scheme);
     var inner = '';
-    if(d.scheme === 'zone'){
+    if(dm.custom){
+      inner += oppBase();
+      var used = {};
+      dm.pos.forEach(function(p,i){
+        var v = d.slots['D'+(i+1)];
+        if(v) used[v] = true;
+      });
+      var free = onFieldIds(s).filter(function(id){ return !used[id]; });
+      dm.pos.forEach(function(p,i){
+        var key = 'D'+(i+1);
+        if(!d.slots[key] && free.length){ d.slots[key] = free.shift(); }
+        inner += dot(p, String(i+1), 'd', pNameOf(d.slots[key]));
+      });
+    } else if(d.scheme === 'zone'){
       inner += '<g fill="rgba(255,90,95,.13)" stroke="rgba(255,90,95,.5)" stroke-width="1" stroke-dasharray="5 4">'+
         '<rect x="4" y="90" width="94" height="44" rx="6"/><rect x="103" y="90" width="94" height="44" rx="6"/>'+
         '<rect x="202" y="90" width="94" height="44" rx="6"/><rect x="4" y="142" width="143" height="60" rx="6"/>'+
@@ -1598,11 +1642,12 @@
     state = defaultState();
     saveNow();
     rebuildForms();
-    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMine(); renderMineForm(); renderFmList();
+    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMine(); renderMineForm(); renderFmList(); renderDefList();
   });
 
   /* ================= game day: execute screen ================= */
   var gd = document.getElementById('gdcontent');
+  var gdTab = 'off';
 
   function lineupReady(){
     return state.series.some(function(s){ return Object.keys(s.slots).some(function(k){ return s.slots[k]; }); });
@@ -1688,40 +1733,34 @@
       '<p class="edhint">Drag a player onto a teammate to swap their spots.</p>'+
       lineup+benchHtml+subHtml+'</div></details>';
 
-    /* defense box: same five kids, other side of the ball */
+    /* defense pane: same five kids, other side of the ball */
     var dCur = sDef(cs), dMeta = defByKey(dCur.scheme);
-    var prevDef = document.getElementById('defBox');
-    var defOpen = prevDef ? prevDef.open : false;
-    var dSummary;
-    if(dCur.scheme === 'chaser'){
-      var rn = pNameOf(dCur.slots.R);
-      dSummary = rn ? 'Chaser: '+firstName(rn)+' · others one each' : 'Point at a kid in the huddle — they\'re the chaser';
-    } else if(dCur.scheme === 'zone'){
-      var zc = defByKey('zone').slots.filter(function(sl){ return dCur.slots[sl[0]]; }).length;
-      dSummary = zc+' of 5 boxes assigned';
-    } else {
-      dSummary = dMeta.tip;
-    }
-    var dChips = '';
+    var defField = '<div class="field" id="gdDef" style="touch-action:none">'+defFieldSvg(cs)+'</div>';
+    var dSlotsUi = '';
     if(dMeta.slots.length){
-      dChips = '<div class="lineup">'+dMeta.slots.map(function(sl){
-        var nm2 = pNameOf(dCur.slots[sl[0]]);
-        return '<div class="pos"><span class="pb" style="background:var(--flag)">'+sl[0]+'</span>'+
-          (nm2?'<b>'+esc(firstName(nm2))+'</b>':'<b class="unset">not set</b>')+'</div>';
+      var defOptsGd = onFieldIds(cs).map(function(id){ return playerById(id); }).filter(function(p){ return p && p.name.trim(); });
+      if(!defOptsGd.length) defOptsGd = namedPlayers();
+      dSlotsUi = '<div class="slots">'+dMeta.slots.map(function(sl){
+        var selv = dCur.slots[sl[0]]||'';
+        return '<div class="slot"><label class="flab"><b>'+sl[0]+'</b> · '+sl[1]+'</label>'+
+          '<select class="tin gdps" data-slot="'+sl[0]+'" aria-label="'+sl[1]+'">'+
+          '<option value="">—</option>'+
+          defOptsGd.map(function(p){ return '<option value="'+esc(p.id)+'"'+(p.id===selv?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('')+
+          '</select></div>';
       }).join('')+'</div>';
     }
-    var defBox = '<details class="prac" id="defBox"'+(defOpen?' open':'')+'>'+
-      '<summary><div class="num" style="color:var(--flag)">D</div><div class="ptitle"><b>Defense — '+dMeta.name+'</b>'+
-      '<span>'+esc(dSummary)+'</span></div><div class="chev">▼</div></summary>'+
-      '<div class="pbody">'+
-      '<div class="picker" id="defpicker" role="group" aria-label="Defense call" style="padding-top:10px">'+
-      DEFS.map(function(dd){ return '<button type="button" data-dk="'+dd.key+'" aria-pressed="'+(dd.key===dCur.scheme)+'">'+dd.name+'</button>'; }).join('')+
+    var defPane = '<h3 class="callhead">Defense</h3>'+
+      '<div class="picker" id="defpicker" role="group" aria-label="Defense call">'+
+      allDefs().map(function(dd){ return '<button type="button" data-dk="'+esc(dd.key)+'" aria-pressed="'+(dd.key===dCur.scheme)+'">'+esc(dd.name)+'</button>'; }).join('')+
       '</div>'+
-      '<div class="field" id="gdDef" style="touch-action:none">'+defFieldSvg(cs)+'</div>'+
-      (dCur.scheme==='zone' ? '<p class="edhint">Drag a kid onto a teammate to swap zones.</p>' : '')+
-      dChips+
-      '<p style="font-size:12.5px;color:var(--paper-dim);margin:10px 0 0">'+dMeta.tip+'</p>'+
-      '</div></details>';
+      defField+
+      (schemePosMap(dCur) ? '<p class="edhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
+      dSlotsUi+
+      '<p style="font-size:12.5px;color:var(--paper-dim);margin:10px 0 0">'+dMeta.tip+'</p>';
+
+    var sideTabs = '<div class="picker" id="gdSideTabs" role="group" aria-label="Side of the ball">'+
+      '<button type="button" data-gt="off" aria-pressed="'+(gdTab==='off')+'">🏈 Offense</button>'+
+      '<button type="button" data-gt="def" aria-pressed="'+(gdTab==='def')+'">🛡 Defense</button></div>';
 
     /* the call: formation, then play */
     var picker = '<h3 class="callhead">Formation</h3><div class="picker" id="gdpicker" role="group" aria-label="Call formation">'+
@@ -1774,7 +1813,9 @@
       ? playCardHtml(cf, play, names)
       : (pool.length ? '<div class="empty">Tap a play above to put it on the board.</div>' : '');
 
-    gd.innerHTML = chips+lineupBox+picker+grid+'<div id="gdplay">'+playHtml+'</div>'+defBox;
+    gd.innerHTML = chips + sideTabs + (gdTab==='def'
+      ? defPane
+      : lineupBox+picker+grid+'<div id="gdplay">'+playHtml+'</div>');
 
     gd.querySelectorAll('.serbar button').forEach(function(b){
       b.addEventListener('click', function(){
@@ -1783,13 +1824,29 @@
         window.scrollTo({top:0,behavior:'smooth'});
       });
     });
+    gd.querySelectorAll('#gdSideTabs button').forEach(function(b){
+      b.addEventListener('click', function(){
+        gdTab = b.dataset.gt;
+        renderGameDay();
+      });
+    });
     gd.querySelectorAll('#defpicker button').forEach(function(b){
       b.addEventListener('click', function(){
         var d = sDef(cs);
         d.scheme = b.dataset.dk;
         save(); renderGameDay();
-        var box = document.getElementById('defBox');
-        if(box) box.open = true;
+      });
+    });
+    gd.querySelectorAll('.gdps').forEach(function(sel){
+      sel.addEventListener('change', function(){
+        var d = sDef(cs), slot = sel.dataset.slot, pid = sel.value;
+        if(pid){
+          dMeta.slots.forEach(function(sl){ if(sl[0]!==slot && d.slots[sl[0]]===pid) delete d.slots[sl[0]]; });
+          d.slots[slot] = pid;
+        } else {
+          delete d.slots[slot];
+        }
+        save(); renderGameDay(); renderSeriesList();
       });
     });
     gd.querySelectorAll('#gdpicker button').forEach(function(b){
@@ -1882,9 +1939,10 @@
       host.addEventListener('pointercancel', cleanup);
     })();
 
-    /* drag a defender onto another to swap zone assignments */
+    /* drag a defender onto another to swap assignments (zone + custom schemes) */
     (function wireDefDrag(){
-      if(sDef(cs).scheme !== 'zone') return;
+      var posMap = schemePosMap(sDef(cs));
+      if(!posMap) return;
       var host = document.getElementById('gdDef');
       if(!host) return;
       var svgEl = host.querySelector('svg');
@@ -1898,8 +1956,8 @@
       }
       function zoneAt(x, y){
         var best = null, bd = 26;
-        Object.keys(ZONE_POS).forEach(function(k){
-          var p = ZONE_POS[k];
+        Object.keys(posMap).forEach(function(k){
+          var p = posMap[k];
           var d2 = Math.sqrt(Math.pow(p[0]-x,2) + Math.pow(p[1]-y,2));
           if(d2 < bd){ bd = d2; best = k; }
         });
@@ -1937,7 +1995,7 @@
         ghost.setAttribute('transform','translate('+p[0]+','+p[1]+')');
         var t = zoneAt(p[0], p[1]);
         if(t && t !== drag){
-          ring.setAttribute('cx', ZONE_POS[t][0]); ring.setAttribute('cy', ZONE_POS[t][1]);
+          ring.setAttribute('cx', posMap[t][0]); ring.setAttribute('cy', posMap[t][1]);
           ring.setAttribute('visibility','visible');
         } else {
           ring.setAttribute('visibility','hidden');
@@ -1955,8 +2013,6 @@
           if(dz.slots[from]) dz.slots[t] = dz.slots[from]; else delete dz.slots[t];
           if(tmp) dz.slots[from] = tmp; else delete dz.slots[from];
           save(); renderGameDay(); renderSeriesList();
-          var box = document.getElementById('defBox');
-          if(box) box.open = true;
         }
       });
       host.addEventListener('pointercancel', cleanup);
@@ -2420,6 +2476,101 @@
   }
   document.getElementById('newForm').addEventListener('click', function(){ openFmEditor(null); });
 
+  /* ================= custom defense builder ================= */
+  var dfHost = document.getElementById('dfHost');
+  var dfState = null;
+  function renderDefList(){
+    var host = document.getElementById('dfList');
+    var cds = state.customDefs||[];
+    host.innerHTML = cds.length ? cds.map(function(cd){
+      return '<div class="rrow" data-did="'+esc(cd.id)+'"><div class="jersey" style="color:var(--flag)">D</div>'+
+        '<b style="flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(cd.name)+'</b>'+
+        '<button type="button" class="iconbtn dedit" aria-label="Edit defense">✎</button>'+
+        '<button type="button" class="iconbtn ddel" aria-label="Delete defense">✕</button></div>';
+    }).join('') : '<p class="edhint" style="margin:0 0 10px">No custom defenses yet.</p>';
+    host.querySelectorAll('.dedit').forEach(function(b){
+      b.addEventListener('click', function(){ openDfEditor(b.closest('.rrow').dataset.did); });
+    });
+    host.querySelectorAll('.ddel').forEach(function(b){
+      armButton(b, function(){ deleteDef(b.closest('.rrow').dataset.did); }, '✕?');
+    });
+  }
+  function deleteDef(did){
+    state.customDefs = (state.customDefs||[]).filter(function(c){ return c.id !== did; });
+    state.series.forEach(function(s){
+      var d = sDef(s);
+      if(d.scheme === did){ d.scheme = 'zone'; }
+    });
+    save(); renderDefList(); renderGameDay();
+  }
+  function closeDfEditor(){ dfState = null; dfHost.hidden = true; dfHost.innerHTML = ''; }
+  function openDfEditor(did){
+    var cd = null;
+    if(did){ cd = (state.customDefs||[]).filter(function(x){ return x.id === did; })[0] || null; }
+    dfState = { pos: JSON.parse(JSON.stringify(cd ? cd.pos : [[50,110],[150,110],[250,110],[76,174],[224,174]])) };
+    dfHost.hidden = false;
+    dfHost.innerHTML =
+      '<div class="card" style="border-color:var(--flag);margin-top:12px">'+
+      '<h3>'+(cd?'Edit defense':'New defense')+'</h3>'+
+      '<p class="edhint">Drag the five defenders where you want them. The dashed circles are the other team\'s usual spots; you\'re defending the bottom end zone.</p>'+
+      '<input class="tin" id="dfName" type="text" autocomplete="off" placeholder="Defense name" style="margin:10px 0 12px">'+
+      '<div class="field" id="dfField" style="touch-action:none"></div>'+
+      '<div class="btns"><button type="button" id="dfSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(cd?'Save changes':'Save defense')+'</button>'+
+      '<button type="button" id="dfCancel">Cancel</button></div></div>';
+    if(cd){ document.getElementById('dfName').value = cd.name; }
+    var field = document.getElementById('dfField');
+    function draw(){
+      field.innerHTML = svgD(oppBase() + dfState.pos.map(function(p,i){
+        return dot(p, String(i+1), 'd');
+      }).join(''));
+    }
+    var dragIdx = -1, raf = 0;
+    function evPos(ev){
+      var svgEl = field.querySelector('svg');
+      var r = svgEl.getBoundingClientRect();
+      return [(ev.clientX-r.left)/r.width*300, (ev.clientY-r.top)/r.height*230];
+    }
+    field.addEventListener('pointerdown', function(ev){
+      var p = evPos(ev); dragIdx = -1; var bd = 22;
+      dfState.pos.forEach(function(q,i){
+        var d = Math.sqrt(Math.pow(q[0]-p[0],2)+Math.pow(q[1]-p[1],2));
+        if(d < bd){ bd = d; dragIdx = i; }
+      });
+      if(dragIdx > -1){ try{ field.setPointerCapture(ev.pointerId); }catch(e){} ev.preventDefault(); }
+    });
+    field.addEventListener('pointermove', function(ev){
+      if(dragIdx < 0) return;
+      var p = evPos(ev);
+      dfState.pos[dragIdx] = [
+        Math.round(Math.max(16, Math.min(284, p[0]))),
+        Math.round(Math.max(80, Math.min(200, p[1])))
+      ];
+      cancelAnimationFrame(raf); raf = requestAnimationFrame(draw);
+      ev.preventDefault();
+    });
+    field.addEventListener('pointerup', function(){ dragIdx = -1; });
+    field.addEventListener('pointercancel', function(){ dragIdx = -1; });
+    document.getElementById('dfCancel').addEventListener('click', closeDfEditor);
+    document.getElementById('dfSave').addEventListener('click', function(){
+      var name = (document.getElementById('dfName').value||'').trim() || 'My defense';
+      var taken = allDefs().filter(function(dd){ return !(cd && dd.key === cd.id); })
+        .map(function(dd){ return dd.name.toLowerCase(); });
+      var base = name, k = 2;
+      while(taken.indexOf(name.toLowerCase()) > -1){ name = base+' '+k; k++; }
+      if(cd){
+        cd.name = name; cd.pos = dfState.pos;
+      } else {
+        state.seq++;
+        state.customDefs = state.customDefs||[];
+        state.customDefs.push({id:'d'+state.seq, name:name, pos:dfState.pos});
+      }
+      save(); closeDfEditor(); renderDefList(); renderGameDay();
+    });
+    draw();
+    dfHost.scrollIntoView({behavior: REDUCE?'auto':'smooth', block:'start'});
+  }
+  document.getElementById('newDef').addEventListener('click', function(){ openDfEditor(null); });
+
   /* ================= defense diagrams ================= */
   function offBase(){
     return [dot(s_X,'X'),dot(C,'C'),dot(s_Y,'Y'),dot(s_Z,'Z'),dot(QB,'QB','ball')].join('');
@@ -2491,7 +2642,7 @@
     mergeLoaded(loaded);
     saveNow();
     rebuildForms();
-    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMine(); renderMineForm(); renderFmList(); renderSaveCard();
+    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMine(); renderMineForm(); renderFmList(); renderDefList(); renderSaveCard();
     document.getElementById('codeIn').value = '';
     var np = namedPlayers().length;
     codeMsg('Loaded ✓ — '+np+' player'+(np===1?'':'s')+', '+state.series.length+' series.', true);
@@ -2514,6 +2665,7 @@
   renderMine();
   renderMineForm();
   renderFmList();
+  renderDefList();
   if(!lineupReady()){ showTab('gameplan'); } else { setTimeout(drawVisible,140); }
 })();
 </script>
