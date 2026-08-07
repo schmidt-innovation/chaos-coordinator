@@ -1731,12 +1731,14 @@
 
     var allPlays = playsOf(cf);
     var formKept = allPlays.filter(function(p){ return state.kept[cf.name+':'+p.n]; });
-    var pool = formKept.length ? formKept : allPlays;
-    var gridNote = '';
-    if(!anyKept){
+    var pool, gridNote = '';
+    if(formKept.length){
+      pool = formKept;
+    } else if(!anyKept){
+      pool = allPlays;
       gridNote = 'Showing everything — star plays with Keep in the Playbook tab and game day trims down to your game plan.';
-    } else if(!formKept.length){
-      gridNote = 'Nothing kept in '+esc(cf.name)+' yet — showing everything.';
+    } else {
+      pool = [];
     }
     var sorted = pool.slice().sort(function(a,b){
       var ka = state.kept[cf.name+':'+a.n]?0:1, kb = state.kept[cf.name+':'+b.n]?0:1;
@@ -1750,19 +1752,25 @@
       for(var ki=0;ki<sorted.length;ki++){ if(state.kept[cf.name+':'+sorted[ki].n]){ play = sorted[ki]; break; } }
     }
 
-    var grid = '<h3 class="callhead">Play</h3>'+
-      (gridNote ? '<div class="benchline" style="margin:0 0 8px">'+gridNote+'</div>' : '')+
-      '<div class="pgrid" id="gdgrid" role="group" aria-label="Call play">'+
-      sorted.map(function(p){
-        var on = !!state.kept[cf.name+':'+p.n];
-        var sel = !!(play && play.n===p.n);
-        return '<button type="button" data-n="'+esc(p.n)+'"'+(on?' class="iskept"':'')+' aria-pressed="'+sel+'">'+
-          '<span>'+(on?'★ ':'')+esc(displayName(cf,p))+(state.flip&&state.flip[cf.name+':'+p.n]?' ↔':'')+'</span><span class="mini'+(p.t==='run'?' run':'')+'">'+(p.t==='run'?'Run':'Pass')+'</span></button>';
-      }).join('')+'</div>';
+    var grid;
+    if(!pool.length){
+      grid = '<h3 class="callhead">Play</h3>'+
+        '<div class="empty">No plays kept in '+esc(cf.name)+' yet. Star some with Keep in the Playbook tab, or call a different formation.</div>';
+    } else {
+      grid = '<h3 class="callhead">Play</h3>'+
+        (gridNote ? '<div class="benchline" style="margin:0 0 8px">'+gridNote+'</div>' : '')+
+        '<div class="pgrid" id="gdgrid" role="group" aria-label="Call play">'+
+        sorted.map(function(p){
+          var on = !!state.kept[cf.name+':'+p.n];
+          var sel = !!(play && play.n===p.n);
+          return '<button type="button" data-n="'+esc(p.n)+'"'+(on?' class="iskept"':'')+' aria-pressed="'+sel+'">'+
+            '<span>'+(on?'★ ':'')+esc(displayName(cf,p))+(state.flip&&state.flip[cf.name+':'+p.n]?' ↔':'')+'</span><span class="mini'+(p.t==='run'?' run':'')+'">'+(p.t==='run'?'Run':'Pass')+'</span></button>';
+        }).join('')+'</div>';
+    }
 
     var playHtml = play
       ? playCardHtml(cf, play, names)
-      : '<div class="empty">Tap a play above to put it on the board.</div>';
+      : (pool.length ? '<div class="empty">Tap a play above to put it on the board.</div>' : '');
 
     gd.innerHTML = chips+lineupBox+defBox+picker+grid+'<div id="gdplay">'+playHtml+'</div>';
 
