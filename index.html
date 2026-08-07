@@ -2517,6 +2517,9 @@
     })();
 
     wirePlayCards(gd, function(){ renderGameDay(); }, function(){ renderGameDay(); });
+    /* no Keep on the board — a mid-game mistap would yank the play from the grid */
+    var boardKeep = gd.querySelector('#gdplay .keep');
+    if(boardKeep) boardKeep.parentNode.removeChild(boardKeep);
     /* the board's replay becomes "Run it" and opens the modal */
     if(gdTab === 'off' && play){
       var boardBtn = gd.querySelector('#gdplay .replay');
