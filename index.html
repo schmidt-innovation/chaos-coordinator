@@ -186,6 +186,15 @@
     border-radius:8px;color:var(--paper-dim);cursor:pointer;font-size:14px;font-family:inherit}
   .phead .rname:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
   .aka{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--paper-dim);font-weight:600}
+  .edchips{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 10px}
+  .edchips button{flex:0 0 auto;min-width:52px;background:var(--deeper);border:1px solid var(--line);color:var(--paper);
+    font-family:"Archivo Black",sans-serif;font-size:13px;padding:11px 12px;border-radius:9px;cursor:pointer}
+  .edchips button[aria-pressed="true"]{background:var(--whistle);color:var(--deeper);border-color:var(--whistle)}
+  .edchips button:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
+  .edrow{display:flex;gap:8px;margin-top:10px}
+  .edrow .tin{flex:1}
+  .edhint{font-size:12.5px;color:var(--paper-dim);margin:10px 0 0}
+  #edField{cursor:crosshair;touch-action:manipulation}
   .callhead{font-size:15px;color:var(--chalk);margin:16px 0 8px}
   .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px}
   .pgrid button{display:flex;align-items:center;justify-content:space-between;gap:6px;background:var(--turf);
@@ -331,6 +340,9 @@
 
   <div class="picker" id="picker" role="group" aria-label="Formations"></div>
   <div id="fcard"></div>
+
+  <button type="button" class="ghostbtn solid gold" id="newPlay" style="margin:0 0 14px">✏ Draw a custom play in this formation</button>
+  <div id="edHost" hidden></div>
 
   <div class="filters" role="group" aria-label="Filter plays">
     <button data-f="all" aria-pressed="true">All</button>
@@ -589,7 +601,7 @@
     for(i=0;i<8;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, seq:9};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, custom:[], seq:9};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -632,6 +644,7 @@
     if(loaded.kept) state.kept = loaded.kept;
     if(loaded.alias) state.alias = loaded.alias;
     if(loaded.flip) state.flip = loaded.flip;
+    if(Array.isArray(loaded.custom)) state.custom = loaded.custom;
     if(loaded.seq) state.seq = loaded.seq;
     if(state.current >= state.series.length) state.current = 0;
     return true;
@@ -916,6 +929,18 @@
     ]);
 
   var FORMS = [SPREAD, TWINS, TRIPS, WAGON, BUNCH, IFORM, LOADED];
+  FORMS.forEach(function(f,i){ f.idx = i; });
+
+  /* custom plays: stored as {id, form, n, t, d, routes:[{slot, pts, carry}]} */
+  function customPlays(fi){
+    return (state.custom||[]).filter(function(c){ return c.form === fi; }).map(function(c){
+      var r = c.routes.map(function(rt){
+        return rt.carry ? {p: rt.pts, carry:true} : rt.pts;
+      });
+      return {n:c.n, t:c.t, d:c.d || 'Custom play — drawn by coach.', r:r, c:'none', custom:true, cid:c.id};
+    });
+  }
+  function playsOf(f){ return f.plays.concat(customPlays(f.idx)); }
 
   function slotOrder(f){
     var rest = f.spots.map(function(s){ return s[0]; }).filter(function(l){ return l!=='QB' && l!=='C'; });
@@ -1168,18 +1193,20 @@
     var on = !!state.kept[id];
     var fl = !!(state.flip && state.flip[id]);
     var dn = displayName(f, p);
-    return '<div class="play'+(on?' kept':'')+'" data-id="'+esc(id)+'">'+
+    return '<div class="play'+(on?' kept':'')+'" data-id="'+esc(id)+'"'+(p.custom?' data-cid="'+esc(p.cid)+'"':'')+'>'+
       '<div class="phead"><h3>'+(on?'<span class="keptstar">★</span> ':'')+esc(dn)+'</h3>'+
       '<div class="tag'+(p.t==='run'?' run':'')+'">'+(p.t==='run'?'Run':'Pass')+'</div>'+
+      (p.custom?'<div class="tag" style="border-color:var(--whistle);color:var(--whistle)">Custom</div>':'')+
       (fl?'<div class="tag">Flipped ↔</div>':'')+
       (dn!==p.n?'<span class="aka">aka '+esc(p.n)+'</span>':'')+
       '<button type="button" class="rname" aria-label="Rename play" title="Rename play">✎</button></div>'+
-      '<p>'+p.d+'</p>'+
+      '<p>'+esc(p.custom ? p.d : '')+(p.custom ? '' : p.d)+'</p>'+
       '<div class="field">'+playFieldSvg(f,p,names)+'</div>'+
       '<div class="btns">'+
         '<button type="button" class="replay">Run it again</button>'+
         '<button type="button" class="flip">Flip ↔</button>'+
         '<button type="button" class="keep" aria-pressed="'+on+'">'+(on?'Kept ✓':'Keep')+'</button>'+
+        (p.custom?'<button type="button" class="pdel" style="color:var(--flag);border-color:var(--flag)">Delete</button>':'')+
       '</div></div>';
   }
   function wirePlayCards(container, afterKeep, afterRename){
@@ -1198,6 +1225,17 @@
         card.classList.toggle('kept', !!state.kept[id]);
         save();
         if(afterKeep) afterKeep();
+      });
+    });
+    container.querySelectorAll('.pdel').forEach(function(b){
+      armButton(b, function(){
+        var card = b.closest('.play'), cid = card.dataset.cid, id = card.dataset.id;
+        state.custom = (state.custom||[]).filter(function(c){ return c.id !== cid; });
+        delete state.kept[id]; delete state.alias[id]; delete state.flip[id];
+        var pn = id.split(':').slice(1).join(':');
+        state.series.forEach(function(s){ if(s.callPlay === pn) s.callPlay = null; });
+        save();
+        if(afterRename) afterRename();
       });
     });
     container.querySelectorAll('.flip').forEach(function(b){
@@ -1525,7 +1563,7 @@
     /* game day shows only formations with kept plays (plus the series' planned one) */
     var keptFormIdx = [];
     FORMS.forEach(function(ff,fi){
-      if(ff.plays.some(function(p){ return state.kept[ff.name+':'+p.n]; })) keptFormIdx.push(fi);
+      if(playsOf(ff).some(function(p){ return state.kept[ff.name+':'+p.n]; })) keptFormIdx.push(fi);
     });
     var anyKept = keptFormIdx.length > 0;
     var chipSet = anyKept ? keptFormIdx.slice() : FORMS.map(function(_,i){ return i; });
@@ -1630,8 +1668,9 @@
           (fi===cs.form?' ·':'')+'</button>';
       }).join('')+'</div>';
 
-    var formKept = cf.plays.filter(function(p){ return state.kept[cf.name+':'+p.n]; });
-    var pool = formKept.length ? formKept : cf.plays;
+    var allPlays = playsOf(cf);
+    var formKept = allPlays.filter(function(p){ return state.kept[cf.name+':'+p.n]; });
+    var pool = formKept.length ? formKept : allPlays;
     var gridNote = '';
     if(!anyKept){
       gridNote = 'Showing everything — star plays with Keep in the Playbook tab and game day trims down to your game plan.';
@@ -1717,6 +1756,7 @@
     b.addEventListener('click', function(){
       active = i;
       picker.querySelectorAll('button').forEach(function(x,j){ x.setAttribute('aria-pressed', j===i?'true':'false'); });
+      closeEditor();
       renderFormation();
     });
     picker.appendChild(b);
@@ -1734,7 +1774,7 @@
 
   function renderPlays(){
     var f = FORMS[active];
-    var items = f.plays.filter(function(p){
+    var items = playsOf(f).filter(function(p){
       if(filter==='all') return true;
       if(filter==='kept') return state.kept[f.name+':'+p.n];
       return p.t===filter;
@@ -1757,6 +1797,166 @@
       renderPlays();
     });
   });
+
+  /* ================= custom play editor ================= */
+  var edHost = document.getElementById('edHost');
+  var edState = null;
+
+  function edSpotPos(slot){
+    var f = FORMS[edState.form];
+    for(var i=0;i<f.spots.length;i++){ if(f.spots[i][0]===slot) return f.spots[i][1]; }
+    return [150,150];
+  }
+  function edRouteOf(slot){
+    for(var i=0;i<edState.routes.length;i++){ if(edState.routes[i].slot===slot) return edState.routes[i]; }
+    return null;
+  }
+  function edSvg(){
+    var f = FORMS[edState.form];
+    var inner = '';
+    edState.routes.forEach(function(rt){
+      if(rt.pts.length > 1){
+        if(rt.carry){ inner += pathEl(rt.pts,{color:'#FFC93C',width:3.6}); }
+        else if(rt.slot === edState.active){ inner += pathEl(rt.pts,{color:'#FFC93C',width:2.8}); }
+        else { inner += pathEl(rt.pts,{color:'#DCD5C4',width:2.2,marker:'url(#arp)',op:.8}); }
+      }
+      if(rt.slot === edState.active){
+        rt.pts.forEach(function(q,i){
+          if(i>0) inner += '<circle cx="'+q[0]+'" cy="'+q[1]+'" r="4.5" fill="#FFC93C" stroke="#0B211C" stroke-width="1.2"/>';
+        });
+      }
+    });
+    inner += f.spots.map(function(s){
+      var ring = s[0]===edState.active ? '<circle cx="'+s[1][0]+'" cy="'+s[1][1]+'" r="15" fill="none" stroke="#FFC93C" stroke-width="2" stroke-dasharray="4 3"/>' : '';
+      return ring + dot(s[1], s[0], s[2], null, s[3]);
+    }).join('');
+    return svg(inner);
+  }
+  function refreshEd(){
+    if(!edState) return;
+    var f = FORMS[edState.form];
+    var chips = document.getElementById('edChips');
+    chips.innerHTML = slotOrder(f).filter(function(l){ return l!=='QB'; }).map(function(l){
+      var rt = edRouteOf(l);
+      return '<button type="button" data-slot="'+l+'" aria-pressed="'+(l===edState.active)+'">'+
+        l+(rt && rt.carry ? ' 🏈' : (rt && rt.pts.length>1 ? ' ✓' : ''))+'</button>';
+    }).join('');
+    document.getElementById('edField').innerHTML = edSvg();
+    var cb = document.getElementById('edCarry');
+    cb.hidden = edState.t !== 'run';
+    var carrier = null;
+    edState.routes.forEach(function(rt){ if(rt.carry) carrier = rt.slot; });
+    cb.textContent = carrier ? ('Ball carrier: '+carrier+' 🏈') : ('Make '+edState.active+' the ball carrier');
+  }
+  function closeEditor(){
+    edState = null;
+    edHost.hidden = true;
+    edHost.innerHTML = '';
+  }
+  function openEditor(){
+    var f = FORMS[active];
+    var firstSlot = slotOrder(f).filter(function(l){ return l!=='QB'; })[0];
+    edState = {form:active, t:'pass', routes:[], active:firstSlot};
+    edHost.hidden = false;
+    edHost.innerHTML =
+      '<div class="card" id="editorCard" style="border-color:var(--whistle)">'+
+      '<h3>New play — '+esc(f.name)+'</h3>'+
+      '<p class="edhint">Tap a player, then tap the field to draw their route point by point. The order you draw pass routes is the quarterback\'s read order.</p>'+
+      '<div class="edrow"><input class="tin" id="edName" type="text" autocomplete="off" placeholder="Play name (what the kids will yell)">'+
+      '<select class="tin" id="edType" style="flex:0 0 92px"><option value="pass">Pass</option><option value="run">Run</option></select></div>'+
+      '<div class="edchips" id="edChips"></div>'+
+      '<div class="field" id="edField"></div>'+
+      '<div class="btns"><button type="button" id="edUndo">Undo point</button>'+
+      '<button type="button" id="edClear">Clear route</button>'+
+      '<button type="button" id="edCarry" hidden></button></div>'+
+      '<input class="tin" id="edDesc" type="text" autocomplete="off" placeholder="One-line description (optional)" style="margin-top:10px">'+
+      '<div class="btns"><button type="button" id="edSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">Save play</button>'+
+      '<button type="button" id="edCancel">Cancel</button></div>'+
+      '<p class="hintline" id="edMsg" hidden></p>'+
+      '</div>';
+
+    document.getElementById('edType').addEventListener('change', function(ev){
+      edState.t = ev.target.value;
+      if(edState.t === 'pass'){ edState.routes.forEach(function(rt){ delete rt.carry; }); }
+      refreshEd();
+    });
+    document.getElementById('edChips').addEventListener('click', function(ev){
+      var b = ev.target.closest('button[data-slot]');
+      if(b){ edState.active = b.dataset.slot; refreshEd(); }
+    });
+    document.getElementById('edField').addEventListener('click', function(ev){
+      var svgEl = document.getElementById('edField').querySelector('svg');
+      if(!svgEl) return;
+      var r = svgEl.getBoundingClientRect();
+      var x = clampX((ev.clientX - r.left) / r.width * 300);
+      var y = clampY((ev.clientY - r.top) / r.height * 230);
+      var f2 = FORMS[edState.form];
+      for(var i=0;i<f2.spots.length;i++){
+        var sp = f2.spots[i][1];
+        if(f2.spots[i][0] !== 'QB' && Math.abs(sp[0]-x) < 17 && Math.abs(sp[1]-y) < 17){
+          edState.active = f2.spots[i][0];
+          refreshEd();
+          return;
+        }
+      }
+      var rt = edRouteOf(edState.active);
+      if(!rt){
+        rt = {slot: edState.active, pts:[st(edSpotPos(edState.active))]};
+        edState.routes.push(rt);
+      }
+      rt.pts.push([Math.round(x), Math.round(y)]);
+      refreshEd();
+    });
+    document.getElementById('edUndo').addEventListener('click', function(){
+      var rt = edRouteOf(edState.active);
+      if(!rt) return;
+      rt.pts.pop();
+      if(rt.pts.length <= 1){ edState.routes = edState.routes.filter(function(x){ return x !== rt; }); }
+      refreshEd();
+    });
+    document.getElementById('edClear').addEventListener('click', function(){
+      edState.routes = edState.routes.filter(function(x){ return x.slot !== edState.active; });
+      refreshEd();
+    });
+    document.getElementById('edCarry').addEventListener('click', function(){
+      var rt = edRouteOf(edState.active);
+      if(!rt){ edMsg('Draw '+edState.active+'\'s path first, then mark them as the carrier.'); return; }
+      edState.routes.forEach(function(x){ delete x.carry; });
+      rt.carry = true;
+      refreshEd();
+    });
+    document.getElementById('edCancel').addEventListener('click', closeEditor);
+    document.getElementById('edSave').addEventListener('click', function(){
+      var routes = edState.routes.filter(function(rt){ return rt.pts.length >= 2; });
+      if(!routes.length){ edMsg('Draw at least one route first.'); return; }
+      if(edState.t === 'run' && !routes.some(function(rt){ return rt.carry; })){
+        edMsg('Run plays need a ball carrier — tap a player with a route, then "Make … the ball carrier".');
+        return;
+      }
+      if(edState.t === 'pass'){ routes.forEach(function(rt){ delete rt.carry; }); }
+      var f3 = FORMS[edState.form];
+      var name = (document.getElementById('edName').value || '').trim() || 'Custom';
+      var taken = playsOf(f3).map(function(p){ return p.n.toLowerCase(); });
+      var base = name, k = 2;
+      while(taken.indexOf(name.toLowerCase()) > -1){ name = base+' '+k; k++; }
+      state.seq++;
+      state.custom.push({
+        id:'c'+state.seq, form:edState.form, n:name, t:edState.t,
+        d:(document.getElementById('edDesc').value || '').trim(),
+        routes:routes
+      });
+      save();
+      closeEditor();
+      renderPlays(); renderGameDay();
+    });
+    refreshEd();
+    edHost.scrollIntoView({behavior: REDUCE?'auto':'smooth', block:'start'});
+  }
+  function edMsg(t){
+    var m = document.getElementById('edMsg');
+    if(m){ m.hidden = false; m.textContent = t; setTimeout(function(){ m.hidden = true; }, 3500); }
+  }
+  document.getElementById('newPlay').addEventListener('click', openEditor);
 
   /* ================= defense diagrams ================= */
   function offBase(){
