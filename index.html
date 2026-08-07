@@ -236,8 +236,8 @@
   <button role="tab" aria-selected="true" data-target="gameday">Game day</button>
   <button role="tab" aria-selected="false" data-target="gameplan">Game plan</button>
   <button role="tab" aria-selected="false" data-target="playbook">Playbook</button>
-  <button role="tab" aria-selected="false" data-target="practices">Practices</button>
   <button role="tab" aria-selected="false" data-target="defense">Defense</button>
+  <button role="tab" aria-selected="false" data-target="practices">Practices</button>
   <button role="tab" aria-selected="false" data-target="coach">Notes</button>
 </nav>
 
@@ -353,13 +353,6 @@
       <div id="fmList"></div>
       <button type="button" class="ghostbtn" id="newForm">⊕ New formation</button>
       <div id="fmHost" hidden></div>
-    </div>
-    <div class="card" style="margin-bottom:14px">
-      <h3>Your defenses</h3>
-      <p>One each, Zone boxes, and The chaser cover most games. Build your own look — a 3-2 wall, a goal-line stack — and call it from the Defense tab on Game day.</p>
-      <div id="dfList"></div>
-      <button type="button" class="ghostbtn" id="newDef">⊕ New defense</button>
-      <div id="dfHost" hidden></div>
     </div>
     <div class="edrow" style="margin:0 0 14px">
       <select class="tin" id="mineForm" aria-label="Formation for the new play"></select>
@@ -551,6 +544,14 @@
 <!-- ================= DEFENSE ================= -->
 <section class="panel" id="defense">
   <p class="lede">At this age, defense is one skill wearing three different hats: get in front of the ball carrier and pull the flag. Start with ONE EACH. Only add zones once they can find their own person without help.</p>
+
+  <div class="card">
+    <h3>Your defenses</h3>
+    <p>One each, Zone boxes, and The chaser cover most games. Build your own look — a 3-2 wall, a goal-line stack — and call it from the Defense tab on Game day.</p>
+    <div id="dfList"></div>
+    <button type="button" class="ghostbtn" id="newDef">⊕ New defense</button>
+    <div id="dfHost" hidden></div>
+  </div>
 
   <div class="card">
     <h3>Teach the pull first</h3>
@@ -1560,10 +1561,9 @@
         '<div class="shead"><input class="tin slabel" type="text" value="'+esc(s.label)+'" aria-label="Series name">'+
         '<button type="button" class="iconbtn sdel" aria-label="Delete series">✕</button></div>'+
         '<div class="slots">'+slotsHtml+'</div>'+
-        '<div class="benchline">Sitting out: <b>'+(bench.length?bench.map(function(p){return esc(firstName(p.name));}).join(', '):'—')+'</b></div>'+
         '<label class="flab">Defense zones &middot; when they have the ball</label>'+
         zoneSlotsHtml+
-        '<div class="field">'+formationSvg(f, seriesNames(s))+'</div>'+
+        '<div class="benchline" style="margin-bottom:0">Sitting out: <b>'+(bench.length?bench.map(function(p){return esc(firstName(p.name));}).join(', '):'—')+'</b></div>'+
         '</div>';
     }).join('');
 
