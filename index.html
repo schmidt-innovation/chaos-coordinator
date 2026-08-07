@@ -348,6 +348,7 @@
       <li><b>Gold line</b> is the ball — the handoff, pitch, or the first read on a pass.</li>
       <li><b>White lines</b> are everyone else's routes.</li>
       <li><b>Numbers</b> on pass plays are the quarterback's reads, in order: look at 1, then 2, then 3.</li>
+      <li><b>The center is eligible</b> — after snapping they release too, usually as the short last-look checkdown (the highest number). On Pancake they stay in to block.</li>
       <li><b>Dashed white</b> is a fake or an escort — no ball.</li>
       <li><b>Tap ✎</b> on any play to rename it to whatever your kids call it. The nickname shows everywhere, saves with your team code, and the original stays underneath as "aka".</li>
       <li><b>Tap Flip ↔</b> to run any play to the other side — the whole picture mirrors, players and all. The flip sticks until you flip it back, and saves with your team code.</li>
@@ -761,7 +762,7 @@
       {n:'Rocket',t:'pass',d:'All three sprint straight downfield. Throw to whoever has the most space.',r:[go(s_X),go(s_Y),go(s_Z)]},
       {n:'Banana',t:'pass',d:'Everyone runs five yards, stops, and turns back to the quarterback. Highest completion rate in the book.',r:[hook(s_X,-1),hook(s_Y,1),hook(s_Z,1)]},
       {n:'Shark',t:'pass',d:'Quick throw to the outside receiver in the flat, slot runs out front as an escort, far side clears deep.',r:[flat(s_Z,1),{p:flat(s_Y,1),dashed:true},go(s_X)]},
-      {n:'Criss-cross',t:'pass',d:'Two receivers cross underneath and the defenders run into each other. Best play against man coverage.',r:[cross(s_X,1),cross(s_Y,-1),go(s_Z)]},
+      {n:'Criss-cross',t:'pass',c:'seam',d:'Two receivers cross underneath and the defenders run into each other. Best play against man coverage.',r:[cross(s_X,1),cross(s_Y,-1),go(s_Z)]},
       {n:'Ladder',t:'pass',d:'Three different depths: deep, medium, short. Teaches the quarterback to look high then low.',r:[go(s_Z),out(s_Y,1),hook(s_X,-1)]},
       {n:'Turtle',t:'run',d:'Handoff to the slot running behind the line, then wide and up the sideline. Your bread-and-butter run.',r:[run(sweep(s_Y,1)),go(s_X),go(s_Z)]},
       {n:'Hippo',t:'run',d:'Quick handoff straight up the middle behind the center. Call it on fourth and short every time.',r:[run(dive(s_Y,1)),go(s_X),go(s_Z)]},
@@ -770,7 +771,7 @@
       {n:'Falcon',t:'run',d:'Looks like a pass, then a late handoff to the slot stepping in. The rusher runs right past it.',r:[run(draw(s_Y,1)),go(s_X),go(s_Z)]},
       {n:'Firefly',t:'pass',d:'Quick outs at five yards on both sides while the deep man clears. Take whichever sideline the defense forgot.',r:[out(s_Y,1),out(s_X,-1),go(s_Z)]},
       {n:'Zebra',t:'pass',d:'Two slants firing into the middle at different depths. One step, plant, catch — the fastest pass play in the book.',r:[slant(s_X,1),slant(s_Y,-1),go(s_Z)]},
-      {n:'Pretzel',t:'pass',d:'Both inside players cross underneath while the outside man sits down. Three kids, three tangled defenders.',r:[cross(s_Y,-1),cross(s_X,1),hook(s_Z,1)]},
+      {n:'Pretzel',t:'pass',c:'seam',d:'Both inside players cross underneath while the outside man sits down. Three kids, three tangled defenders.',r:[cross(s_Y,-1),cross(s_X,1),hook(s_Z,1)]},
       {n:'Volcano',t:'pass',d:'Everything erupts straight up the field, but the slot bends into the middle seam — that\'s the throw.',r:[seam(s_Y,-1),go(s_X),go(s_Z)]},
       {n:'Yo-yo',t:'run',d:'Fake the pitch one way, hand it up the middle the other. The defense strings out, then the ball goes right past them.',r:[run(draw(s_Y,1)),{p:toss(s_Z,1),dashed:true},go(s_X)]},
       {n:'Meteor',t:'run',d:'Jet sweep. The far receiver sprints across the formation at the snap and takes the handoff at full speed around the end.',r:[run([[48,140],[90,168],[150,176],[214,168],[248,128],[252,64]]),go(s_Z),{p:flat(s_Y,1),dashed:true}]}
@@ -783,7 +784,7 @@
     'Two receivers on the left — one on the sideline, one about five steps inside them. One receiver alone on the right sideline.',
     [['X',t_X],['Y',t_Y],['C',C],['Z',t_Z],['QB',QB,'ball']],
     [
-      {n:'Eagle',t:'pass',d:'Both left receivers run straight, the right one drags across the middle as the safety valve.',r:[go(t_X),go(t_Y),cross(t_Z,-1)]},
+      {n:'Eagle',t:'pass',c:'flatR',d:'Both left receivers run straight, the right one drags across the middle as the safety valve.',r:[go(t_X),go(t_Y),cross(t_Z,-1)]},
       {n:'Sandwich',t:'pass',d:'Deep, short, and deep again. Somebody is always open at one of the three levels.',r:[go(t_X),out(t_Y,-1),post(t_Z,-1)]},
       {n:'Wall',t:'pass',d:'The inside receiver stops and stands still; the outside one cuts right behind him and comes free.',r:[hook(t_Y,1),slant(t_X,1),go(t_Z)]},
       {n:'Scissors',t:'pass',d:'The two left receivers switch positions at the line and both go deep. Man coverage falls apart.',r:[corner(t_X,1),seam(t_Y,-1),go(t_Z)]},
@@ -809,7 +810,7 @@
       {n:'Fan',t:'pass',d:'Three routes spreading three directions — inside, outside, deep. Somebody is always uncovered.',r:[dig(r_X,-1),out(r_Y,1),go(r_Z)]},
       {n:'Stairs',t:'pass',d:'Short, medium, deep on the same side. Quarterback picks the closest open one and throws.',r:[flat(r_X,1),out(r_Y,1),corner(r_Z,1)]},
       {n:'Lasso',t:'pass',d:'Outside receiver goes deep, middle one cuts inside behind him, inside one sits down short.',r:[go(r_Z),post(r_Y,-1),hook(r_X,1)]},
-      {n:'Train',t:'pass',d:'All three run the same shallow crossing route to the left, one after another. Easy read: throw to the first one open.',r:[cross(r_X,-1),cross(r_Y,-1),cross(r_Z,-1)]},
+      {n:'Train',t:'pass',c:'seam',d:'All three run the same shallow crossing route to the left, one after another. Easy read: throw to the first one open.',r:[cross(r_X,-1),cross(r_Y,-1),cross(r_Z,-1)]},
       {n:'Pony',t:'pass',d:'Two hook up short and the third runs past everyone. Safe underneath with one shot deep.',r:[hook(r_X,1),hook(r_Y,1),go(r_Z)]},
       {n:'Avalanche',t:'run',d:'Sweep right into the side where you already have three players. Numbers win.',r:[run(sweep(r_X,1)),go(r_Z),{p:flat(r_Y,1),dashed:true}]},
       {n:'Hammer',t:'run',d:'Handoff left, away from everybody. The whole defense shifted to the trips side and nobody is home.',r:[run(dive(r_X,-1)),go(r_Y),go(r_Z)]},
@@ -817,8 +818,8 @@
       {n:'Windmill',t:'run',d:'Reverse. Sweep right, then hand back to the outside receiver looping around to the left.',r:[run([bk(r_X),[214,182]]),run([bk(r_Z),[210,188],[110,172],[86,112]]),go(r_Y)]},
       {n:'Tumble',t:'run',d:'Delayed handoff up the middle while all three receivers clear out to the right.',r:[run(draw(r_X,-1)),go(r_Y),go(r_Z)]},
       {n:'Waterfall',t:'pass',d:'All three pour deep, but the inside man bends his post back toward the empty left side. Big grass, one kid, no safety.',r:[post(r_X,-1),go(r_Y),go(r_Z)]},
-      {n:'Conveyor',t:'pass',d:'Inside man drags shallow left, middle man digs behind him at ten. Two moving targets crossing the whole field.',r:[cross(r_X,-1),dig(r_Y,-1),go(r_Z)]},
-      {n:'Octopus',t:'pass',d:'Quick bubble to the middle receiver behind the trips wall while the outside man clears his corner away.',r:[bubble(r_Y,1),go(r_Z),cross(r_X,-1)]},
+      {n:'Conveyor',t:'pass',c:'flatR',d:'Inside man drags shallow left, middle man digs behind him at ten. Two moving targets crossing the whole field.',r:[cross(r_X,-1),dig(r_Y,-1),go(r_Z)]},
+      {n:'Octopus',t:'pass',c:'seam',d:'Quick bubble to the middle receiver behind the trips wall while the outside man clears his corner away.',r:[bubble(r_Y,1),go(r_Z),cross(r_X,-1)]},
       {n:'Mustang',t:'run',d:'Jet sweep to the empty left side. The inside receiver sprints across the whole formation with the ball.',r:[run([[196,140],[170,170],[150,176],[86,168],[52,128],[48,64]]),go(r_Y),go(r_Z)]}
     ]);
 
@@ -832,12 +833,12 @@
       {n:'Mouse',t:'pass',d:'The back leaks out to the sideline while both receivers run deep. Easy short throw nobody covers.',r:[flat(w_H,1),go(w_X),go(w_Z)]},
       {n:'Wheel',t:'pass',d:'The back runs to the sideline and then turns straight upfield. Big play when it hits.',r:[wheel(w_H,1),go(w_Z),go(w_X)]},
       {n:'Thunder',t:'pass',d:'Fake the handoff first, then throw deep. The whole defense bites on the run and you go over the top.',r:[{p:[bk(w_H),[168,186],[196,176]],dashed:true},post(w_X,1),go(w_Z)]},
-      {n:'Anchor',t:'pass',d:'Both receivers hook at six yards, the back sits down in the middle. Three easy targets, no deep throws.',r:[hook(w_X,-1),hook(w_Z,1),flat(w_H,-1)]},
+      {n:'Anchor',t:'pass',c:'seam',d:'Both receivers hook at six yards, the back sits down in the middle. Three easy targets, no deep throws.',r:[hook(w_X,-1),hook(w_Z,1),flat(w_H,-1)]},
       {n:'Tower',t:'pass',d:'Short on one side, deep corner on the other. The quarterback looks short first, then lets it go.',r:[hook(w_Z,1),corner(w_X,1),flat(w_H,1)]},
       {n:'Tank',t:'run',d:'Handoff right, straight ahead. Shortest handoff on the page and almost impossible to fumble. Flip it and it\'s the same play going left.',r:[run(dive(w_H,1)),go(w_X),go(w_Z)]},
       {n:'Stampede',t:'run',d:'Sweep right from the backfield. The back is already moving before he gets the ball.',r:[run(sweep(w_H,1)),go(w_Z),go(w_X)]},
       {n:'Twist',t:'run',d:'Counter. The back steps right, plants, and takes the handoff going left instead.',r:[run(counter(w_H,-1)),go(w_X),go(w_Z)]},
-      {n:'Gecko',t:'pass',d:'The back sneaks straight up the middle seam behind the linebackers while both receivers hook and hold the outside.',r:[seam(w_H,-1),hook(w_X,-1),hook(w_Z,1)]},
+      {n:'Gecko',t:'pass',c:'flatL',d:'The back sneaks straight up the middle seam behind the linebackers while both receivers hook and hold the outside.',r:[seam(w_H,-1),hook(w_X,-1),hook(w_Z,1)]},
       {n:'Trombone',t:'pass',d:'Fake the sweep left, then hit the left receiver snapping to the sideline. The corner follows the fake every time.',r:[{p:[[192,186],[166,184],[130,176]],dashed:true},out(w_X,-1),go(w_Z)]},
       {n:'Compass',t:'pass',d:'Three different directions: post left-to-middle, out to the left sideline, back to the right flat. Pick the open compass point.',r:[post(w_Z,-1),out(w_X,-1),flat(w_H,1)]},
       {n:'Blender',t:'run',d:'End-around. The right receiver loops behind the quarterback and takes the handoff all the way around the left side.',r:[run([[256,140],[230,168],[196,182],[150,186],[96,172],[64,128],[60,64]]),{p:[[192,186],[176,180]],dashed:true},go(w_X)]},
@@ -853,10 +854,10 @@
     [['C',C],['X',b_X],['Z',b_Z],['Y',b_Y],['QB',QB,'ball']],
     [
       {n:'Scatter',t:'pass',d:'All three release in different directions from the same spot. The defense cannot follow all of it.',r:[dig(b_X,-1),flat(b_Z,1),seam(b_Y,1)]},
-      {n:'Tangle',t:'pass',d:'The outside two cross each other while the third waits, then runs straight up the middle of the mess.',r:[cross(b_X,1),cross(b_Z,-1),go(b_Y)]},
+      {n:'Tangle',t:'pass',c:'seam',d:'The outside two cross each other while the third waits, then runs straight up the middle of the mess.',r:[cross(b_X,1),cross(b_Z,-1),go(b_Y)]},
       {n:'Umbrella',t:'pass',d:'All three hook at five yards, fanned out like an umbrella. Three safe targets in one small area.',r:[hook(b_X,-1),hook(b_Z,1),hook(b_Y,1)]},
       {n:'Comet',t:'pass',d:'The back receiver sprints deep down the sideline while the other two hook underneath and hold everyone.',r:[go(b_Z),hook(b_X,-1),{p:[st(b_Y),[286,120],[286,30]]}]},
-      {n:'Pinball',t:'pass',d:'One shallow cross left, one quick out right, one corner deep. Three different depths from one cluster.',r:[cross(b_X,-1),flat(b_Z,1),corner(b_Y,1)]},
+      {n:'Pinball',t:'pass',c:'seam',d:'One shallow cross left, one quick out right, one corner deep. Three different depths from one cluster.',r:[cross(b_X,-1),flat(b_Z,1),corner(b_Y,1)]},
       {n:'Boulder',t:'run',d:'Handoff up the middle away from the bunch. Every defender walked over there, so nobody is left.',r:[run(dive(b_Y,-1)),go(b_X),go(b_Z)]},
       {n:'Caravan',t:'run',d:'Sweep right behind the bunch. Two teammates are already standing between the runner and the defense.',r:[run(sweep(b_Y,1)),go(b_Z),{p:flat(b_X,1),dashed:true}]},
       {n:'Pivot',t:'run',d:'Counter. Fake right toward the crowd, then take the handoff back to the empty left side.',r:[run(counter(b_Y,-1)),go(b_X),go(b_Z)]},
@@ -899,7 +900,7 @@
     [['X',l_X],['C',C],['QB',l_QB,'ball'],['H',l_H],['F',l_F]],
     [
       {n:'Popcorn',t:'pass',d:'Both backs pop out to opposite flats while the receiver clears deep. Throw to the right back — his side has more grass.',r:[flat(l_H,1),flat(l_F,-1),go(l_X)]},
-      {n:'Kite',t:'pass',d:'The left back swings wide and sails up the sideline. The receiver drags across the middle to pull coverage away.',r:[wheel(l_F,-1),cross(l_X,1),flat(l_H,1)]},
+      {n:'Kite',t:'pass',c:'seam',d:'The left back swings wide and sails up the sideline. The receiver drags across the middle to pull coverage away.',r:[wheel(l_F,-1),cross(l_X,1),flat(l_H,1)]},
       {n:'Fountain',t:'pass',d:'Fake the handoff to the left back, then throw the post over the top. Two backs means everyone believes the run.',r:[{p:[[104,198],[126,192],[140,186]],dashed:true},post(l_X,1),flat(l_H,1)]},
       {n:'Skyhook',t:'pass',d:'The lone receiver streaks deep one-on-one while both backs hold the defense with flare routes. Your shot play.',r:[go(l_X),flat(l_H,1),flat(l_F,-1)]},
       {n:'Magnet',t:'pass',d:'The right back sneaks up the middle seam behind the linebackers. Left back and receiver keep everything shallow.',r:[seam(l_H,-1),flat(l_F,-1),hook(l_X,-1)]},
@@ -910,7 +911,7 @@
       {n:'Catapult',t:'run',d:'Quick pitch right to the right back already in motion. The fastest way to the empty side of the field.',r:[ball([[162,182],[210,184]]),run([[210,184],[252,158],[274,116],[276,58]]),go(l_X)]},
       {n:'Bulldog',t:'run',d:'Draw to the right back while the left back swings wide as a decoy. Looks like a pass for exactly long enough.',r:[run(draw(l_H,1)),{p:[[104,198],[80,188]],dashed:true},go(l_X)]},
       {n:'Scorpion',t:'pass',d:'Both backs sprint to opposite sidelines and turn upfield — two wheels at once. The receiver hooks middle as the safe answer.',r:[wheel(l_H,1),wheel(l_F,-1),hook(l_X,-1)]},
-      {n:'Pancake',t:'pass',d:'Both backs stay home and block while the lone receiver runs as deep as he wants. Maximum protection, one big shot.',r:[{p:[[196,198],[188,182]],dashed:true},{p:[[104,198],[112,182]],dashed:true},go(l_X)]},
+      {n:'Pancake',t:'pass',c:'none',d:'Both backs and the center all stay home to block while the lone receiver runs as deep as he wants. Maximum protection, one big shot.',r:[{p:[[196,198],[188,182]],dashed:true},{p:[[104,198],[112,182]],dashed:true},go(l_X)]},
       {n:'Dynamite',t:'pass',d:'The left back sneaks up the seam while the right back flares wide. Two levels on the same side of the field.',r:[seam(l_F,1),flat(l_H,1),hook(l_X,-1)]}
     ]);
 
@@ -956,8 +957,19 @@
     return isRoute ? 'route' : 'route';
   }
 
+  /* the center is eligible: on pass plays they release too (checkdown = last read) */
+  var C_ROUTES = {
+    hook:  [[150,138],[150,104],[136,116]],
+    seam:  [[150,138],[150,44]],
+    flatL: [[150,138],[150,126],[104,120]],
+    flatR: [[150,138],[150,126],[196,120]]
+  };
   function playFieldSvg(f, play, names){
     var entries = (play && play.r) || [];
+    if(play && play.t==='pass' && play.c !== 'none'){
+      var cr = C_ROUTES[play.c || 'hook'];
+      if(cr) entries = entries.concat([cr]);
+    }
     var flipped = !!(play && state.flip && state.flip[f.name+':'+play.n]);
     function FX(pts){ return flipped ? pts.map(function(q){ return [300-q[0], q[1]]; }) : pts; }
     var firstRouteIdx = -1, i, e;
