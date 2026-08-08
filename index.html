@@ -211,25 +211,23 @@
 
   .pmodal{position:fixed;inset:0;z-index:60;background:rgba(7,23,20,.94);overflow:auto;padding:14px;display:flex}
   .pmodal[hidden]{display:none}
-  .pmodal-inner{margin:auto;width:100%;max-width:560px}
+  .pmodal-inner{margin:auto;width:100%}
   .pmodal .play{margin:0}
+  .pmodal .field{max-width:calc((100vh - 210px) * 1.3);margin-left:auto;margin-right:auto}
   @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
   @media(min-width:620px){
     body{font-size:17px}
     header h1{font-size:42px}
-    main{max-width:680px;margin:0 auto}
-    header,nav{padding-left:calc(50vw - 340px);padding-right:calc(50vw - 340px)}
     .slots{grid-template-columns:1fr 1fr 1fr}
   }
   @media(min-width:1000px){
-    main{max-width:1080px}
+    main{max-width:1080px;margin:0 auto}
     header,nav{padding-left:calc(50vw - 540px);padding-right:calc(50vw - 540px)}
     #plays,#pbKept,#mineList{column-count:2;column-gap:14px}
     #plays .play,#pbKept .play,#mineList .play,#pbKept .callhead,#mineList .callhead,
     #pbKept .benchline,#pbKept .card,#mineList .empty{break-inside:avoid}
     .pgrid{grid-template-columns:repeat(3,1fr)}
     .slots{grid-template-columns:repeat(5,1fr)}
-    .pmodal-inner{max-width:880px}
     #fcard .field,#gdplay .field,#gdLineup,#gdDef,#dfField,#fmField,#edField{
       max-width:660px;margin-left:auto;margin-right:auto}
   }
@@ -847,10 +845,11 @@
     if(name){
       var nm = esc(firstName(name));
       var wpx = Math.max(nm.length*5.6+12, 26);
-      /* pos: 'l' / 'r' put the pill beside the dot (stacked backfields), default is below */
+      /* pos: 'l' / 'r' beside the dot, 't' above it (center — QB circle sits below), default below */
       var rx, cx, cy;
       if(pos==='l'){ rx = x-13-wpx; cx = rx+wpx/2; cy = y; }
       else if(pos==='r'){ rx = x+13; cx = rx+wpx/2; cy = y; }
+      else if(pos==='t'){ rx = x-wpx/2; cx = x; cy = y-21; }
       else { rx = x-wpx/2; cx = x; cy = y+21; }
       out += '<rect x="'+rx+'" y="'+(cy-7)+'" width="'+wpx+'" height="14" rx="7" fill="rgba(7,23,20,.88)" stroke="rgba(246,241,228,.25)" stroke-width="1"/>'+
         '<text x="'+cx+'" y="'+(cy+3.6)+'" text-anchor="middle" font-size="9" font-weight="700" font-family="Archivo,sans-serif" fill="#F6F1E4">'+nm+'</text>';
@@ -1222,6 +1221,7 @@
       var sp = flipped ? [300-s[1][0], s[1][1]] : s[1];
       var lp = s[3];
       if(flipped){ if(lp==='l') lp='r'; else if(lp==='r') lp='l'; }
+      if(!lp && s[0]==='C') lp = 't';
       return dot(sp, s[0], s[2], names ? names[s[0]] : null, lp);
     }).join('');
     return svg(inner);
