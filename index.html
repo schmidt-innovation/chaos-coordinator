@@ -827,7 +827,7 @@
 
   function dotName(s){
     var n = String(s||'').trim().split(/\s+/)[0];
-    return n.length > 7 ? n.slice(0,6)+'…' : n;
+    return n.length > 9 ? n.slice(0,8)+'…' : n;
   }
   /* inside-stack markers: the name lives IN the circle, position letter tucked beneath it */
   function dot(p,label,kind,name,pos){
@@ -845,11 +845,16 @@
     var fill = kind==='ball' ? '#FFC93C' : '#123B33';
     var txt  = kind==='ball' ? '#0B211C' : '#F6F1E4';
     if(name){
+      /* lollipop: the name pill is the marker, position letter rides on top */
       var nm = esc(dotName(name));
-      var sub = kind==='ball' ? 'rgba(11,33,28,.75)' : 'rgba(220,213,196,.75)';
-      return '<circle cx="'+x+'" cy="'+y+'" r="13" fill="'+fill+'" stroke="#F6F1E4" stroke-width="1.6"/>'+
-        '<text x="'+x+'" y="'+(y+1.5)+'" text-anchor="middle" font-size="7.2" font-weight="700" font-family="Archivo,sans-serif" fill="'+txt+'">'+nm+'</text>'+
-        '<text x="'+x+'" y="'+(y+9)+'" text-anchor="middle" font-size="5.6" font-weight="700" font-family="Archivo,sans-serif" fill="'+sub+'">'+label+'</text>';
+      var w = Math.max(nm.length*5.6+12, 26);
+      var pf = kind==='ball' ? '#FFC93C' : 'rgba(7,23,20,.95)';
+      var ps = kind==='ball' ? '#FFC93C' : 'rgba(246,241,228,.7)';
+      var pt = kind==='ball' ? '#0B211C' : '#F6F1E4';
+      return '<rect x="'+(x-w/2)+'" y="'+(y-8)+'" width="'+w+'" height="16" rx="8" fill="'+pf+'" stroke="'+ps+'" stroke-width="1.3"/>'+
+        '<text x="'+x+'" y="'+(y+3.6)+'" text-anchor="middle" font-size="9" font-weight="700" font-family="Archivo,sans-serif" fill="'+pt+'">'+nm+'</text>'+
+        '<circle cx="'+x+'" cy="'+(y-12)+'" r="6.5" fill="'+(kind==='ball'?'#FFC93C':'#123B33')+'" stroke="#F6F1E4" stroke-width="1.3"/>'+
+        '<text x="'+x+'" y="'+(y-9.6)+'" text-anchor="middle" font-size="5.8" font-weight="700" font-family="Archivo,sans-serif" fill="'+pt+'">'+label+'</text>';
     }
     out += '<circle cx="'+x+'" cy="'+y+'" r="10" fill="'+fill+'" stroke="#F6F1E4" stroke-width="1.6"/>'+
       '<text x="'+x+'" y="'+(y+3.8)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="'+txt+'">'+label+'</text>';
@@ -954,7 +959,7 @@
     ]);
 
   /* --- 3. TRIPS --- */
-  var r_X=[196,150], r_Y=[232,150], r_Z=[268,150];
+  var r_X=[196,148], r_Y=[232,163], r_Z=[268,148];
   var TRIPS = F('Trips','Three to one side',
     'Stacks all three receivers on one side. Little kids on defense almost never cover this right, and the empty side is wide open for runs.',
     'All three receivers on the right, about four steps apart. Nobody on the left at all.',
@@ -977,7 +982,7 @@
     ]);
 
   /* --- 4. WAGON --- */
-  var w_X=[44,150], w_Z=[256,150], w_H=[192,186];
+  var w_X=[44,150], w_Z=[256,150], w_H=[200,198];
   var WAGON = F('Wagon','One in the backfield',
     'Puts a runner right next to the quarterback so the handoff is short and safe. If your team runs better than it throws, live here.',
     'One receiver on each sideline. The third stands beside the quarterback, one step back and to the right.',
