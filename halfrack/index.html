@@ -1553,6 +1553,22 @@
     });
     if(!liveDiffers(s)) delete s.live;
   }
+  /* per-play overrides: modal drags rearrange ONE play, never the series lineup */
+  function playKey(cf, play){ return cf.name+':'+play.n; }
+  function playIds(s, cf, play){
+    var key = playKey(cf, play);
+    if(s.pmap && s.pmap[key]) return s.pmap[key];
+    return idsForForm(s, s.callForm);
+  }
+  function playNamesFor(s, cf, play){
+    var ids = playIds(s, cf, play);
+    var names = {};
+    Object.keys(ids).forEach(function(k){
+      var p = ids[k] ? playerById(ids[k]) : null;
+      if(p && p.name.trim()) names[k] = p.name;
+    });
+    return names;
+  }
   function onFieldIds(s){
     var ls = liveSlots(s);
     return slotOrder(FORMS[s.form]||FORMS[0]).map(function(k){ return ls[k]; }).filter(Boolean);
@@ -1795,15 +1811,17 @@
   function openPlayModal(cf, play){
     var cs = state.series[state.current];
     function renderModal(){
-      var names = namesForForm(cs, cs.callForm);
+      var names = playNamesFor(cs, cf, play);
+      var hasOv = !!(cs.pmap && cs.pmap[playKey(cf, play)]);
       var fl = !!(state.flip && state.flip[cf.name+':'+play.n]);
       playModal.innerHTML = '<div class="pmodal-inner"><div class="play">'+
         '<div class="phead"><h3>'+esc(displayName(cf, play))+'</h3>'+
         '<div class="tag'+(play.t==='run'?' run':'')+'">'+(play.t==='run'?'Run':'Pass')+'</div>'+
         (fl?'<div class="tag">Flipped ↔</div>':'')+'</div>'+
         '<div class="field" id="modalField" style="touch-action:none">'+playFieldSvg(cf, play, names)+'</div>'+
-        '<p class="edhint">Drag a player onto a teammate to swap their spots.</p>'+
+        '<p class="edhint">Drag a player onto a teammate to swap spots — for this play only.'+(hasOv?' <b style="color:var(--whistle)">Custom spots on.</b>':'')+'</p>'+
         '<div class="btns"><button type="button" id="modalRun">Run it ▶</button>'+
+        (hasOv?'<button type="button" id="modalResetPm">↺ Series lineup</button>':'')+
         '<button type="button" id="modalClose">Close</button></div>'+
         '</div></div>';
       var field = document.getElementById('modalField');
@@ -1811,6 +1829,13 @@
       playAnim(field);
       document.getElementById('modalRun').addEventListener('click', function(){ playAnim(field); });
       document.getElementById('modalClose').addEventListener('click', closePlayModal);
+      var prb = document.getElementById('modalResetPm');
+      if(prb){
+        prb.addEventListener('click', function(){
+          if(cs.pmap){ delete cs.pmap[playKey(cf, play)]; }
+          save(); renderGameDay(); renderModal();
+        });
+      }
 
       /* drag on the play itself */
       var svgEl = field.querySelector('svg');
@@ -1844,7 +1869,7 @@
         drag = null; ghost = null; ring = null;
       }
       field.addEventListener('pointerdown', function(ev){
-        var ids = idsForForm(cs, cs.callForm);
+        var ids = playIds(cs, cf, play);
         var p = evPos(ev);
         var sl = slotAt(p[0], p[1]);
         if(!sl || !ids[sl]) return;
@@ -1867,7 +1892,7 @@
       });
       field.addEventListener('pointermove', function(ev){
         if(!drag || !ghost) return;
-        var ids = idsForForm(cs, cs.callForm);
+        var ids = playIds(cs, cf, play);
         var p = evPos(ev);
         ghost.setAttribute('transform','translate('+p[0]+','+p[1]+')');
         var t = slotAt(p[0], p[1]);
@@ -1882,15 +1907,32 @@
       });
       field.addEventListener('pointerup', function(ev){
         if(!drag) return;
-        var ids = idsForForm(cs, cs.callForm);
+        var ids = playIds(cs, cf, play);
         var p = evPos(ev);
         var t = slotAt(p[0], p[1]);
         var from = drag;
         cleanup();
         if(t && t !== from && ids[from] && ids[t]){
-          swapPlayers(cs, ids[from], ids[t]);
+          var key = playKey(cf, play);
+          if(!cs.pmap) cs.pmap = {};
+          if(!cs.pmap[key]){
+            cs.pmap[key] = {};
+            var base = idsForForm(cs, cs.callForm);
+            Object.keys(base).forEach(function(k){ cs.pmap[key][k] = base[k]; });
+          }
+          var m = cs.pmap[key];
+          var tmp = m[t];
+          m[t] = m[from];
+          if(tmp) m[from] = tmp; else delete m[from];
+          var base2 = idsForForm(cs, cs.callForm);
+          var keys = {};
+          Object.keys(base2).forEach(function(k){ keys[k] = 1; });
+          Object.keys(m).forEach(function(k){ keys[k] = 1; });
+          if(Object.keys(keys).every(function(k){ return base2[k] === m[k]; })){
+            delete cs.pmap[key];
+          }
           save();
-          renderGameDay(); renderSeriesList();
+          renderGameDay();
           renderModal();
         }
       });
@@ -2168,7 +2210,7 @@
     }
 
     var playHtml = play
-      ? playCardHtml(cf, play, names)
+      ? playCardHtml(cf, play, playNamesFor(cs, cf, play))
       : (pool.length ? '<div class="empty">Tap a play above to put it on the board.</div>' : '');
 
     gd.innerHTML = chips + sideTabs + (gdTab==='def'
