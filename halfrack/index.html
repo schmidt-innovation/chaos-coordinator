@@ -362,7 +362,7 @@
       <li><b>Gold line</b> is the ball — the handoff, pitch, or the first read on a pass.</li>
       <li><b>White lines</b> are everyone else's routes.</li>
       <li><b>Numbers</b> on pass plays are the quarterback's reads, in order: look at 1, then 2, then 3.</li>
-      <li><b>Guards and the center block</b> — dashed white is a fake or a lead block. The QB can carry the ball; the center never can.</li>
+      <li><b>The ⊥ bar means that kid blocks</b> on this play; dashed white is a fake or a lead block in motion. Everyone is eligible — guards can catch, and anyone but the center can run it.</li>
       <li><b>Dashed white</b> is a fake or an escort — no ball.</li>
       <li><b>Tap ✎</b> on any play to rename it to whatever your kids call it. The nickname shows everywhere, saves with your team code, and the original stays underneath as "aka".</li>
       <li><b>Tap Flip ↔</b> to run any play to the other side — the whole picture mirrors, players and all. The flip sticks until you flip it back, and saves with your team code.</li>
@@ -862,7 +862,8 @@
       {n:'Bootleg',t:'pass',d:'Fake left, QB rolls right with the tight end dragging into his window and Z hooking behind it. Run-pass option on the move.',r:[{p:[[150,176],[176,182],[204,174]],qb:true},{p:[[150,208],[132,196],[122,188]],dashed:true},flat(b1_Y,1),hook(b1_Z,1),go(b1_X)]},
       {n:'Tunnel',t:'pass',d:'Quick tunnel screen to X with the back leading out in front. One throw, two blocks, big grass.',r:[[[30,138],[30,128],[54,124]],{p:[[150,198],[104,172],[74,152]],dashed:true},go(b1_Z),cross(b1_Y,-1)]},
       {n:'Wham',t:'run',d:'Dive left with the tight end pulling across to wham the first shirt inside. Sneaky heavy for a base look.',r:[run(dive(b1_H,-1)),{p:[[210,138],[164,162],[142,148]],dashed:true},go(b1_X),go(b1_Z)]},
-      {n:'Statue',t:'run',d:'QB draw. Stand tall like it\'s a pass, count one, then slide up the middle behind the guards.',r:[run([[150,176],[148,158],[146,120],[150,76]]),go(b1_X),go(b1_Z),seam(b1_Y,1)]}
+      {n:'Statue',t:'run',d:'QB draw. Stand tall like it\'s a pass, count one, then slide up the middle behind the guards.',r:[run([[150,176],[148,158],[146,120],[150,76]]),go(b1_X),go(b1_Z),seam(b1_Y,1)]},
+      {n:'Lunch Pail',t:'pass',d:'Everyone is eligible — the right guard blocks one count, then slips to the flat while the deep routes drag coverage away. Nobody covers a guard.',r:[[[176,149],[186,128],[214,122]],go(b1_X),go(b1_Z),seam(b1_Y,-1)]}
     ]);
 
   /* --- 2. TRIPS --- */
@@ -902,7 +903,8 @@
       {n:'Burrow',t:'run',d:'QB sneak. Ball fully out of the center\'s hands, one step back, then straight into the gap. Short-yardage money.',r:[run([[150,172],[150,138],[152,100]]),{p:[[126,202],[132,192]],dashed:true},{p:[[174,202],[168,192]],dashed:true}]},
       {n:'Anvil',t:'run',d:'Fullback trap — quick hitter to Y while H fakes wide. The defense flows to the fake and Y is through before they reset.',r:[run(dive(p3_Y,1)),{p:[[126,202],[104,190],[92,180]],dashed:true},go(p3_X),go(p3_Z)]},
       {n:'Waggle',t:'pass',d:'Both backs flow right, QB boots left alone. X snaps to the sideline, Z drags deep behind him. Half the defense guesses wrong.',r:[{p:[[150,172],[124,176],[100,166]],qb:true},{p:[[126,202],[160,190],[188,184]],dashed:true},out(p3_X,-1),cross(p3_Z,-1)]},
-      {n:'Belly',t:'run',d:'Y takes it downhill left behind H\'s lead block — the mirror of Anvil so the defense can never sit on one side.',r:[run(dive(p3_Y,-1)),{p:[[126,202],[118,186],[114,150]],dashed:true},go(p3_X),go(p3_Z)]}
+      {n:'Belly',t:'run',d:'Y takes it downhill left behind H\'s lead block — the mirror of Anvil so the defense can never sit on one side.',r:[run(dive(p3_Y,-1)),{p:[[126,202],[118,186],[114,150]],dashed:true},go(p3_X),go(p3_Z)]},
+      {n:'Fridge',t:'run',d:'Guard ball! The left guard takes the quick flip straight ahead — legal for everyone but the center, and nobody on defense believes it until he\'s five yards deep.',r:[run([[124,149],[118,120],[122,82]]),{p:[[126,204],[104,192]],dashed:true},{p:[[176,204],[196,192]],dashed:true},go(p3_X)]}
     ]);
 
   /* --- 4. SPREAD --- */
@@ -936,7 +938,8 @@
       {n:'Orbit',t:'run',d:'H orbits behind the quarterback and takes it around the empty left edge. The bunch was the bait.',r:[run([[256,150],[236,178],[190,192],[150,196],[110,180],[76,140],[70,88]]),go(bn_X),go(bn_Y)]},
       {n:'Longhorn',t:'run',d:'QB keeper right behind the bunch\'s wall of blocks. Three kids leading, one flag to protect.',r:[run([[150,176],[168,170],[196,148],[208,100]]),{p:[[216,138],[224,124]],dashed:true},{p:[[256,138],[258,124]],dashed:true},go(bn_X)]},
       {n:'Sidewinder',t:'run',d:'Fly sweep — Z whips across the formation at the snap and takes it around the weak side at speed.',r:[run([[236,152],[204,176],[150,182],[96,170],[60,128],[56,72]]),go(bn_X),go(bn_H)]},
-      {n:'Doorstop',t:'run',d:'QB sneak behind the center. Ball out of the snapper\'s hands, one step back, then wedge forward. Third-and-short answer.',r:[run([[150,172],[150,138],[152,102]]),{p:[[216,138],[216,126]],dashed:true},{p:[[256,138],[256,126]],dashed:true}]}
+      {n:'Doorstop',t:'run',d:'QB sneak behind the center. Ball out of the snapper\'s hands, one step back, then wedge forward. Third-and-short answer.',r:[run([[150,172],[150,138],[152,102]]),{p:[[216,138],[216,126]],dashed:true},{p:[[256,138],[256,126]],dashed:true}]},
+      {n:'Fat Chance',t:'pass',d:'The center snaps, waits one beat, and wanders into the empty middle. Every defender forgot he exists — everyone is eligible in this league.',r:[[[150,132],[150,106],[160,98]],go(bn_Y),go(bn_Z),flat(bn_H,1),slant(bn_X,1)]}
     ]);
 
   /* --- 6. HEAVY --- */
@@ -1052,6 +1055,7 @@
       for(i=0;i<entries.length;i++){ e=entries[i]; if(Array.isArray(e) || (e.p && !e.dashed && !e.qb)){ firstRouteIdx=i; break; } }
     }
     var inner = '', readN = 0, reads = '';
+    var routedSlots = {};
     for(i=0;i<entries.length;i++){
       e = entries[i];
       var pts = Array.isArray(e) ? e : e.p;
@@ -1069,6 +1073,7 @@
       }
       if(kind==='toss') mvSlot = null;
       if(kind==='qb') mvSlot = 'QB';
+      if(mvSlot) routedSlots[mvSlot] = 1;
       if(kind==='qb'){
         inner += pathEl(pts,{color:'#FFC93C',width:2.4,dashed:true,dash:'3 6',ball:true,mv:mvSlot});
       } else if(kind==='carry'){
@@ -1116,6 +1121,17 @@
       }
     }
     inner += reads;
+    /* anyone without a route on this play is blocking — show the classic block bar */
+    if(play){
+      f.spots.forEach(function(sp2){
+        if(sp2[0] === 'QB' || routedSlots[sp2[0]]) return;
+        var bp = flipped ? [300-sp2[1][0], sp2[1][1]] : sp2[1];
+        inner += '<g class="late">'+
+          '<line x1="'+bp[0]+'" y1="'+(bp[1]-20)+'" x2="'+bp[0]+'" y2="'+(bp[1]-27)+'" stroke="rgba(246,241,228,.75)" stroke-width="2" stroke-linecap="round"/>'+
+          '<line x1="'+(bp[0]-6.5)+'" y1="'+(bp[1]-27)+'" x2="'+(bp[0]+6.5)+'" y2="'+(bp[1]-27)+'" stroke="rgba(246,241,228,.75)" stroke-width="2" stroke-linecap="round"/>'+
+          '</g>';
+      });
+    }
     /* on run plays the gold marker follows the ball carrier, not the QB */
     var goldSlot = 'QB';
     if(play && play.t === 'run'){

@@ -1170,6 +1170,7 @@
       for(i=0;i<entries.length;i++){ e=entries[i]; if(Array.isArray(e) || (e.p && !e.dashed && !e.qb)){ firstRouteIdx=i; break; } }
     }
     var inner = '', readN = 0, reads = '';
+    var routedSlots = {};
     for(i=0;i<entries.length;i++){
       e = entries[i];
       var pts = Array.isArray(e) ? e : e.p;
@@ -1187,6 +1188,7 @@
       }
       if(kind==='toss') mvSlot = null;
       if(kind==='qb') mvSlot = 'QB';
+      if(mvSlot) routedSlots[mvSlot] = 1;
       if(kind==='qb'){
         inner += pathEl(pts,{color:'#FFC93C',width:2.4,dashed:true,dash:'3 6',ball:true,mv:mvSlot});
       } else if(kind==='carry'){
@@ -1234,6 +1236,17 @@
       }
     }
     inner += reads;
+    /* anyone without a route on this play is blocking — show the classic block bar */
+    if(play){
+      f.spots.forEach(function(sp2){
+        if(sp2[0] === 'QB' || routedSlots[sp2[0]]) return;
+        var bp = flipped ? [300-sp2[1][0], sp2[1][1]] : sp2[1];
+        inner += '<g class="late">'+
+          '<line x1="'+bp[0]+'" y1="'+(bp[1]-20)+'" x2="'+bp[0]+'" y2="'+(bp[1]-27)+'" stroke="rgba(246,241,228,.75)" stroke-width="2" stroke-linecap="round"/>'+
+          '<line x1="'+(bp[0]-6.5)+'" y1="'+(bp[1]-27)+'" x2="'+(bp[0]+6.5)+'" y2="'+(bp[1]-27)+'" stroke="rgba(246,241,228,.75)" stroke-width="2" stroke-linecap="round"/>'+
+          '</g>';
+      });
+    }
     /* on run plays the gold marker follows the ball carrier, not the QB */
     var goldSlot = 'QB';
     if(play && play.t === 'run'){
