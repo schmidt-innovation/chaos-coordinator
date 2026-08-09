@@ -950,7 +950,7 @@
       {n:'Chimney',t:'pass',d:'Y releases straight up the seam behind linebackers playing run. One throw over the top of the pile.',r:[seam(hv_Y,-1),flat(hv_H,1),go(hv_Z),hook(hv_X,-1)]},
       {n:'Flagpole',t:'pass',d:'Z gets the lone-receiver fade with H swinging underneath as the checkdown. Goal-line money.',r:[go(hv_Z),flat(hv_H,1),hook(hv_Y,1),slant(hv_X,1)]},
       {n:'TNT',t:'run',d:'Blast right between guard and tight end. Six on the line, one crease, hit it now.',r:[run(dive(hv_H,1)),{p:[[204,138],[208,126]],dashed:true},go(hv_Z)]},
-      {n:'Rockslide',t:'run',d:'Quick pitch strong side behind both tight ends sealing down. Get the edge before they string it out.',r:[ball([[152,190],[186,192]]),run([[186,192],[232,168],[256,120],[260,64]]),go(hv_Z)]},
+      {n:'Rockslide',t:'run',gold:'H',d:'Quick pitch strong side behind both tight ends sealing down. Get the edge before they string it out.',r:[ball([[152,190],[186,192]]),run([[186,192],[232,168],[256,120],[260,64]]),go(hv_Z)]},
       {n:'Switchyard',t:'run',d:'Counter — H steps right, comes back left behind the down blocks. The goal-line defense flows one gap too far.',r:[run(counter(hv_H,-1)),{p:[[96,138],[92,126]],dashed:true},go(hv_Z)]},
       {n:'Piledriver',t:'run',d:'QB sneak with H pushing the pile. One step back first, then lowest man wins the yard.',r:[run([[150,172],[150,142],[152,106]]),{p:[[150,208],[150,198]],dashed:true},go(hv_Z)]}
     ]);
@@ -982,7 +982,7 @@
       var ordered = firstRt ? [firstRt].concat(rest) : rest;
       ordered.forEach(function(rt){
         if(rt.fake){ r.push({p: rt.pts, dashed:true}); }
-        else if(rt.carry){ r.push({p: rt.pts, carry:true}); }
+        else if(rt.carry){ r.push({p: rt.pts, carry:true, slot: rt.slot}); }
         else { r.push(rt.pts); }
       });
       return {n:c.n, t:c.t, d:c.d || 'Custom play — drawn by coach.', r:r, c:'none', custom:true, cid:c.id};
@@ -1060,7 +1060,7 @@
       if(kind==='qb'){
         inner += pathEl(pts,{color:'#FFC93C',width:2.4,dashed:true,dash:'3 6',ball:true});
       } else if(kind==='carry'){
-        inner += pathEl(pts,{color:'#FFC93C',width:3.6,ball:true});
+        inner += pathEl(pts,{color:'#FFC93C',width:4,ball:true});
       } else if(kind==='toss'){
         inner += pathEl(pts,{color:'#FFC93C',width:2.4,dashed:true,dash:'4 5',ball:true});
       } else if(kind==='fake'){
@@ -1068,17 +1068,18 @@
       } else if(kind==='primary'){
         inner += pathEl(pts,{color:'#FFC93C',width:3.2});
       } else {
-        inner += pathEl(pts,{color:'#DCD5C4',width:2.2,marker:'url(#arp)',op:.8});
+        var routeOp = (play && play.t==='run') ? .45 : .8;
+        inner += pathEl(pts,{color:'#DCD5C4',width:(play && play.t==='run')?2:2.2,marker:'url(#arp)',op:routeOp});
       }
       /* read-order badges for pass plays */
       if(play && play.t==='pass' && (kind==='primary' || kind==='route')){
         readN++;
         var end = pts[pts.length-1];
-        var bx = clampX(end[0]), by = clampY(end[1]-15);
+        var bx = clampX(end[0]), by = clampY(end[1]-16);
         var gold = readN===1;
         reads += '<g class="late">'+
-          '<circle cx="'+bx+'" cy="'+by+'" r="7.5" fill="'+(gold?'#FFC93C':'#071714')+'" stroke="'+(gold?'#FFC93C':'rgba(246,241,228,.4)')+'" stroke-width="1.2"/>'+
-          '<text x="'+bx+'" y="'+(by+3.4)+'" text-anchor="middle" font-size="9.5" font-weight="800" font-family="Archivo,sans-serif" fill="'+(gold?'#0B211C':'#DCD5C4')+'">'+readN+'</text></g>';
+          '<circle cx="'+bx+'" cy="'+by+'" r="8.5" fill="'+(gold?'#FFC93C':'#071714')+'" stroke="'+(gold?'#FFC93C':'rgba(246,241,228,.4)')+'" stroke-width="1.2"/>'+
+          '<text x="'+bx+'" y="'+(by+3.8)+'" text-anchor="middle" font-size="10.5" font-weight="800" font-family="Archivo,sans-serif" fill="'+(gold?'#0B211C':'#DCD5C4')+'">'+readN+'</text></g>';
       }
     }
     /* throw flight for pass plays: QB to first read */
@@ -1103,12 +1104,36 @@
       }
     }
     inner += reads;
+    /* on run plays the gold marker follows the ball carrier, not the QB */
+    var goldSlot = 'QB';
+    if(play && play.t === 'run'){
+      if(play.gold){ goldSlot = play.gold; }
+      else {
+        var lastCarry = null;
+        entries.forEach(function(e){ if(e && e.carry) lastCarry = e; });
+        if(lastCarry){
+          if(lastCarry.slot){ goldSlot = lastCarry.slot; }
+          else {
+            var cp0 = lastCarry.p[0], cbd = 30;
+            f.spots.forEach(function(sp2){
+              var cd = Math.sqrt(Math.pow(sp2[1][0]-cp0[0],2)+Math.pow(sp2[1][1]-cp0[1],2));
+              if(cd < cbd){ cbd = cd; goldSlot = sp2[0]; }
+            });
+          }
+        }
+      }
+    }
     inner += f.spots.map(function(s){
       var sp = flipped ? [300-s[1][0], s[1][1]] : s[1];
       var lp = s[3];
       if(flipped){ if(lp==='l') lp='r'; else if(lp==='r') lp='l'; }
       if(!lp && s[0]==='C') lp = 't';
-      return dot(sp, s[0], s[2], names ? names[s[0]] : null, lp);
+      var kd = s[2];
+      if(play && play.t === 'run'){
+        var gs = (flipped && goldSlot) ? goldSlot : goldSlot;
+        kd = (s[0] === gs) ? 'ball' : null;
+      }
+      return dot(sp, s[0], kd, names ? names[s[0]] : null, lp);
     }).join('');
     return svg(inner);
   }

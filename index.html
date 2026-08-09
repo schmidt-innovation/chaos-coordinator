@@ -1044,7 +1044,7 @@
       {n:'Jackknife',t:'run',d:'Counter. The tailback jab-steps left, plants, and takes the handoff back to the right while the defense flows the wrong way.',r:[run(counter(i_T,1)),go(i_X),go(i_Z)]},
       {n:'Drawbridge',t:'run',d:'Draw from deep. The quarterback shows pass, the rusher flies by, and the tailback takes the late handoff through the empty middle.',r:[run(draw(i_T,1)),go(i_X),go(i_Z)]},
       {n:'Cyclone',t:'run',d:'End-around to the left receiver looping behind the tailback. Slow to start, fast around the corner.',r:[run([[48,140],[80,172],[150,190],[210,176],[244,130],[248,64]]),{p:[[150,202],[164,192]],dashed:true},go(i_Z)]},
-      {n:'Grizzly',t:'run',d:'Quick pitch right to the tailback already leaning that way. Wider than Bison, faster than Freight.',r:[ball([[150,190],[196,186]]),run([[196,186],[240,160],[268,120],[272,58]]),go(i_X)]},
+      {n:'Grizzly',t:'run',gold:'T',d:'Quick pitch right to the tailback already leaning that way. Wider than Bison, faster than Freight.',r:[ball([[150,190],[196,186]]),run([[196,186],[240,160],[268,120],[272,58]]),go(i_X)]},
       {n:'Trapdoor',t:'pass',d:'The tailback slips out the side door to the left flat while both receivers drag coverage away. Free yards, every time.',r:[flat(i_T,-1),go(i_X),dig(i_Z,-1)]},
       {n:'Telescope',t:'pass',d:'Both receivers bend deep posts toward the middle. The quarterback throws to whichever safety-side opens first.',r:[post(i_X,1),post(i_Z,-1),flat(i_T,1)]},
       {n:'Dragonfly',t:'pass',d:'The tailback wheels out of the backfield up the left sideline. Nobody at this age expects the deep ball from a running back.',r:[wheel(i_T,-1),dig(i_X,1),go(i_Z)]}
@@ -1100,7 +1100,7 @@
       var ordered = firstRt ? [firstRt].concat(rest) : rest;
       ordered.forEach(function(rt){
         if(rt.fake){ r.push({p: rt.pts, dashed:true}); }
-        else if(rt.carry){ r.push({p: rt.pts, carry:true}); }
+        else if(rt.carry){ r.push({p: rt.pts, carry:true, slot: rt.slot}); }
         else { r.push(rt.pts); }
       });
       return {n:c.n, t:c.t, d:c.d || 'Custom play — drawn by coach.', r:r, c:'none', custom:true, cid:c.id};
@@ -1178,7 +1178,7 @@
       if(kind==='qb'){
         inner += pathEl(pts,{color:'#FFC93C',width:2.4,dashed:true,dash:'3 6',ball:true});
       } else if(kind==='carry'){
-        inner += pathEl(pts,{color:'#FFC93C',width:3.6,ball:true});
+        inner += pathEl(pts,{color:'#FFC93C',width:4,ball:true});
       } else if(kind==='toss'){
         inner += pathEl(pts,{color:'#FFC93C',width:2.4,dashed:true,dash:'4 5',ball:true});
       } else if(kind==='fake'){
@@ -1186,17 +1186,18 @@
       } else if(kind==='primary'){
         inner += pathEl(pts,{color:'#FFC93C',width:3.2});
       } else {
-        inner += pathEl(pts,{color:'#DCD5C4',width:2.2,marker:'url(#arp)',op:.8});
+        var routeOp = (play && play.t==='run') ? .45 : .8;
+        inner += pathEl(pts,{color:'#DCD5C4',width:(play && play.t==='run')?2:2.2,marker:'url(#arp)',op:routeOp});
       }
       /* read-order badges for pass plays */
       if(play && play.t==='pass' && (kind==='primary' || kind==='route')){
         readN++;
         var end = pts[pts.length-1];
-        var bx = clampX(end[0]), by = clampY(end[1]-15);
+        var bx = clampX(end[0]), by = clampY(end[1]-16);
         var gold = readN===1;
         reads += '<g class="late">'+
-          '<circle cx="'+bx+'" cy="'+by+'" r="7.5" fill="'+(gold?'#FFC93C':'#071714')+'" stroke="'+(gold?'#FFC93C':'rgba(246,241,228,.4)')+'" stroke-width="1.2"/>'+
-          '<text x="'+bx+'" y="'+(by+3.4)+'" text-anchor="middle" font-size="9.5" font-weight="800" font-family="Archivo,sans-serif" fill="'+(gold?'#0B211C':'#DCD5C4')+'">'+readN+'</text></g>';
+          '<circle cx="'+bx+'" cy="'+by+'" r="8.5" fill="'+(gold?'#FFC93C':'#071714')+'" stroke="'+(gold?'#FFC93C':'rgba(246,241,228,.4)')+'" stroke-width="1.2"/>'+
+          '<text x="'+bx+'" y="'+(by+3.8)+'" text-anchor="middle" font-size="10.5" font-weight="800" font-family="Archivo,sans-serif" fill="'+(gold?'#0B211C':'#DCD5C4')+'">'+readN+'</text></g>';
       }
     }
     /* throw flight for pass plays: QB to first read */
@@ -1221,12 +1222,36 @@
       }
     }
     inner += reads;
+    /* on run plays the gold marker follows the ball carrier, not the QB */
+    var goldSlot = 'QB';
+    if(play && play.t === 'run'){
+      if(play.gold){ goldSlot = play.gold; }
+      else {
+        var lastCarry = null;
+        entries.forEach(function(e){ if(e && e.carry) lastCarry = e; });
+        if(lastCarry){
+          if(lastCarry.slot){ goldSlot = lastCarry.slot; }
+          else {
+            var cp0 = lastCarry.p[0], cbd = 30;
+            f.spots.forEach(function(sp2){
+              var cd = Math.sqrt(Math.pow(sp2[1][0]-cp0[0],2)+Math.pow(sp2[1][1]-cp0[1],2));
+              if(cd < cbd){ cbd = cd; goldSlot = sp2[0]; }
+            });
+          }
+        }
+      }
+    }
     inner += f.spots.map(function(s){
       var sp = flipped ? [300-s[1][0], s[1][1]] : s[1];
       var lp = s[3];
       if(flipped){ if(lp==='l') lp='r'; else if(lp==='r') lp='l'; }
       if(!lp && s[0]==='C') lp = 't';
-      return dot(sp, s[0], s[2], names ? names[s[0]] : null, lp);
+      var kd = s[2];
+      if(play && play.t === 'run'){
+        var gs = (flipped && goldSlot) ? goldSlot : goldSlot;
+        kd = (s[0] === gs) ? 'ball' : null;
+      }
+      return dot(sp, s[0], kd, names ? names[s[0]] : null, lp);
     }).join('');
     return svg(inner);
   }
