@@ -306,7 +306,7 @@
   <div class="card">
     <h3>Series</h3>
     <p>A series is one trip on offense. Set the five on the field and their spots. When the ball turns over, the next series group goes in.</p>
-    <button type="button" class="ghostbtn solid gold" id="autoRotate">⟳ Auto-rotate roster into 4 fair series</button>
+    <button type="button" class="ghostbtn solid gold" id="autoRotate">⟳ Auto-rotate roster into fair series</button>
     <div class="hintline" id="autoHint" hidden>Name at least 5 players first.</div>
   </div>
 
@@ -1993,11 +1993,7 @@
     if(named.length < 5){ hint.hidden = false; setTimeout(function(){ hint.hidden = true; },3000); return; }
     hint.hidden = true;
     var n = named.length, s, k;
-    for(s=0;s<4;s++){
-      if(!state.series[s]){
-        state.seq++;
-        state.series[s] = {id:'s'+state.seq, label:'Series '+(s+1), form:0, slots:{}};
-      }
+    for(s=0;s<state.series.length;s++){
       var ser = state.series[s];
       ser.slots = {};
       delete ser.live;
