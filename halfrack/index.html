@@ -758,35 +758,34 @@
   }
   function path(pts,o){ return pathEl(pts,o); } /* defense diagrams use this */
 
+  function dotName(s){
+    var n = String(s||'').trim().split(/\s+/)[0];
+    return n.length > 7 ? n.slice(0,6)+'…' : n;
+  }
+  /* inside-stack markers: the name lives IN the circle, position letter tucked beneath it */
   function dot(p,label,kind,name,pos){
     var x=p[0], y=p[1], out='';
     if(kind==='d'){
-      out = '<rect x="'+(x-9)+'" y="'+(y-9)+'" width="18" height="18" rx="4" fill="#FF5A5F"/>'+
-        '<text x="'+x+'" y="'+(y+4)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="#2A0E0F">'+label+'</text>';
       if(name){
-        var dnm = esc(firstName(name));
-        var dw = Math.max(dnm.length*5.6+12, 26);
-        out += '<rect x="'+(x-dw/2)+'" y="'+(y+13)+'" width="'+dw+'" height="14" rx="7" fill="rgba(7,23,20,.88)" stroke="rgba(255,90,95,.45)" stroke-width="1"/>'+
-          '<text x="'+x+'" y="'+(y+23.6)+'" text-anchor="middle" font-size="9" font-weight="700" font-family="Archivo,sans-serif" fill="#F6F1E4">'+dnm+'</text>';
+        var dnm = esc(dotName(name));
+        return '<rect x="'+(x-15)+'" y="'+(y-12)+'" width="30" height="24" rx="6" fill="#FF5A5F" stroke="#F6F1E4" stroke-width="1.2"/>'+
+          '<text x="'+x+'" y="'+(y+0.5)+'" text-anchor="middle" font-size="6.8" font-weight="700" font-family="Archivo,sans-serif" fill="#2A0E0F">'+dnm+'</text>'+
+          '<text x="'+x+'" y="'+(y+8.2)+'" text-anchor="middle" font-size="5.2" font-weight="700" font-family="Archivo,sans-serif" fill="rgba(42,14,15,.8)">'+label+'</text>';
       }
-      return out;
+      return '<rect x="'+(x-9)+'" y="'+(y-9)+'" width="18" height="18" rx="4" fill="#FF5A5F"/>'+
+        '<text x="'+x+'" y="'+(y+4)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="#2A0E0F">'+label+'</text>';
     }
     var fill = kind==='ball' ? '#FFC93C' : '#123B33';
     var txt  = kind==='ball' ? '#0B211C' : '#F6F1E4';
+    if(name){
+      var nm = esc(dotName(name));
+      var sub = kind==='ball' ? 'rgba(11,33,28,.75)' : 'rgba(220,213,196,.75)';
+      return '<circle cx="'+x+'" cy="'+y+'" r="13" fill="'+fill+'" stroke="#F6F1E4" stroke-width="1.6"/>'+
+        '<text x="'+x+'" y="'+(y+1.5)+'" text-anchor="middle" font-size="7.2" font-weight="700" font-family="Archivo,sans-serif" fill="'+txt+'">'+nm+'</text>'+
+        '<text x="'+x+'" y="'+(y+9)+'" text-anchor="middle" font-size="5.6" font-weight="700" font-family="Archivo,sans-serif" fill="'+sub+'">'+label+'</text>';
+    }
     out += '<circle cx="'+x+'" cy="'+y+'" r="10" fill="'+fill+'" stroke="#F6F1E4" stroke-width="1.6"/>'+
       '<text x="'+x+'" y="'+(y+3.8)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="'+txt+'">'+label+'</text>';
-    if(name){
-      var nm = esc(firstName(name));
-      var wpx = Math.max(nm.length*5.6+12, 26);
-      /* pos: 'l' / 'r' beside the dot, 't' above it (center — QB circle sits below), default below */
-      var rx, cx, cy;
-      if(pos==='l'){ rx = x-13-wpx; cx = rx+wpx/2; cy = y; }
-      else if(pos==='r'){ rx = x+13; cx = rx+wpx/2; cy = y; }
-      else if(pos==='t'){ rx = x-wpx/2; cx = x; cy = y-21; }
-      else { rx = x-wpx/2; cx = x; cy = y+21; }
-      out += '<rect x="'+rx+'" y="'+(cy-7)+'" width="'+wpx+'" height="14" rx="7" fill="rgba(7,23,20,.88)" stroke="rgba(246,241,228,.25)" stroke-width="1"/>'+
-        '<text x="'+cx+'" y="'+(cy+3.6)+'" text-anchor="middle" font-size="9" font-weight="700" font-family="Archivo,sans-serif" fill="#F6F1E4">'+nm+'</text>';
-    }
     return out;
   }
 
@@ -833,14 +832,14 @@
   function ball(pts){ return {p:pts, toss:true}; }   /* pitch / toss flight */
 
   /* ================= formations ================= */
-  var C=[150,146];
+  var C=[150,144];
 
   function F(name,sub,why,setup,spots,plays){
     return {name:name,sub:sub,why:why,setup:setup,spots:spots,plays:plays};
   }
 
   /* --- 1. BASE --- */
-  var b1_X=[30,148], b1_LG=[124,148], b1_RG=[176,148], b1_Y=[210,148], b1_Z=[270,148], b1_QB=[150,186], b1_H=[150,208];
+  var b1_X=[30,148], b1_LG=[124,151], b1_RG=[176,151], b1_Y=[210,148], b1_Z=[270,148], b1_QB=[150,184], b1_H=[150,212];
   var BASE = F('Base','Pro set · balanced',
     'A receiver on each side, a tight end next to the guard, one back behind the quarterback. Five on the line keeps you legal with room to spare, and every play in the book works from here.',
     'Guard–center–guard fingertip to fingertip. Tight end (Y) next to the right guard, receivers wide but at least five yards inside the sidelines. Back (H) straight behind the QB.',
@@ -861,7 +860,7 @@
     ]);
 
   /* --- 2. TRIPS --- */
-  var t2_X=[30,148], t2_LG=[124,148], t2_RG=[176,148], t2_Y=[214,148], t2_Z=[238,162], t2_H=[274,148], t2_QB=[150,186];
+  var t2_X=[30,148], t2_LG=[124,151], t2_RG=[176,151], t2_Y=[214,148], t2_Z=[240,163], t2_H=[274,148], t2_QB=[150,184];
   var TRIPS8 = F('Trips','Three to a side',
     'Three receivers stacked to the right stress the coverage rules — and X gets a one-on-one island on the left. Line stays legal: guards, center, X and the wing all count.',
     'Guard–center–guard tight. Y off the line next to the formation, Z a step back, H on the line as the wing. X alone wide left.',
@@ -882,7 +881,7 @@
     ]);
 
   /* --- 3. POWER --- */
-  var p3_X=[30,148], p3_LG=[124,148], p3_RG=[176,148], p3_Z=[270,148], p3_Y=[174,202], p3_H=[126,202], p3_QB=[150,182];
+  var p3_X=[30,148], p3_LG=[124,151], p3_RG=[176,151], p3_Z=[270,148], p3_Y=[176,204], p3_H=[124,204], p3_QB=[150,180];
   var POWER = F('Power','Two backs · downhill',
     'Two backs behind the quarterback means a lead blocker on every run and play-action that everybody believes. Short yardage, goal line, and four-minute offense live here.',
     'Guard–center–guard tight, receivers wide on both sides — that\'s five on the line. H and Y split behind the QB, an arm\'s length back.',
@@ -901,7 +900,7 @@
     ]);
 
   /* --- 4. SPREAD --- */
-  var sp_X=[30,148], sp_H=[64,158], sp_LG=[124,148], sp_RG=[176,148], sp_Y=[236,158], sp_Z=[270,148], sp_QB=[150,186];
+  var sp_X=[30,148], sp_H=[66,160], sp_LG=[124,151], sp_RG=[176,151], sp_Y=[234,160], sp_Z=[270,148], sp_QB=[150,184];
   var SPREAD8 = F('Spread','Empty · four wide',
     'Nobody in the backfield — four receiving threats and a quarterback with a green light. Forces their six coverage kids to declare, and the QB draw lives off the empty look.',
     'Guard–center–guard tight. X and Z wide on the line, slots (H left, Y right) a step off it. QB alone in the gun.',
@@ -918,7 +917,7 @@
     ]);
 
   /* --- 5. BUNCH --- */
-  var bn_X=[30,148], bn_LG=[124,148], bn_RG=[176,148], bn_Y=[216,148], bn_Z=[236,160], bn_H=[256,148], bn_QB=[150,186];
+  var bn_X=[30,148], bn_LG=[124,151], bn_RG=[176,151], bn_Y=[214,146], bn_Z=[238,161], bn_H=[262,148], bn_QB=[150,184];
   var BUNCH8 = F('Bunch','Tight cluster right',
     'Three receivers packed shoulder to shoulder. Defenders tangle at the snap, rubs happen naturally, and one throw beats them when they switch wrong.',
     'Guard–center–guard tight. Y on the line at the point, Z a step behind and outside, H on the line outside him — all within a couple yards. X alone wide left.',
@@ -935,7 +934,7 @@
     ]);
 
   /* --- 6. HEAVY --- */
-  var hv_X=[96,148], hv_LG=[124,148], hv_RG=[176,148], hv_Y=[204,148], hv_Z=[270,148], hv_QB=[150,186], hv_H=[150,208];
+  var hv_X=[94,149], hv_LG=[124,152], hv_RG=[176,152], hv_Y=[206,149], hv_Z=[270,148], hv_QB=[150,184], hv_H=[150,212];
   var HEAVY = F('Heavy','Double tight · goal line',
     'Two tight ends sealed against the guards, six on the line, one back downhill. When you need two yards — or when they need two yards and you just took the ball back.',
     'Tight ends (X and Y) snug against each guard, Z alone wide right for honesty. H deep behind the QB.',
@@ -2813,7 +2812,7 @@
   var fmHost = document.getElementById('fmHost');
   var fmState = null;
   function fmTemplate(){
-    return [['X',[30,148]],['LG',[124,148],null,'l'],['C',[150,146]],['RG',[176,148]],['Y',[210,148],null,'t'],['Z',[270,148]],['QB',[150,186],'ball','l'],['H',[150,208],null,'r']];
+    return [['X',[30,148]],['LG',[124,151]],['C',[150,144]],['RG',[176,151]],['Y',[210,148]],['Z',[270,148]],['QB',[150,184],'ball'],['H',[150,212]]];
   }
   function afterFormChange(){
     renderMineForm(); renderFmList(); renderMine(); renderKept(); renderSeriesList(); renderGameDay();
