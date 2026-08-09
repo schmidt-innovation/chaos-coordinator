@@ -768,10 +768,13 @@
     var x=p[0], y=p[1], out='';
     if(kind==='d'){
       if(name){
+        /* same lollipop as the offense markers */
         var dnm = esc(dotName(name));
-        return '<rect x="'+(x-15)+'" y="'+(y-12)+'" width="30" height="24" rx="6" fill="#39433F" stroke="rgba(246,241,228,.85)" stroke-width="1.2"/>'+
-          '<text x="'+x+'" y="'+(y+0.5)+'" text-anchor="middle" font-size="6.8" font-weight="700" font-family="Archivo,sans-serif" fill="#F6F1E4">'+dnm+'</text>'+
-          '<text x="'+x+'" y="'+(y+8.2)+'" text-anchor="middle" font-size="5.2" font-weight="700" font-family="Archivo,sans-serif" fill="#FF8B8F">'+label+'</text>';
+        var dw = Math.max(dnm.length*5.6+12, 26);
+        return '<rect x="'+(x-dw/2)+'" y="'+(y-8)+'" width="'+dw+'" height="16" rx="8" fill="rgba(7,23,20,.95)" stroke="rgba(246,241,228,.7)" stroke-width="1.3"/>'+
+          '<text x="'+x+'" y="'+(y+3.6)+'" text-anchor="middle" font-size="9" font-weight="700" font-family="Archivo,sans-serif" fill="#F6F1E4">'+dnm+'</text>'+
+          '<circle cx="'+x+'" cy="'+(y-12)+'" r="6.5" fill="#123B33" stroke="#F6F1E4" stroke-width="1.3"/>'+
+          '<text x="'+x+'" y="'+(y-9.6)+'" text-anchor="middle" font-size="5.8" font-weight="700" font-family="Archivo,sans-serif" fill="#F6F1E4">'+label+'</text>';
       }
       return '<rect x="'+(x-9)+'" y="'+(y-9)+'" width="18" height="18" rx="4" fill="#FF5A5F"/>'+
         '<text x="'+x+'" y="'+(y+4)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="#2A0E0F">'+label+'</text>';
@@ -1523,7 +1526,7 @@
     {key:'man',     name:'One each',   sub:'2 rush + 6 man', tip:'Two rushers on the line — never more. Everyone else points at their kid, says the name, and stays closer than arm\'s length.', slots:[['R1','Rusher left'],['R2','Rusher right']]},
     {key:'zone233', name:'Zone 2-3-3', sub:'2 rush · 3 short · 3 deep', tip:'Rushers hunt the QB with hands up. Short three squeeze the quick game, deep three keep everything in front.', slots:[['R1','Rusher left'],['R2','Rusher right'],['SL','Short left'],['SM','Short middle'],['SR','Short right'],['DL','Deep left'],['DM','Deep middle'],['DR','Deep right']]}
   ];
-  var Z233_POS = {R1:[126,84], R2:[174,84], SL:[50,112], SM:[150,122], SR:[250,112], DL:[50,174], DM:[150,178], DR:[250,174]};
+  var Z233_POS = {R1:[120,82], R2:[180,94], SL:[50,116], SM:[150,124], SR:[250,116], DL:[50,176], DM:[150,180], DR:[250,176]};
   var MAN_POS = [[30,100],[96,106],[150,116],[204,106],[270,100],[150,152]];
   function defaultSchemeKey(){
     var kd = ((state && state.customDefs) || []).filter(function(cd){
@@ -1716,8 +1719,8 @@
     var dm = defByKey(d.scheme);
     var inner = '';
     function rushArrows(){
-      return pathEl([[126,84],[138,52]],{color:'#FF5A5F',width:2.6})+
-             pathEl([[174,84],[162,52]],{color:'#FF5A5F',width:2.6});
+      return pathEl([[120,70],[134,50]],{color:'#FF5A5F',width:2.6})+
+             pathEl([[180,82],[164,52]],{color:'#FF5A5F',width:2.6});
     }
     if(dm.custom){
       var dFlip = !!(state.defFlip && state.defFlip[d.scheme]);
@@ -1766,7 +1769,7 @@
       var freeM = onFieldIds(s).filter(function(id){ return !usedM[id]; });
       ['R1','R2'].forEach(function(k,i){
         if(!d.slots[k] && freeM.length){ d.slots[k] = freeM.shift(); usedM[d.slots[k]] = true; }
-        inner += dot([[126,84],[174,84]][i], k, 'd', pNameOf(d.slots[k]));
+        inner += dot([[120,82],[180,94]][i], k, 'd', pNameOf(d.slots[k]));
       });
       var others = onFieldIds(s).filter(function(id){ return id !== d.slots.R1 && id !== d.slots.R2; }).slice(0,6);
       MAN_POS.forEach(function(p,i){
@@ -3135,7 +3138,7 @@
     var cd = null;
     if(did){ cd = (state.customDefs||[]).filter(function(x){ return x.id === did; })[0] || null; }
     dfState = {
-      pos: JSON.parse(JSON.stringify(cd ? cd.pos : [[126,84],[174,84],[50,112],[150,122],[250,112],[50,174],[150,178],[250,174]])),
+      pos: JSON.parse(JSON.stringify(cd ? cd.pos : [[120,82],[180,94],[50,116],[150,124],[250,116],[50,176],[150,180],[250,176]])),
       roles: cd ? cdRoles(cd) : ['blitz','blitz','zone','zone','zone','zone','zone','zone'],
       sizes: JSON.parse(JSON.stringify((cd && cd.sizes) || [[88,48],[88,48],[88,48],[88,48],[88,48],[88,48],[88,48],[88,48]])),
       moves: JSON.parse(JSON.stringify((cd && cd.moves) || [null,null,null,null,null,null,null,null])),
