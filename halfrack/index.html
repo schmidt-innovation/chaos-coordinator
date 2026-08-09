@@ -853,7 +853,11 @@
       {n:'Piston',t:'run',d:'Dive right behind the guard. The quickest handoff in the book — flip it to run left.',r:[run(dive(b1_H,1)),go(b1_X),go(b1_Z)]},
       {n:'Bulldoze',t:'run',d:'Sweep right behind the tight end\'s block. Patience to the edge, then burst.',r:[run(sweep(b1_H,1)),{p:[[210,138],[240,124],[252,110]],dashed:true},go(b1_Z),go(b1_X)]},
       {n:'Sneaky Pete',t:'run',d:'QB keeper off the fake — remember the one step back before going forward. The center can\'t come with you; everyone else blocks.',r:[run([[150,176],[168,166],[186,132],[194,84]]),{p:[[150,208],[136,196],[128,188]],dashed:true},go(b1_X),go(b1_Z)]},
-      {n:'Cutback',t:'run',d:'Counter. The back jab-steps left, plants, and takes it back right while the flow chases the wrong way.',r:[run(counter(b1_H,1)),go(b1_X),go(b1_Z),{p:flat(b1_Y,1),dashed:true}]}
+      {n:'Cutback',t:'run',d:'Counter. The back jab-steps left, plants, and takes it back right while the flow chases the wrong way.',r:[run(counter(b1_H,1)),go(b1_X),go(b1_Z),{p:flat(b1_Y,1),dashed:true}]},
+      {n:'Bootleg',t:'pass',d:'Fake left, QB rolls right with the tight end dragging into his window and Z hooking behind it. Run-pass option on the move.',r:[{p:[[150,176],[176,182],[204,174]],qb:true},{p:[[150,208],[132,196],[122,188]],dashed:true},flat(b1_Y,1),hook(b1_Z,1),go(b1_X)]},
+      {n:'Tunnel',t:'pass',d:'Quick tunnel screen to X with the back leading out in front. One throw, two blocks, big grass.',r:[[[30,138],[30,128],[54,124]],{p:[[150,198],[104,172],[74,152]],dashed:true},go(b1_Z),cross(b1_Y,-1)]},
+      {n:'Wham',t:'run',d:'Dive left with the tight end pulling across to wham the first shirt inside. Sneaky heavy for a base look.',r:[run(dive(b1_H,-1)),{p:[[210,138],[164,162],[142,148]],dashed:true},go(b1_X),go(b1_Z)]},
+      {n:'Statue',t:'run',d:'QB draw. Stand tall like it\'s a pass, count one, then slide up the middle behind the guards.',r:[run([[150,176],[148,158],[146,120],[150,76]]),go(b1_X),go(b1_Z),seam(b1_Y,1)]}
     ]);
 
   /* --- 2. TRIPS --- */
@@ -870,7 +874,11 @@
       {n:'Jetstream',t:'run',d:'Jet sweep — the wing rockets across the whole formation and takes it around the left end where nobody lives.',r:[run([[274,140],[240,168],[150,178],[80,164],[46,120],[42,64]]),go(t2_X),go(t2_Y)]},
       {n:'Houdini',t:'run',d:'QB draw. Show pass, let the two rushers fly by, then slip straight up the gut behind the guards.',r:[run([[150,176],[146,152],[148,104],[152,60]]),go(t2_Y),go(t2_Z),go(t2_H)]},
       {n:'Whiplash',t:'run',d:'Quick pitch to the wing already leaning outside. The fastest way to stress the corner on the trips side.',r:[ball(toss(t2_H,1)),run(pitchrun(t2_H,1)),go(t2_X)]},
-      {n:'Zigzag',t:'run',d:'Counter off the jet look — the wing starts the sweep, plants, and cuts back inside against the grain.',r:[run(counter(t2_H,-1)),go(t2_X),go(t2_Y),{p:flat(t2_Z,1),dashed:true}]}
+      {n:'Zigzag',t:'run',d:'Counter off the jet look — the wing starts the sweep, plants, and cuts back inside against the grain.',r:[run(counter(t2_H,-1)),go(t2_X),go(t2_Y),{p:flat(t2_Z,1),dashed:true}]},
+      {n:'Sailboat',t:'pass',d:'Vertical stretch on the trips side: Y goes, wing bends the corner, Z settles in the flat. Three levels, one sideline.',r:[corner(t2_H,-1),flat(t2_Z,1),go(t2_Y),hook(t2_X,-1)]},
+      {n:'Sidecar',t:'pass',d:'Slip screen to the wing behind the whole trips wall. Let the blocks form, then follow the convoy.',r:[[[274,138],[274,148],[252,142],[244,120]],{p:[[214,138],[214,116]],dashed:true},{p:[[238,138],[238,118]],dashed:true},go(t2_X)]},
+      {n:'Snowplow',t:'run',d:'The wing folds inside and follows the right guard downhill. Zone running behind the numbers advantage.',r:[run([[274,160],[240,182],[196,186],[182,150],[186,100]]),go(t2_Y),go(t2_Z)]},
+      {n:'Getaway',t:'run',d:'QB keeper to the empty left side while the jet fake pulls everyone right. Nobody home on the weak side.',r:[run([[150,176],[128,168],[104,138],[96,90]]),{p:[[274,140],[240,168],[190,178]],dashed:true},go(t2_X)]}
     ]);
 
   /* --- 3. POWER --- */
@@ -887,10 +895,63 @@
       {n:'Battering Ram',t:'run',d:'Iso left: Y leads through the hole, H follows him downhill. Three yards and a cloud of dust.',r:[run(dive(p3_H,-1)),{p:[[174,202],[142,188],[132,146]],dashed:true},go(p3_X),go(p3_Z)]},
       {n:'Steamtrain',t:'run',d:'Power sweep right behind a lead back. Slow to start, heavy when it arrives — call it near the goal line.',r:[run(sweep(p3_H,1)),{p:[[174,202],[204,188],[244,162],[254,132]],dashed:true},go(p3_Z),go(p3_X)]},
       {n:'Burrow',t:'run',d:'QB sneak. Ball fully out of the center\'s hands, one step back, then straight into the gap. Short-yardage money.',r:[run([[150,172],[150,138],[152,100]]),{p:[[126,202],[132,192]],dashed:true},{p:[[174,202],[168,192]],dashed:true}]},
-      {n:'Anvil',t:'run',d:'Fullback trap — quick hitter to Y while H fakes wide. The defense flows to the fake and Y is through before they reset.',r:[run(dive(p3_Y,1)),{p:[[126,202],[104,190],[92,180]],dashed:true},go(p3_X),go(p3_Z)]}
+      {n:'Anvil',t:'run',d:'Fullback trap — quick hitter to Y while H fakes wide. The defense flows to the fake and Y is through before they reset.',r:[run(dive(p3_Y,1)),{p:[[126,202],[104,190],[92,180]],dashed:true},go(p3_X),go(p3_Z)]},
+      {n:'Waggle',t:'pass',d:'Both backs flow right, QB boots left alone. X snaps to the sideline, Z drags deep behind him. Half the defense guesses wrong.',r:[{p:[[150,172],[124,176],[100,166]],qb:true},{p:[[126,202],[160,190],[188,184]],dashed:true},out(p3_X,-1),cross(p3_Z,-1)]},
+      {n:'Belly',t:'run',d:'Y takes it downhill left behind H\'s lead block — the mirror of Anvil so the defense can never sit on one side.',r:[run(dive(p3_Y,-1)),{p:[[126,202],[118,186],[114,150]],dashed:true},go(p3_X),go(p3_Z)]}
     ]);
 
-  var STOCK_FORMS = [BASE, TRIPS8, POWER];
+  /* --- 4. SPREAD --- */
+  var sp_X=[30,148], sp_H=[64,158], sp_LG=[124,148], sp_RG=[176,148], sp_Y=[236,158], sp_Z=[270,148], sp_QB=[150,186];
+  var SPREAD8 = F('Spread','Empty · four wide',
+    'Nobody in the backfield — four receiving threats and a quarterback with a green light. Forces their six coverage kids to declare, and the QB draw lives off the empty look.',
+    'Guard–center–guard tight. X and Z wide on the line, slots (H left, Y right) a step off it. QB alone in the gun.',
+    [['X',sp_X],['H',sp_H],['LG',sp_LG,null,'l'],['C',C],['RG',sp_RG],['Y',sp_Y],['Z',sp_Z],['QB',sp_QB,'ball','l']],
+    [
+      {n:'Quads',t:'pass',d:'All four go vertical — slots up the seams, outsides up the sidelines. Throw the seam the deep three can\'t split.',r:[seam(sp_H,1),go(sp_X),seam(sp_Y,-1),go(sp_Z)]},
+      {n:'Scissors',t:'pass',d:'Both slots cross shallow underneath while Z hooks and X clears. Man coverage runs into itself.',r:[cross(sp_H,1),cross(sp_Y,-1),hook(sp_Z,1),go(sp_X)]},
+      {n:'Stick Shift',t:'pass',d:'Y sticks at five with Z fading over the top — the corner can\'t take both. X slants backside as the answer.',r:[hook(sp_Y,1),go(sp_Z),flat(sp_H,-1),slant(sp_X,1)]},
+      {n:'Chain Link',t:'pass',d:'Hitches on both sidelines, seam up the middle. Take the free five yards until they press.',r:[hook(sp_X,-1),hook(sp_Z,1),seam(sp_Y,-1),flat(sp_H,-1)]},
+      {n:'Road Runner',t:'run',d:'QB sweep right out of empty — five blockers downfield and nobody in the box to stop it.',r:[run([[150,176],[180,176],[224,156],[248,110],[252,64]]),{p:[[236,150],[252,132],[258,116]],dashed:true},go(sp_X)]},
+      {n:'Zipline',t:'run',d:'Jet to the left slot sprinting across the formation at full speed. The handoff happens in stride.',r:[run([[64,150],[100,172],[150,178],[214,168],[248,128],[252,64]]),go(sp_X),go(sp_Z)]},
+      {n:'Pickpocket',t:'run',d:'QB draw. Empty screams pass — show it, let the two rushers fly upfield, then take the middle.',r:[run([[150,176],[148,150],[150,104],[154,60]]),go(sp_X),go(sp_Z),go(sp_Y)]},
+      {n:'Dumptruck',t:'run',d:'Shovel to Y sliding underneath while the QB drifts like he\'s throwing. Ugly, fast, and nobody touches it.',r:[run([[236,150],[206,172],[176,168],[164,128],[168,84]]),go(sp_X),go(sp_Z)]}
+    ]);
+
+  /* --- 5. BUNCH --- */
+  var bn_X=[30,148], bn_LG=[124,148], bn_RG=[176,148], bn_Y=[216,148], bn_Z=[236,160], bn_H=[256,148], bn_QB=[150,186];
+  var BUNCH8 = F('Bunch','Tight cluster right',
+    'Three receivers packed shoulder to shoulder. Defenders tangle at the snap, rubs happen naturally, and one throw beats them when they switch wrong.',
+    'Guard–center–guard tight. Y on the line at the point, Z a step behind and outside, H on the line outside him — all within a couple yards. X alone wide left.',
+    [['X',bn_X],['LG',bn_LG,null,'l'],['C',C],['RG',bn_RG],['Y',bn_Y,null,'t'],['Z',bn_Z],['H',bn_H],['QB',bn_QB,'ball','l']],
+    [
+      {n:'Triangle',t:'pass',d:'The bunch splits three ways: Z sits, Y takes the corner, H shoots the flat. Read the triangle, throw the open point.',r:[hook(bn_Z,1),corner(bn_Y,1),flat(bn_H,1),go(bn_X)]},
+      {n:'Fireworks',t:'pass',d:'Everything explodes out of the cluster — Z up the seam, Y dragging left, H to the out. Coverage can\'t sort it in time.',r:[seam(bn_Z,1),cross(bn_Y,-1),out(bn_H,1),go(bn_X)]},
+      {n:'Carwash',t:'pass',d:'H slips to the flat underneath while Y and Z run their men straight through the wash. The natural rub springs him.',r:[flat(bn_H,1),go(bn_Y),go(bn_Z),dig(bn_X,1)]},
+      {n:'Backdoor',t:'pass',d:'The whole defense leans to the bunch — X wins the backside slant one-on-one. Quick and on time.',r:[slant(bn_X,1),hook(bn_Y,1),flat(bn_Z,1),go(bn_H)]},
+      {n:'Orbit',t:'run',d:'H orbits behind the quarterback and takes it around the empty left edge. The bunch was the bait.',r:[run([[256,150],[236,178],[190,192],[150,196],[110,180],[76,140],[70,88]]),go(bn_X),go(bn_Y)]},
+      {n:'Longhorn',t:'run',d:'QB keeper right behind the bunch\'s wall of blocks. Three kids leading, one flag to protect.',r:[run([[150,176],[168,170],[196,148],[208,100]]),{p:[[216,138],[224,124]],dashed:true},{p:[[256,138],[258,124]],dashed:true},go(bn_X)]},
+      {n:'Sidewinder',t:'run',d:'Fly sweep — Z whips across the formation at the snap and takes it around the weak side at speed.',r:[run([[236,152],[204,176],[150,182],[96,170],[60,128],[56,72]]),go(bn_X),go(bn_H)]},
+      {n:'Doorstop',t:'run',d:'QB sneak behind the center. Ball out of the snapper\'s hands, one step back, then wedge forward. Third-and-short answer.',r:[run([[150,172],[150,138],[152,102]]),{p:[[216,138],[216,126]],dashed:true},{p:[[256,138],[256,126]],dashed:true}]}
+    ]);
+
+  /* --- 6. HEAVY --- */
+  var hv_X=[96,148], hv_LG=[124,148], hv_RG=[176,148], hv_Y=[204,148], hv_Z=[270,148], hv_QB=[150,186], hv_H=[150,208];
+  var HEAVY = F('Heavy','Double tight · goal line',
+    'Two tight ends sealed against the guards, six on the line, one back downhill. When you need two yards — or when they need two yards and you just took the ball back.',
+    'Tight ends (X and Y) snug against each guard, Z alone wide right for honesty. H deep behind the QB.',
+    [['X',hv_X,null,'l'],['LG',hv_LG,null,'t'],['C',C],['RG',hv_RG],['Y',hv_Y,null,'t'],['Z',hv_Z],['QB',hv_QB,'ball','l'],['H',hv_H,null,'r']],
+    [
+      {n:'X-Ray',t:'pass',d:'Sell the dive hard, then both tight ends cross behind the linebackers who bit. Play-action at its meanest.',r:[{p:[[150,208],[158,196]],dashed:true},cross(hv_X,1),cross(hv_Y,-1),go(hv_Z)]},
+      {n:'Submarine',t:'pass',d:'Everyone blocks... except X, who leaks out late to the flat while the defense celebrates stopping the run.',r:[flat(hv_X,-1),{p:[[204,138],[204,126]],dashed:true},go(hv_Z),{p:[[150,208],[144,196]],dashed:true}]},
+      {n:'Chimney',t:'pass',d:'Y releases straight up the seam behind linebackers playing run. One throw over the top of the pile.',r:[seam(hv_Y,-1),flat(hv_H,1),go(hv_Z),hook(hv_X,-1)]},
+      {n:'Flagpole',t:'pass',d:'Z gets the lone-receiver fade with H swinging underneath as the checkdown. Goal-line money.',r:[go(hv_Z),flat(hv_H,1),hook(hv_Y,1),slant(hv_X,1)]},
+      {n:'TNT',t:'run',d:'Blast right between guard and tight end. Six on the line, one crease, hit it now.',r:[run(dive(hv_H,1)),{p:[[204,138],[208,126]],dashed:true},go(hv_Z)]},
+      {n:'Rockslide',t:'run',d:'Quick pitch strong side behind both tight ends sealing down. Get the edge before they string it out.',r:[ball([[152,190],[186,192]]),run([[186,192],[232,168],[256,120],[260,64]]),go(hv_Z)]},
+      {n:'Switchyard',t:'run',d:'Counter — H steps right, comes back left behind the down blocks. The goal-line defense flows one gap too far.',r:[run(counter(hv_H,-1)),{p:[[96,138],[92,126]],dashed:true},go(hv_Z)]},
+      {n:'Piledriver',t:'run',d:'QB sneak with H pushing the pile. One step back first, then lowest man wins the yard.',r:[run([[150,172],[150,142],[152,106]]),{p:[[150,208],[150,198]],dashed:true},go(hv_Z)]}
+    ]);
+
+  var STOCK_FORMS = [BASE, TRIPS8, POWER, SPREAD8, BUNCH8, HEAVY];
   var FORMS = [];
   function makeCustomForm(cf){
     return {name:cf.name, sub:'Custom', custom:true, cfid:cf.id,
