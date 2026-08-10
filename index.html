@@ -223,9 +223,12 @@
   @media(min-width:1000px){
     main{max-width:1080px;margin:0 auto}
     header,nav{padding-left:calc(50vw - 540px);padding-right:calc(50vw - 540px)}
-    #plays,#pbKept,#mineList{column-count:2;column-gap:14px}
-    #plays .play,#pbKept .play,#mineList .play,#pbKept .callhead,#mineList .callhead,
-    #pbKept .benchline,#pbKept .card,#mineList .empty{break-inside:avoid}
+    #plays,#pbKept{column-count:2;column-gap:14px}
+    #plays .play,#pbKept .play,#pbKept .callhead,
+    #pbKept .benchline,#pbKept .card{break-inside:avoid}
+    /* grid, not columns — column balancing floats the 2nd custom play above the 1st */
+    #mineList{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;align-items:start}
+    #mineList .callhead,#mineList .empty{grid-column:1 / -1}
     .pgrid{grid-template-columns:repeat(3,1fr)}
     .slots{grid-template-columns:repeat(5,1fr)}
     #fcard .field,#gdplay .field,#gdLineup,#gdDef,#dfField,#fmField,#edField{
