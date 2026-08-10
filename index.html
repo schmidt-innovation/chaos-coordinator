@@ -88,6 +88,7 @@
     padding:10px 14px;border-radius:10px;cursor:pointer}
   .picker button[aria-pressed="true"]{background:var(--whistle);color:var(--deeper);border-color:var(--whistle)}
   .picker button:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
+  .picker button.newf{border-style:dashed;border-color:var(--whistle);color:var(--whistle);background:transparent}
 
   .fcard{background:var(--turf);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px}
   .fcard h2{font-size:22px;color:var(--whistle)}
@@ -360,17 +361,9 @@
   <div id="pbKept"></div>
 
   <div id="pbMine" hidden>
-    <div class="card" style="margin-bottom:14px">
-      <h3>Your formations</h3>
-      <p>Draw plays in any stock formation, or build your own alignment first — it works everywhere the stock ones do.</p>
-      <div id="fmList"></div>
-      <button type="button" class="ghostbtn" id="newForm">⊕ New formation</button>
-      <div id="fmHost" hidden></div>
-    </div>
-    <div class="edrow" style="margin:0 0 14px">
-      <select class="tin" id="mineForm" aria-label="Formation for the new play"></select>
-      <button type="button" class="ghostbtn solid gold" id="newPlay" style="margin:0;width:auto;flex:0 0 auto;padding:13px 16px">✏ Draw a play</button>
-    </div>
+    <div class="picker" id="minePicker" role="group" aria-label="Formations"></div>
+    <div id="fmHost" hidden></div>
+    <div id="mineFcard"></div>
     <div id="edHost" hidden></div>
     <div id="mineList"></div>
   </div>
@@ -2017,7 +2010,7 @@
     state = defaultState();
     saveNow();
     rebuildForms();
-    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMine(); renderMineForm(); renderFmList(); renderDefList();
+    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderDefList();
   });
 
   /* ================= game day: execute screen ================= */
@@ -2722,7 +2715,7 @@
       document.getElementById(PB_PANES[k]).hidden = (k !== t);
     });
     if(t==='kept') renderKept();
-    if(t==='mine') renderMine();
+    if(t==='mine'){ renderMinePicker(); renderMineFcard(); renderMine(); }
     setTimeout(drawVisible, 140);
   }
   document.querySelectorAll('#pbTabs button').forEach(function(b){
@@ -2754,16 +2747,13 @@
 
   function renderMine(){
     var host = document.getElementById('mineList');
-    var html = '', total = 0;
-    FORMS.forEach(function(f){
-      var items = customPlays(f.idx);
-      if(!items.length) return;
-      total += items.length;
-      html += '<h3 class="callhead">'+f.name+' · '+esc(f.sub)+'</h3>'+
-        items.map(function(p){ return playCardHtml(f, p, null); }).join('');
-    });
-    host.innerHTML = total ? html :
-      '<div class="empty">No custom plays yet. Pick a formation above and draw your first — it\'ll work everywhere the stock plays do.</div>';
+    if(mineActive >= FORMS.length) mineActive = 0;
+    var f = FORMS[mineActive];
+    var items = customPlays(f.idx);
+    host.innerHTML = items.length
+      ? '<h3 class="callhead">Your plays in '+esc(f.name)+'</h3>'+
+        items.map(function(p){ return playCardHtml(f, p, null); }).join('')
+      : '<div class="empty">No custom plays in '+esc(f.name)+' yet. Tap <b>✏ Add play</b> to draw one — it\'ll work everywhere the stock plays do.</div>';
     wirePlayCards(host,
       function(){ renderMine(); updateCount(); renderGameDay(); },
       function(){ renderMine(); renderGameDay(); });
@@ -2771,15 +2761,46 @@
 
   function updateCount(){ countEl.textContent = 'Shortlist: '+keptCount(); }
 
-  var mineFormSel = document.getElementById('mineForm');
-  function renderMineForm(){
-    var cur = mineFormSel.value;
-    mineFormSel.innerHTML = FORMS.map(function(f,i){
-      return '<option value="'+i+'">'+esc(f.name)+' — '+esc(f.sub)+'</option>';
-    }).join('');
-    if(cur !== '' && +cur < FORMS.length){ mineFormSel.value = cur; }
+  var mineActive = 0;
+  var minePicker = document.getElementById('minePicker');
+  var mineFcard = document.getElementById('mineFcard');
+  function renderMinePicker(){
+    if(mineActive >= FORMS.length) mineActive = 0;
+    minePicker.innerHTML = '';
+    var nb = document.createElement('button');
+    nb.type = 'button'; nb.className = 'newf'; nb.textContent = '⊕ New formation';
+    nb.addEventListener('click', function(){ closeEditor(); openFmEditor(null); });
+    minePicker.appendChild(nb);
+    FORMS.forEach(function(f, i){
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = (f.custom ? '✏ ' : '')+f.name;
+      b.setAttribute('aria-pressed', i===mineActive ? 'true':'false');
+      b.addEventListener('click', function(){
+        mineActive = i;
+        closeEditor(); closeFmEditor();
+        renderMinePicker(); renderMineFcard(); renderMine();
+      });
+      minePicker.appendChild(b);
+    });
   }
-  mineFormSel.addEventListener('change', closeEditor);
+  function renderMineFcard(){
+    if(mineActive >= FORMS.length) mineActive = 0;
+    var f = FORMS[mineActive];
+    mineFcard.innerHTML =
+      '<div class="fcard"><h2>'+esc(f.name)+'</h2><div class="sub">'+esc(f.sub)+'</div>'+
+      '<div class="field">'+formationSvg(f)+'</div>'+
+      '<p>'+f.why+'</p><p><b>Lining up:</b> '+f.setup+'</p>'+
+      '<div class="btns"><button type="button" class="mineAdd" style="border-color:var(--whistle);color:var(--whistle)">✏ Add play</button>'+
+      (f.custom ? '<button type="button" class="mineFmEdit">Edit formation</button>'+
+        '<button type="button" class="mineFmDel" style="border-color:var(--flag);color:var(--flag)">Delete formation</button>' : '')+
+      '</div></div>';
+    hideRoutes(mineFcard);
+    mineFcard.querySelector('.mineAdd').addEventListener('click', function(){ closeFmEditor(); openEditor(null); });
+    if(f.custom){
+      mineFcard.querySelector('.mineFmEdit').addEventListener('click', function(){ closeEditor(); openFmEditor(f.cfid); });
+      armButton(mineFcard.querySelector('.mineFmDel'), function(){ deleteFormation(f.cfid); }, 'Tap again to delete');
+    }
+  }
 
   STOCK_FORMS.forEach(function(f,i){
     var b = document.createElement('button');
@@ -2904,7 +2925,8 @@
     if(editCid){
       c = (state.custom||[]).filter(function(x){ return x.id === editCid; })[0] || null;
     }
-    var fi = c ? c.form : (+document.getElementById('mineForm').value || 0);
+    var fi = c ? c.form : mineActive;
+    if(fi !== mineActive){ mineActive = fi; renderMinePicker(); renderMineFcard(); renderMine(); }
     var f = FORMS[fi];
     var firstSlot = c && c.routes.length ? c.routes[0].slot
       : slotOrder(f).filter(function(l){ return l!=='QB'; })[0];
@@ -3060,7 +3082,6 @@
       document.getElementById('edName').value = c.n;
       document.getElementById('edDesc').value = c.d || '';
       document.getElementById('edType').value = c.t;
-      document.getElementById('mineForm').value = fi;
     }
     refreshEd();
     edHost.scrollIntoView({behavior: REDUCE?'auto':'smooth', block:'start'});
@@ -3069,8 +3090,6 @@
     var m = document.getElementById('edMsg');
     if(m){ m.hidden = false; m.textContent = t; setTimeout(function(){ m.hidden = true; }, 3500); }
   }
-  document.getElementById('newPlay').addEventListener('click', function(){ openEditor(null); });
-
   /* ================= custom formation builder ================= */
   var fmHost = document.getElementById('fmHost');
   var fmState = null;
@@ -3078,23 +3097,7 @@
     return [['X',[48,150]],['C',[150,148]],['Y',[206,150]],['Z',[262,150]],['QB',[150,182],'ball']];
   }
   function afterFormChange(){
-    renderMineForm(); renderFmList(); renderMine(); renderKept(); renderSeriesList(); renderGameDay();
-  }
-  function renderFmList(){
-    var host = document.getElementById('fmList');
-    var cfs = state.customForms||[];
-    host.innerHTML = cfs.length ? cfs.map(function(cf){
-      return '<div class="rrow" data-fid="'+esc(cf.id)+'"><div class="jersey">F</div>'+
-        '<b style="flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(cf.name)+'</b>'+
-        '<button type="button" class="iconbtn fedit" aria-label="Edit formation">✎</button>'+
-        '<button type="button" class="iconbtn fdel" aria-label="Delete formation">✕</button></div>';
-    }).join('') : '<p class="edhint" style="margin:0 0 10px">No custom formations yet.</p>';
-    host.querySelectorAll('.fedit').forEach(function(b){
-      b.addEventListener('click', function(){ openFmEditor(b.closest('.rrow').dataset.fid); });
-    });
-    host.querySelectorAll('.fdel').forEach(function(b){
-      armButton(b, function(){ deleteFormation(b.closest('.rrow').dataset.fid); }, '✕?');
-    });
+    renderMinePicker(); renderMineFcard(); renderMine(); renderKept(); renderSeriesList(); renderGameDay();
   }
   function deleteFormation(fid){
     var cfs = state.customForms||[];
@@ -3119,6 +3122,8 @@
         else if(s.callForm > idx){ s.callForm--; }
       }
     });
+    if(mineActive === idx){ mineActive = 0; }
+    else if(mineActive > idx){ mineActive--; }
     closeEditor();
     save(); rebuildForms(); afterFormChange();
   }
@@ -3192,12 +3197,13 @@
         state.customForms = state.customForms||[];
         state.customForms.push({id:'f'+state.seq, name:name, spots:fmState.spots});
       }
-      save(); rebuildForms(); closeFmEditor(); afterFormChange();
+      save(); rebuildForms();
+      if(!cf){ mineActive = FORMS.length - 1; }
+      closeFmEditor(); afterFormChange();
     });
     draw();
     fmHost.scrollIntoView({behavior: REDUCE?'auto':'smooth', block:'start'});
   }
-  document.getElementById('newForm').addEventListener('click', function(){ openFmEditor(null); });
 
   /* ================= custom defense builder ================= */
   var dfHost = document.getElementById('dfHost');
@@ -3443,7 +3449,7 @@
     if(loaded.part === 'off'){
       var ro = mergeOffense(loaded);
       saveNow(); rebuildForms();
-      renderKept(); renderMine(); renderMineForm(); renderFmList(); renderGameDay(); renderPlays();
+      renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderGameDay(); renderPlays();
       codeMsg('Playbook merged ✓ — '+ro.plays+' custom play'+(ro.plays===1?'':'s')+', '+ro.forms+' formation'+(ro.forms===1?'':'s')+', '+ro.kept+' kept.', true);
       return;
     }
@@ -3458,7 +3464,7 @@
     mergeLoaded(loaded);
     saveNow();
     rebuildForms();
-    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMine(); renderMineForm(); renderFmList(); renderDefList(); renderSaveCard();
+    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderDefList(); renderSaveCard();
     var np = namedPlayers().length;
     codeMsg('Loaded ✓ — '+np+' player'+(np===1?'':'s')+', '+state.series.length+' series.', true);
   });
@@ -3477,9 +3483,9 @@
   renderGameDay();
   renderFormation();
   renderKept();
+  renderMinePicker();
+  renderMineFcard();
   renderMine();
-  renderMineForm();
-  renderFmList();
   renderDefList();
   if(!lineupReady()){ showTab('gameplan'); } else { setTimeout(drawVisible,140); }
 })();
