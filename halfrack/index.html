@@ -2656,14 +2656,13 @@
   var mineActive = 0;
   var minePicker = document.getElementById('minePicker');
   var mineFcard = document.getElementById('mineFcard');
-  /* stock formations show here only if kept in the Stock tab (or already
-     holding custom plays); no keeps at all means show everything */
+  /* strictly kept stock formations + custom formations; only if that leaves
+     no tabs at all (nothing kept, no customs) fall back to everything */
   function mineVisibleForms(){
     var fk = state.formKept||{};
-    var anyKept = Object.keys(fk).some(function(k){ return fk[k]; });
     var vis = [];
     FORMS.forEach(function(f, i){
-      if(f.custom || !anyKept || fk[f.name] || customPlays(i).length){ vis.push(i); }
+      if(f.custom || fk[f.name]){ vis.push(i); }
     });
     return vis.length ? vis : FORMS.map(function(_, i){ return i; });
   }
