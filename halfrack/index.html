@@ -2767,6 +2767,13 @@
         });
       }
     });
+    /* players with no route stay in to block — same bar the play card shows */
+    f.spots.forEach(function(s){
+      if(s[0] === 'QB') return;
+      if(edState.routes.some(function(rt){ return rt.slot === s[0] && rt.pts.length > 1; })) return;
+      inner += '<line x1="'+s[1][0]+'" y1="'+(s[1][1]-20)+'" x2="'+s[1][0]+'" y2="'+(s[1][1]-27)+'" stroke="rgba(246,241,228,.75)" stroke-width="2" stroke-linecap="round"/>'+
+        '<line x1="'+(s[1][0]-6.5)+'" y1="'+(s[1][1]-27)+'" x2="'+(s[1][0]+6.5)+'" y2="'+(s[1][1]-27)+'" stroke="rgba(246,241,228,.75)" stroke-width="2" stroke-linecap="round"/>';
+    });
     inner += f.spots.map(function(s){
       var ring = s[0]===edState.active ? '<circle cx="'+s[1][0]+'" cy="'+s[1][1]+'" r="15" fill="none" stroke="#FFC93C" stroke-width="2" stroke-dasharray="4 3"/>' : '';
       return ring + dot(s[1], s[0], s[2], null, s[3]);
@@ -2785,7 +2792,7 @@
         else if(rt.fake) ind = ' 🎭';
         else if(edState.t==='pass' && rt.first) ind = ' ①';
         else if(rt.pts.length > 1) ind = ' ✓';
-      }
+      } else if(l !== 'QB'){ ind = ' 🧱'; }
       return '<button type="button" data-slot="'+l+'" aria-pressed="'+(l===edState.active)+'">'+l+ind+'</button>';
     }).join('');
     document.getElementById('edField').innerHTML = edSvg();
@@ -2800,6 +2807,8 @@
     fb.textContent = (art && art.first) ? ('① First look: '+edState.active) : ('Make '+edState.active+' the first look');
     var kb = document.getElementById('edFake');
     kb.textContent = (art && art.fake) ? ('🎭 '+edState.active+' is a fake — undo') : ('Mark '+edState.active+' as fake run');
+    var bb = document.getElementById('edBlock');
+    bb.textContent = (art && art.pts.length > 1) ? ('🧱 Make '+edState.active+' a blocker') : ('🧱 '+edState.active+' is blocking');
   }
   function closeEditor(){
     edState = null;
@@ -2833,7 +2842,7 @@
       '<div class="pmodal-inner" style="max-width:1080px">'+
       '<div class="card" id="editorCard" style="border-color:var(--whistle)">'+
       '<h3>'+(c?'Edit play':'New play')+' — '+esc(f.name)+'</h3>'+
-      '<p class="edhint">Tap a player, then tap the field to draw their route point by point. On pass plays, pick the <b>first look</b> — it goes gold and gets the throw. Mark paths as <b>fake runs</b> to sell play-action. The QB can carry it (mark him the ball carrier) — the center never can. Guards usually just block.</p>'+
+      '<p class="edhint">Tap a player, then tap the field to draw their route point by point. On pass plays, pick the <b>first look</b> — it goes gold and gets the throw. Mark paths as <b>fake runs</b> to sell play-action. The QB can carry it (mark him the ball carrier) — the center never can. Anyone without a route <b>stays in to block</b> (🧱) — guards usually do.</p>'+
       '<div class="edrow"><input class="tin" id="edName" type="text" autocomplete="off" placeholder="Play name (what the kids will yell)">'+
       '<select class="tin" id="edType" style="flex:0 0 92px"><option value="pass">Pass</option><option value="run">Run</option></select></div>'+
       '<div class="edchips" id="edChips"></div>'+
@@ -2842,7 +2851,8 @@
       '<button type="button" id="edClear">Clear route</button>'+
       '<button type="button" id="edCarry" hidden></button>'+
       '<button type="button" id="edFirst" hidden></button>'+
-      '<button type="button" id="edFake"></button></div>'+
+      '<button type="button" id="edFake"></button>'+
+      '<button type="button" id="edBlock"></button></div>'+
       '<input class="tin" id="edDesc" type="text" autocomplete="off" placeholder="One-line description (optional)" style="margin-top:10px">'+
       '<div class="btns"><button type="button" id="edSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(c?'Save changes':'Save play')+'</button>'+
       '<button type="button" id="edCancel">Cancel</button></div>'+
@@ -2921,6 +2931,13 @@
         delete rt.first;
         rt.fake = true;
       }
+      refreshEd();
+    });
+    document.getElementById('edBlock').addEventListener('click', function(){
+      if(edState.active === 'QB'){ edMsg('The quarterback takes the snap — pick another player to block.'); return; }
+      var rt = edRouteOf(edState.active);
+      if(!rt){ edMsg(edState.active+' is already blocking — players without a route stay in to block.'); return; }
+      edState.routes = edState.routes.filter(function(x){ return x.slot !== edState.active; });
       refreshEd();
     });
     document.getElementById('edCancel').addEventListener('click', closeEditor);
