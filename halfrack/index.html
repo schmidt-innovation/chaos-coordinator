@@ -228,6 +228,7 @@
     #plays .play{break-inside:avoid}
     /* grid, not columns — column balancing floats right-column cards higher than the left */
     #pbKept,#mineList{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;align-items:start}
+    #pbKept[hidden]{display:none}
     #pbKept .callhead,#pbKept .benchline,#pbKept .card,
     #mineList .callhead,#mineList .empty{grid-column:1 / -1}
     .pgrid{grid-template-columns:repeat(3,1fr)}
@@ -2829,7 +2830,7 @@
     };
     edHost.hidden = false;
     edHost.innerHTML =
-      '<div class="pmodal-inner" style="max-width:720px">'+
+      '<div class="pmodal-inner" style="max-width:1080px">'+
       '<div class="card" id="editorCard" style="border-color:var(--whistle)">'+
       '<h3>'+(c?'Edit play':'New play')+' — '+esc(f.name)+'</h3>'+
       '<p class="edhint">Tap a player, then tap the field to draw their route point by point. On pass plays, pick the <b>first look</b> — it goes gold and gets the throw. Mark paths as <b>fake runs</b> to sell play-action. The QB can carry it (mark him the ball carrier) — the center never can. Guards usually just block.</p>'+
@@ -3024,7 +3025,7 @@
     fmState = { spots: JSON.parse(JSON.stringify(cf ? cf.spots : fmTemplate())) };
     fmHost.hidden = false;
     fmHost.innerHTML =
-      '<div class="pmodal-inner" style="max-width:720px">'+
+      '<div class="pmodal-inner" style="max-width:1080px">'+
       '<div class="card" style="border-color:var(--whistle)">'+
       '<h3>'+(cf?'Edit formation':'New formation')+'</h3>'+
       '<p class="edhint">Drag the eight players where you want them. Keep guard–center–guard tight and at least four on the line. Editing spots doesn\'t move routes already drawn in this formation.</p>'+
