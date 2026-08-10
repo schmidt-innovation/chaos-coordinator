@@ -646,7 +646,7 @@
     for(i=0;i<8;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:9};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:9};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -777,6 +777,7 @@
     if(loaded.kept) state.kept = loaded.kept;
     if(loaded.alias) state.alias = loaded.alias;
     if(loaded.flip) state.flip = loaded.flip;
+    if(loaded.formKept) state.formKept = loaded.formKept;
     if(Array.isArray(loaded.custom)) state.custom = loaded.custom;
     if(Array.isArray(loaded.customForms)) state.customForms = loaded.customForms;
     if(Array.isArray(loaded.customDefs)) state.customDefs = loaded.customDefs;
@@ -2011,7 +2012,7 @@
     state = defaultState();
     saveNow();
     rebuildForms();
-    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderDefList();
+    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderStockPicker(); renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderDefList();
   });
 
   /* ================= game day: execute screen ================= */
@@ -2765,14 +2766,28 @@
   var mineActive = 0;
   var minePicker = document.getElementById('minePicker');
   var mineFcard = document.getElementById('mineFcard');
+  /* stock formations show here only if kept in the Stock tab (or already
+     holding custom plays); no keeps at all means show everything */
+  function mineVisibleForms(){
+    var fk = state.formKept||{};
+    var anyKept = Object.keys(fk).some(function(k){ return fk[k]; });
+    var vis = [];
+    FORMS.forEach(function(f, i){
+      if(f.custom || !anyKept || fk[f.name] || customPlays(i).length){ vis.push(i); }
+    });
+    return vis.length ? vis : FORMS.map(function(_, i){ return i; });
+  }
   function renderMinePicker(){
     if(mineActive >= FORMS.length) mineActive = 0;
+    var vis = mineVisibleForms();
+    if(vis.indexOf(mineActive) === -1){ mineActive = vis[0]; }
     minePicker.innerHTML = '';
     var nb = document.createElement('button');
     nb.type = 'button'; nb.className = 'newf'; nb.textContent = '⊕ New formation';
     nb.addEventListener('click', function(){ closeEditor(); openFmEditor(null); });
     minePicker.appendChild(nb);
-    FORMS.forEach(function(f, i){
+    vis.forEach(function(i){
+      var f = FORMS[i];
       var b = document.createElement('button');
       b.type = 'button'; b.textContent = (f.custom ? '✏ ' : '')+f.name;
       b.setAttribute('aria-pressed', i===mineActive ? 'true':'false');
@@ -2814,14 +2829,28 @@
     });
     picker.appendChild(b);
   });
+  function renderStockPicker(){
+    picker.querySelectorAll('button').forEach(function(b,i){
+      b.textContent = ((state.formKept||{})[STOCK_FORMS[i].name] ? '★ ' : '')+STOCK_FORMS[i].name;
+    });
+  }
 
   function renderFormation(){
     var f = FORMS[active];
+    var fkept = !!(state.formKept||{})[f.name];
     fcard.innerHTML =
       '<div class="fcard"><h2>'+f.name+'</h2><div class="sub">'+f.sub+'</div>'+
       '<div class="field">'+formationSvg(f)+'</div>'+
-      '<p>'+f.why+'</p><p><b>Lining up:</b> '+f.setup+'</p></div>';
+      '<p>'+f.why+'</p><p><b>Lining up:</b> '+f.setup+'</p>'+
+      '<div class="btns"><button type="button" class="keep" id="fkeep" aria-pressed="'+fkept+'">'+
+      (fkept?'★ Kept — shows in Custom':'☆ Keep formation')+'</button></div></div>';
     hideRoutes(fcard);
+    document.getElementById('fkeep').addEventListener('click', function(){
+      state.formKept = state.formKept||{};
+      if(state.formKept[f.name]){ delete state.formKept[f.name]; }
+      else { state.formKept[f.name] = true; }
+      save(); renderFormation(); renderStockPicker();
+    });
     renderPlays();
   }
 
@@ -3482,7 +3511,7 @@
     mergeLoaded(loaded);
     saveNow();
     rebuildForms();
-    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderDefList(); renderSaveCard();
+    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderStockPicker(); renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderDefList(); renderSaveCard();
     var np = namedPlayers().length;
     codeMsg('Loaded ✓ — '+np+' player'+(np===1?'':'s')+', '+state.series.length+' series.', true);
   });
@@ -3500,6 +3529,7 @@
   renderSeriesList();
   renderGameDay();
   renderFormation();
+  renderStockPicker();
   renderKept();
   renderMinePicker();
   renderMineFcard();
