@@ -213,7 +213,7 @@
   .pmodal{position:fixed;inset:0;z-index:60;background:rgba(7,23,20,.94);overflow:auto;padding:14px;display:flex}
   .pmodal[hidden]{display:none}
   .pmodal-inner{margin:auto;width:100%}
-  .pmodal .play{margin:0}
+  .pmodal .play,.pmodal .card{margin:0}
   .pmodal .field{max-width:calc((100vh - 210px) * 1.3);margin-left:auto;margin-right:auto}
   @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
   @media(min-width:620px){
@@ -327,9 +327,7 @@
 
   <div id="pbMine" hidden>
     <div class="picker" id="minePicker" role="group" aria-label="Formations"></div>
-    <div id="fmHost" hidden></div>
     <div id="mineFcard"></div>
-    <div id="edHost" hidden></div>
     <div id="mineList"></div>
   </div>
 
@@ -564,6 +562,8 @@
 </main>
 
 <div class="pmodal" id="playModal" hidden></div>
+<div class="pmodal" id="fmHost" hidden></div>
+<div class="pmodal" id="edHost" hidden></div>
 
 <footer>Half Rack sideline card. Eight on the field, two on the line, flags win the down.</footer>
 
@@ -2829,6 +2829,7 @@
     };
     edHost.hidden = false;
     edHost.innerHTML =
+      '<div class="pmodal-inner" style="max-width:720px">'+
       '<div class="card" id="editorCard" style="border-color:var(--whistle)">'+
       '<h3>'+(c?'Edit play':'New play')+' — '+esc(f.name)+'</h3>'+
       '<p class="edhint">Tap a player, then tap the field to draw their route point by point. On pass plays, pick the <b>first look</b> — it goes gold and gets the throw. Mark paths as <b>fake runs</b> to sell play-action. The QB can carry it (mark him the ball carrier) — the center never can. Guards usually just block.</p>'+
@@ -2845,7 +2846,7 @@
       '<div class="btns"><button type="button" id="edSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(c?'Save changes':'Save play')+'</button>'+
       '<button type="button" id="edCancel">Cancel</button></div>'+
       '<p class="hintline" id="edMsg" hidden></p>'+
-      '</div>';
+      '</div></div>';
 
     document.getElementById('edType').addEventListener('change', function(ev){
       edState.t = ev.target.value;
@@ -2974,7 +2975,6 @@
       document.getElementById('edType').value = c.t;
     }
     refreshEd();
-    edHost.scrollIntoView({behavior: REDUCE?'auto':'smooth', block:'start'});
   }
   function edMsg(t){
     var m = document.getElementById('edMsg');
@@ -3024,14 +3024,15 @@
     fmState = { spots: JSON.parse(JSON.stringify(cf ? cf.spots : fmTemplate())) };
     fmHost.hidden = false;
     fmHost.innerHTML =
-      '<div class="card" style="border-color:var(--whistle);margin-top:12px">'+
+      '<div class="pmodal-inner" style="max-width:720px">'+
+      '<div class="card" style="border-color:var(--whistle)">'+
       '<h3>'+(cf?'Edit formation':'New formation')+'</h3>'+
       '<p class="edhint">Drag the eight players where you want them. Keep guard–center–guard tight and at least four on the line. Editing spots doesn\'t move routes already drawn in this formation.</p>'+
       '<input class="tin" id="fmName" type="text" autocomplete="off" placeholder="Formation name" style="margin:10px 0 12px">'+
       '<div class="field" id="fmField" style="touch-action:none"></div>'+
       '<div class="btns"><button type="button" id="fmSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(cf?'Save changes':'Save formation')+'</button>'+
       '<button type="button" id="fmCancel">Cancel</button></div>'+
-      '<p class="hintline" id="fmMsg" hidden></p></div>';
+      '<p class="hintline" id="fmMsg" hidden></p></div></div>';
     if(cf){ document.getElementById('fmName').value = cf.name; }
     var field = document.getElementById('fmField');
     function draw(){
@@ -3092,7 +3093,6 @@
       closeFmEditor(); afterFormChange();
     });
     draw();
-    fmHost.scrollIntoView({behavior: REDUCE?'auto':'smooth', block:'start'});
   }
 
   /* ================= custom defense builder ================= */
