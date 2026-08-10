@@ -1354,7 +1354,7 @@
   function displayName(f, p){
     return (state.alias && state.alias[f.name+':'+p.n]) || p.n;
   }
-  function playCardHtml(f, p, names){
+  function playCardHtml(f, p, names, opts){
     var id = f.name+':'+p.n;
     var on = !!state.kept[id];
     var fl = !!(state.flip && state.flip[id]);
@@ -1373,7 +1373,7 @@
         '<button type="button" class="flip">Flip ↔</button>'+
         '<button type="button" class="keep" aria-pressed="'+on+'">'+(on?'Kept ✓':'Keep')+'</button>'+
         (p.custom?'<button type="button" class="pedit">Edit</button>':'')+
-        (p.custom?'<button type="button" class="pdel" style="color:var(--flag);border-color:var(--flag)">Delete</button>':'')+
+        (p.custom && !(opts&&opts.noDelete)?'<button type="button" class="pdel" style="color:var(--flag);border-color:var(--flag)">Delete</button>':'')+
       '</div></div>';
   }
   function wirePlayCards(container, afterKeep, afterRename){
@@ -2318,7 +2318,7 @@
     }
 
     var playHtml = play
-      ? playCardHtml(cf, play, playNamesFor(cs, cf, play))
+      ? playCardHtml(cf, play, playNamesFor(cs, cf, play), {noDelete:true})
       : (pool.length ? '<div class="empty">Tap a play above to put it on the board.</div>' : '');
 
     gd.innerHTML = chips + sideTabs + (gdTab==='def'
