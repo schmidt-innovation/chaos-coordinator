@@ -326,7 +326,7 @@
     <ul class="tight">
       <li><b>QB and Center</b> should be kids who took those snaps in practice. Everything else can rotate freely.</li>
       <li><b>Formation per series</b> is allowed to differ — but one formation all game is completely fine for week one.</li>
-      <li><b>Before the first game,</b> share yourself a save link from the Settings tab — it's the whole setup in one tappable link, and it works on any device no matter what the browser does.</li>
+      <li><b>Before the first game,</b> text yourself a backup: Settings → Share all → Copy link. It's the whole setup in one tappable link, and it works on any device no matter what the browser does.</li>
     </ul>
   </div>
 </section>
@@ -370,8 +370,8 @@
       <li><b>Numbers</b> on pass plays are the quarterback's reads, in order: look at 1, then 2, then 3.</li>
       <li><b>The center is eligible</b> — after snapping they release too, usually as the short last-look checkdown (the highest number). On Pancake they stay in to block.</li>
       <li><b>Dashed white</b> is a fake or an escort — no ball.</li>
-      <li><b>Tap ✎</b> on any play to rename it to whatever your kids call it. The nickname shows everywhere, saves with your team code, and the original stays underneath as "aka".</li>
-      <li><b>Tap Flip ↔</b> to run any play to the other side — the whole picture mirrors, players and all. The flip sticks until you flip it back, and saves with your team code.</li>
+      <li><b>Tap ✎</b> on any play to rename it to whatever your kids call it. The nickname shows everywhere, travels with your team when you share it, and the original stays underneath as "aka".</li>
+      <li><b>Tap Flip ↔</b> to run any play to the other side — the whole picture mirrors, players and all. The flip sticks until you flip it back, and travels with your team when you share it.</li>
       <li>Tap <b>Run it again</b> and hand the phone to the kids — the ball moves so they can watch their job happen.</li>
     </ul>
   </div>
@@ -822,7 +822,7 @@
 
 <!-- ================= SETTINGS ================= -->
 <section class="panel" id="settings">
-  <p class="lede">Everything lives in the <b>team code</b> — roster, series, custom plays, keeps. Share it as a link, show it as a QR, or keep a file. Loading a full code replaces this device's setup.</p>
+  <p class="lede">Everything here moves between phones as a <b>QR code or tappable link</b> — the whole team, just the playbook, or just the defense. Team files and automatic backups live here too.</p>
 
   <div class="card">
     <h3>Share &amp; transfer</h3>
@@ -834,16 +834,16 @@
     </div>
     <button type="button" class="ghostbtn" id="scanQR" style="margin-top:10px">⛶ Scan a shared QR</button>
     <p class="hintline" id="codeMsg" hidden></p>
-    <label class="flab" style="margin-top:12px">Load a save link or team code</label>
+    <label class="flab" style="margin-top:12px">Load a shared link or code</label>
     <div class="rrow" style="margin-bottom:0">
-      <input class="tin" id="codeIn" type="text" autocomplete="off" placeholder="Paste a save link or team code">
-      <button type="button" class="iconbtn" id="codeGo" aria-label="Load team code">→</button>
+      <input class="tin" id="codeIn" type="text" autocomplete="off" placeholder="Paste any share link or code">
+      <button type="button" class="iconbtn" id="codeGo" aria-label="Load shared link or code">→</button>
     </div>
   </div>
 
   <div class="card">
     <h3>Team file</h3>
-    <p>A small file with the whole setup — stash it in Drive, iCloud, or email. Importing one replaces this device's setup.</p>
+    <p>A small file with the whole setup — stash it in Drive, iCloud, or email. Importing one replaces this device's setup, with a backup saved to History first.</p>
     <div class="btns" style="margin:0">
       <button type="button" id="fileExport">Export team file</button>
       <button type="button" id="fileImport">Import team file</button>
@@ -853,7 +853,7 @@
 
   <div class="card">
     <h3>History</h3>
-    <p>Automatic backups from the last few sessions on this device — if something gets deleted by accident, restore from before it happened.</p>
+    <p>Automatic backups kept on this device — one as you work (at most every 10 minutes) plus one before every load, import, or reset. If something gets deleted by accident, restore from before it happened.</p>
     <div id="snapList"></div>
   </div>
 
@@ -4131,9 +4131,9 @@
   }
   function renderSaveCard(){
     document.getElementById('saveStatus').innerHTML = (canPersist
-      ? 'This device auto-saves your setup. Each QR is also a <b>tappable link</b> — Share or Copy it from the QR screen to text it instead.'
-      : '<b style="color:var(--flag)">Heads up: this view can\'t auto-save between visits.</b> After you make changes, copy your team link (Show team QR → Copy link) and keep it in Notes or a text to yourself — tap it next time and everything returns.')+
-      ' The <b>team</b> QR carries everything and replaces the other device\'s setup. The <b>playbook</b> and <b>defense</b> QRs carry just that side of the ball and <b>merge</b> — one coach builds the offense, another the defense, and they trade without losing their own work.';
+      ? 'This device auto-saves your setup. Each Share button opens a QR the other coach can scan with their camera — and every QR is also a <b>tappable link</b> you can Share or Copy into a text instead.'
+      : '<b style="color:var(--flag)">Heads up: this view can\'t auto-save between visits.</b> After you make changes, copy your link (Share all → Copy link) and keep it in Notes or a text to yourself — tap it next time and everything returns.')+
+      ' <b>Share all</b> carries everything — roster, series, plays — and replaces the other device\'s setup (their old one lands in History). <b>Share playbook</b> and <b>Share defense</b> carry just that side of the ball and <b>merge</b>, so one coach can build the offense, another the defense, and they can trade without losing their own work.';
   }
   document.getElementById('teamQR').addEventListener('click', function(){
     saveNow();
@@ -4345,9 +4345,9 @@
   }
   function scannerHelp(){
     shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
-      '<h3>Add a shared play</h3>'+
-      '<p>Point your phone\'s <b>regular camera app</b> at the other coach\'s QR — the link that pops up adds the play here automatically.</p>'+
-      '<p class="edhint">Got a play link or code in a text instead? Tap the link, or paste it in <b>Settings → Load a save link or team code</b>.</p>'+
+      '<h3>Scan a shared QR</h3>'+
+      '<p>Point your phone\'s <b>regular camera app</b> at the other coach\'s QR — the link that pops up loads it here automatically, whether it\'s a play, a defense, a playbook, or a whole team.</p>'+
+      '<p class="edhint">Got a share link or code in a text instead? Tap the link, or paste it in <b>Settings → Load a shared link or code</b>.</p>'+
       '<div class="btns" style="margin:0"><button type="button" id="scClose">Close</button></div></div></div>';
     shareModal.hidden = false;
     document.getElementById('scClose').addEventListener('click', closeShareModal);
