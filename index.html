@@ -850,6 +850,12 @@
   </div>
 
   <div class="card">
+    <h3>Player colors</h3>
+    <p>Give each kid a color on the roster — their name tag wears it on every play diagram. Great when the team wears colored wristbands. The ball stays gold.</p>
+    <div class="btns" style="margin:0"><button type="button" class="keep" id="pcolorsTog" aria-pressed="false">Off</button></div>
+  </div>
+
+  <div class="card">
     <h3>Reset</h3>
     <p>Every reset saves a backup to History first, so it can be undone.</p>
     <div class="btns" style="margin:0">
@@ -881,7 +887,7 @@
     for(i=0;i<8;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:9};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:9};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -1351,6 +1357,7 @@
     if(loaded.alias) state.alias = loaded.alias;
     if(loaded.flip) state.flip = loaded.flip;
     if(loaded.formKept) state.formKept = loaded.formKept;
+    if(typeof loaded.pcolors === 'boolean') state.pcolors = loaded.pcolors;
     if(Array.isArray(loaded.custom)) state.custom = loaded.custom;
     if(Array.isArray(loaded.customForms)) state.customForms = loaded.customForms;
     if(Array.isArray(loaded.customDefs)) state.customDefs = loaded.customDefs;
@@ -1401,6 +1408,16 @@
   }
   function path(pts,o){ return pathEl(pts,o); } /* defense diagrams use this */
 
+  /* player colors: fixed sideline-bright palette, toggled in Settings */
+  var PCOLORS = ['#FF5A5F','#FF9F40','#FFC93C','#53D769','#35C8C0','#4FA3FF','#B07CFF','#FF7BC1','#F6F1E4'];
+  var palOpenId = null;
+  function pcolorOf(name){
+    if(!state || !state.pcolors || !name) return null;
+    for(var i=0;i<state.players.length;i++){
+      if(state.players[i].name === name) return state.players[i].color || null;
+    }
+    return null;
+  }
   function dotName(s){
     var n = String(s||'').trim().split(/\s+/)[0];
     return n.length > 9 ? n.slice(0,8)+'…' : n;
@@ -1413,8 +1430,9 @@
         /* same lollipop as the offense markers */
         var dnm = esc(dotName(name));
         var dw = Math.max(dnm.length*5.6+12, 26);
-        return '<rect x="'+(x-dw/2)+'" y="'+(y-8)+'" width="'+dw+'" height="16" rx="8" fill="rgba(7,23,20,.95)" stroke="rgba(246,241,228,.7)" stroke-width="1.3"/>'+
-          '<text x="'+x+'" y="'+(y+3.6)+'" text-anchor="middle" font-size="9" font-weight="700" font-family="Archivo,sans-serif" fill="#F6F1E4">'+dnm+'</text>';
+        var dpc = pcolorOf(name);
+        return '<rect x="'+(x-dw/2)+'" y="'+(y-8)+'" width="'+dw+'" height="16" rx="8" fill="'+(dpc||'rgba(7,23,20,.95)')+'" stroke="'+(dpc||'rgba(246,241,228,.7)')+'" stroke-width="1.3"/>'+
+          '<text x="'+x+'" y="'+(y+3.6)+'" text-anchor="middle" font-size="9" font-weight="700" font-family="Archivo,sans-serif" fill="'+(dpc?'#071714':'#F6F1E4')+'">'+dnm+'</text>';
       }
       return '<rect x="'+(x-9)+'" y="'+(y-9)+'" width="18" height="18" rx="4" fill="#FF5A5F"/>'+
         '<text x="'+x+'" y="'+(y+4)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="#2A0E0F">'+label+'</text>';
@@ -1425,13 +1443,23 @@
       /* lollipop: the name pill is the marker, position letter rides on top */
       var nm = esc(dotName(name));
       var w = Math.max(nm.length*5.6+12, 26);
+      var pc = pcolorOf(name);
       var pf = kind==='ball' ? '#FFC93C' : 'rgba(7,23,20,.95)';
       var ps = kind==='ball' ? '#FFC93C' : 'rgba(246,241,228,.7)';
       var pt = kind==='ball' ? '#0B211C' : '#F6F1E4';
-      return '<rect x="'+(x-w/2)+'" y="'+(y-8)+'" width="'+w+'" height="16" rx="8" fill="'+pf+'" stroke="'+ps+'" stroke-width="1.3"/>'+
+      var chip = kind==='ball' ? '#FFC93C' : '#123B33';
+      var psw = '1.3';
+      if(pc){
+        /* the pill wears the kid's color; the ball keeps its gold ring and chip */
+        pf = pc; pt = '#071714';
+        ps = kind==='ball' ? '#FFC93C' : pc;
+        psw = kind==='ball' ? '2' : '1.3';
+        chip = kind==='ball' ? '#FFC93C' : pc;
+      }
+      return '<rect x="'+(x-w/2)+'" y="'+(y-8)+'" width="'+w+'" height="16" rx="8" fill="'+pf+'" stroke="'+ps+'" stroke-width="'+psw+'"/>'+
         '<text x="'+x+'" y="'+(y+3.6)+'" text-anchor="middle" font-size="9" font-weight="700" font-family="Archivo,sans-serif" fill="'+pt+'">'+nm+'</text>'+
-        '<circle cx="'+x+'" cy="'+(y-12)+'" r="6.5" fill="'+(kind==='ball'?'#FFC93C':'#123B33')+'" stroke="#F6F1E4" stroke-width="1.3"/>'+
-        '<text x="'+x+'" y="'+(y-9.6)+'" text-anchor="middle" font-size="5.8" font-weight="700" font-family="Archivo,sans-serif" fill="'+pt+'">'+label+'</text>';
+        '<circle cx="'+x+'" cy="'+(y-12)+'" r="6.5" fill="'+chip+'" stroke="#F6F1E4" stroke-width="1.3"/>'+
+        '<text x="'+x+'" y="'+(y-9.6)+'" text-anchor="middle" font-size="5.8" font-weight="700" font-family="Archivo,sans-serif" fill="'+(pc?'#071714':pt)+'">'+label+'</text>';
     }
     out += '<circle cx="'+x+'" cy="'+y+'" r="10" fill="'+fill+'" stroke="#F6F1E4" stroke-width="1.6"/>'+
       '<text x="'+x+'" y="'+(y+3.8)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="'+txt+'">'+label+'</text>';
@@ -2186,8 +2214,31 @@
       return '<div class="rrow" data-id="'+esc(p.id)+'">'+
         '<div class="jersey">'+(i+1)+'</div>'+
         '<input class="tin" type="text" autocomplete="off" placeholder="Player '+(i+1)+'" value="'+esc(p.name)+'" aria-label="Player '+(i+1)+' name">'+
-        '<button type="button" class="iconbtn" aria-label="Remove player">✕</button></div>';
+        (state.pcolors ? '<button type="button" class="iconbtn cpick" aria-label="Player '+(i+1)+' color"><span style="display:block;width:22px;height:22px;border-radius:50%;margin:auto;'+(p.color?'background:'+p.color+';border:2px solid rgba(7,23,20,.5)':'border:2px dashed rgba(246,241,228,.5)')+'"></span></button>' : '')+
+        '<button type="button" class="iconbtn" aria-label="Remove player">✕</button></div>'+
+        (state.pcolors && palOpenId===p.id ? '<div class="palrow" data-id="'+esc(p.id)+'" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px 42px">'+
+          PCOLORS.map(function(c){ return '<button type="button" class="palsw" data-c="'+c+'" aria-label="'+c+'" style="width:30px;height:30px;border-radius:50%;border:2px solid '+(p.color===c?'#fff':'transparent')+';background:'+c+';cursor:pointer"></button>'; }).join('')+
+          '<button type="button" class="palsw" data-c="" aria-label="No color" style="width:30px;height:30px;border-radius:50%;background:transparent;border:2px dashed rgba(246,241,228,.5);cursor:pointer"></button>'+
+          '</div>' : '');
     }).join('');
+    rosterList.querySelectorAll('.cpick').forEach(function(b){
+      b.addEventListener('click', function(){
+        var id = b.closest('.rrow').dataset.id;
+        palOpenId = (palOpenId===id ? null : id);
+        renderRoster();
+      });
+    });
+    rosterList.querySelectorAll('.palrow').forEach(function(pr){
+      var pid = pr.dataset.id;
+      pr.querySelectorAll('.palsw').forEach(function(b){
+        b.addEventListener('click', function(){
+          var p = playerById(pid);
+          if(p){ if(b.dataset.c){ p.color = b.dataset.c; } else { delete p.color; } }
+          palOpenId = null;
+          save(); renderRoster(); renderGameDay();
+        });
+      });
+    });
     rosterList.querySelectorAll('.rrow').forEach(function(row){
       var id = row.dataset.id;
       row.querySelector('input').addEventListener('input', function(ev){
@@ -2197,7 +2248,7 @@
       row.querySelector('input').addEventListener('change', function(){
         renderSeriesList(); renderGameDay();
       });
-      row.querySelector('.iconbtn').addEventListener('click', function(){
+      row.querySelector('.iconbtn[aria-label="Remove player"]').addEventListener('click', function(){
         state.players = state.players.filter(function(p){ return p.id!==id; });
         state.series.forEach(function(s){
           Object.keys(s.slots).forEach(function(k){ if(s.slots[k]===id) delete s.slots[k]; });
@@ -4171,7 +4222,17 @@
       ? 'This device auto-saves your setup. Each Share button opens a QR the other coach can scan with their camera — and every QR is also a <b>tappable link</b> you can Share or Copy into a text instead.'
       : '<b style="color:var(--flag)">Heads up: this view can\'t auto-save between visits.</b> After you make changes, copy your link (Share all → Copy link) and keep it in Notes or a text to yourself — tap it next time and everything returns.')+
       ' <b>Share all</b> carries everything — roster, series, plays — and replaces the other device\'s setup (their old one lands in History). <b>Share playbook</b> and <b>Share defense</b> carry just that side of the ball and <b>merge</b>, so one coach can build the offense, another the defense, and they can trade without losing their own work.';
+    var pcT = document.getElementById('pcolorsTog');
+    if(pcT){
+      pcT.setAttribute('aria-pressed', state.pcolors ? 'true' : 'false');
+      pcT.textContent = state.pcolors ? 'On ✓' : 'Off';
+    }
   }
+  document.getElementById('pcolorsTog').addEventListener('click', function(){
+    state.pcolors = !state.pcolors;
+    if(!state.pcolors) palOpenId = null;
+    save(); renderSaveCard(); renderRoster(); renderGameDay();
+  });
   document.getElementById('teamQR').addEventListener('click', function(){
     saveNow();
     openLinkShareModal('Share all', shareUrl(),
