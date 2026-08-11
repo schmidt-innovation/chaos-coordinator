@@ -231,6 +231,8 @@
     #pbKept[hidden]{display:none}
     #pbKept .callhead,#pbKept .benchline,#pbKept .card,#pbKept .ghostbtn,
     #mineList .callhead,#mineList .empty{grid-column:1 / -1}
+    #dfList{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;align-items:start}
+    #dfList .empty{grid-column:1 / -1}
     .pgrid{grid-template-columns:repeat(3,1fr)}
     .slots{grid-template-columns:repeat(5,1fr)}
     #fcard .field,#gdplay .field,#gdLineup,#gdDef,#dfField,#fmField,#edField{
@@ -351,11 +353,14 @@
   <p class="lede">Half Rack defense in one sentence: exactly two on the line rushing, everyone else covering — and the flag pull still wins the down. Build your looks here, call them from the Defense tab on Game day.</p>
 
   <div class="card">
-    <h3>Your defenses</h3>
-    <p>One each and Zone 2-3-3 cover most games. Build your own look — an overload blitz, a goal-line wall — and call it from the Defense tab on Game day.</p>
-    <div id="dfList"></div>
-    <button type="button" class="ghostbtn" id="newDef">⊕ New defense</button>
-    <div id="dfHost" hidden></div>
+    <h3>Defense rules that decide games</h3>
+    <ul class="tight">
+      <li><b>A sack is the flag.</b> The passer's flag pulled with the ball still in hand ends the play — no grace for a throwing motion.</li>
+      <li><b>The spot is the flag pull.</b> The ball goes where it was when the flag came out, or where the carrier left the field.</li>
+      <li><b>Dive for flags, grab flags not jersey</b> — holding is 10 yards. Never run through the carrier.</li>
+      <li><b>Coverage contact is legal inside five yards</b> — continuous, inside the frame, ball not in the air.</li>
+      <li><b>Knock passes down after they leave the hand</b> — never strip the ball.</li>
+    </ul>
   </div>
 
   <div class="card">
@@ -369,26 +374,8 @@
     </ul>
   </div>
 
-  <div class="card">
-    <h3>Teach the pull first</h3>
-    <ul class="tight">
-      <li><b>Get in front.</b> Chasing from behind never works. Angle to where they're going.</li>
-      <li><b>Break down.</b> Feet stop, knees bend, hands out — like guarding in basketball.</li>
-      <li><b>Grab the flag, not the jersey.</b> Diving for flags is legal; holding is 10 yards.</li>
-      <li><b>Hold it up and yell.</b> The referee needs to see it.</li>
-    </ul>
-  </div>
-
-  <div class="card">
-    <h3>What to call, and when</h3>
-    <ul class="tight">
-      <li><b>Start in ONE EACH</b> — two rushers, six kids each locked on a man. It's the easiest job to understand.</li>
-      <li><b>Switch to ZONE 2-3-3</b> when they spread you out or keep hitting crossers — zones don't chase the wash.</li>
-      <li><b>Rushers with hands up</b> beat rushers with speed. Batted balls end drives.</li>
-      <li><b>Coverage contact is legal inside five yards</b> — continuous, inside the frame, ball not in the air. Use it on their best receiver.</li>
-      <li><b>Against trips,</b> slide the short zones to the strength and keep the deep three honest.</li>
-    </ul>
-  </div>
+  <div id="dfList"></div>
+  <button type="button" class="ghostbtn" id="newDef" style="margin-bottom:14px">⊕ New defense</button>
 </section>
 
 
@@ -549,9 +536,9 @@
     <h3>Share &amp; transfer</h3>
     <p id="saveStatus"></p>
     <div class="btns" style="margin:0">
-      <button type="button" id="teamQR">Show team QR</button>
-      <button type="button" id="offQR">Show playbook QR</button>
-      <button type="button" id="defQR">Show defense QR</button>
+      <button type="button" id="teamQR">Share all</button>
+      <button type="button" id="offQR">Share playbook</button>
+      <button type="button" id="defQR">Share defense</button>
     </div>
     <button type="button" class="ghostbtn" id="scanQR" style="margin-top:10px">⛶ Scan a shared QR</button>
     <p class="hintline" id="codeMsg" hidden></p>
@@ -578,7 +565,15 @@
     <div id="snapList"></div>
   </div>
 
-  <button type="button" class="ghostbtn" id="resetAll" style="margin-top:6px">Reset roster &amp; series</button>
+  <div class="card">
+    <h3>Reset</h3>
+    <p>Every reset saves a backup to History first, so it can be undone.</p>
+    <div class="btns" style="margin:0">
+      <button type="button" id="resetOff">Reset playbook</button>
+      <button type="button" id="resetDef">Reset defense</button>
+      <button type="button" id="resetAll" style="color:var(--flag);border-color:var(--flag)">Reset all</button>
+    </div>
+  </div>
 </section>
 
 </main>
@@ -586,6 +581,7 @@
 <div class="pmodal" id="playModal" hidden></div>
 <div class="pmodal" id="fmHost" hidden></div>
 <div class="pmodal" id="edHost" hidden></div>
+<div class="pmodal" id="dfHost" hidden></div>
 <div class="pmodal" id="shareModal" hidden></div>
 
 <footer>Half Rack sideline card. Eight on the field, two on the line, flags win the down.</footer>
@@ -2272,11 +2268,39 @@
   });
 
   armButton(document.getElementById('resetAll'), function(){
+    takeSnapshot(true);
     state = defaultState();
     saveNow();
     rebuildForms();
-    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderStockPicker(); renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderDefList();
-  });
+    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderStockPicker(); renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderDefList(); renderSnaps();
+    codeMsg('Everything reset ✓ — the old setup is in History if you need it back.', true);
+  }, 'Wipe everything?');
+  armButton(document.getElementById('resetOff'), function(){
+    takeSnapshot(true);
+    state.custom = []; state.customForms = [];
+    state.kept = {}; state.alias = {}; state.flip = {}; state.formKept = {};
+    state.series.forEach(function(s){
+      s.callPlay = null;
+      if(s.form >= STOCK_FORMS.length){ s.form = 0; }
+      if(s.callForm != null && s.callForm >= STOCK_FORMS.length){ s.callForm = s.form; }
+    });
+    mineActive = 0;
+    saveNow(); rebuildForms();
+    renderSeriesList(); renderGameDay(); renderFormation(); renderStockPicker(); renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderSnaps();
+    codeMsg('Playbook reset ✓ — custom plays, formations, and keeps cleared. Stock plays untouched.', true);
+  }, 'Sure?');
+  armButton(document.getElementById('resetDef'), function(){
+    takeSnapshot(true);
+    state.customDefs = []; state.keptDefs = {}; state.defFlip = {};
+    var stockKeys = DEFS.map(function(x){ return x.key; });
+    state.series.forEach(function(s){
+      var d = sDef(s);
+      if(stockKeys.indexOf(d.scheme) === -1){ d.scheme = DEFS[1].key; d.slots = {}; }
+    });
+    saveNow();
+    renderDefList(); renderGameDay(); renderSeriesList(); renderSnaps();
+    codeMsg('Defense reset ✓ — custom defenses cleared. Stock defenses untouched.', true);
+  }, 'Sure?');
 
   /* ================= game day: execute screen ================= */
   var gd = document.getElementById('gdcontent');
@@ -3520,33 +3544,82 @@
   /* ================= custom defense builder ================= */
   var dfHost = document.getElementById('dfHost');
   var dfState = null;
+  function defCardSvg(cd){
+    var fl = !!(state.defFlip && state.defFlip[cd.id]);
+    var roles = cdRoles(cd);
+    var pos2 = fl ? cd.pos.map(function(p){ return [300-p[0], p[1]]; }) : cd.pos;
+    var moves2 = cd.moves ? cd.moves.map(function(mv){
+      if(!mv || !mv.length) return null;
+      return fl ? mv.map(function(q){ return [300-q[0], q[1]]; }) : mv;
+    }) : null;
+    var inner = defRoleGlyphsAll(pos2, roles, cd.sizes||null, moves2) + oppBase();
+    pos2.forEach(function(p,i){ inner += dot(p, String(i+1), 'd'); });
+    return svg(inner);
+  }
   function renderDefList(){
     var host = document.getElementById('dfList');
     var cds = state.customDefs||[];
     host.innerHTML = cds.length ? cds.map(function(cd){
-      var kd = state.keptDefs && state.keptDefs[cd.id];
-      return '<div class="rrow" data-did="'+esc(cd.id)+'"><div class="jersey" style="color:var(--flag)">D</div>'+
-        '<b style="flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(cd.name)+'</b>'+
-        '<button type="button" class="iconbtn dkeep" aria-label="Keep defense" aria-pressed="'+(!!kd)+'"'+
-        (kd?' style="color:var(--whistle);border-color:var(--whistle)"':'')+'>★</button>'+
-        '<button type="button" class="iconbtn dedit" aria-label="Edit defense">✎</button>'+
-        '<button type="button" class="iconbtn ddel" aria-label="Delete defense">✕</button></div>';
-    }).join('') : '<p class="edhint" style="margin:0 0 10px">No custom defenses yet.</p>';
+      var kd = !!(state.keptDefs && state.keptDefs[cd.id]);
+      var fl = !!(state.defFlip && state.defFlip[cd.id]);
+      var jobs = {man:0, zone:0, blitz:0};
+      cdRoles(cd).forEach(function(r){ jobs[r]++; });
+      var sub = [];
+      if(jobs.blitz) sub.push(jobs.blitz+' blitz');
+      if(jobs.man) sub.push(jobs.man+' man');
+      if(jobs.zone) sub.push(jobs.zone+' zone');
+      return '<div class="play'+(kd?' kept':'')+'" data-did="'+esc(cd.id)+'">'+
+        '<div class="phead"><h3>'+(kd?'<span class="keptstar">★</span> ':'')+esc(cd.name)+'</h3>'+
+        '<div class="tag run">'+sub.join(' · ')+'</div>'+
+        '<div class="tag" style="border-color:var(--whistle);color:var(--whistle)">Custom</div>'+
+        (fl?'<div class="tag">Flipped ↔</div>':'')+'</div>'+
+        '<div class="field">'+defCardSvg(cd)+'</div>'+
+        '<div class="btns">'+
+        '<button type="button" class="dflip">Flip ↔</button>'+
+        '<button type="button" class="dkeep" aria-pressed="'+kd+'">'+(kd?'Kept ✓':'Keep')+'</button>'+
+        '<button type="button" class="dshare">Share</button>'+
+        '<button type="button" class="dedit">Edit</button>'+
+        '<button type="button" class="ddel" style="color:var(--flag);border-color:var(--flag)">Delete</button>'+
+        '</div></div>';
+    }).join('') : '<div class="empty">No custom defenses yet. Tap <b>⊕ New defense</b> to build your first look.</div>';
+    hideRoutes(host);
     host.querySelectorAll('.dkeep').forEach(function(b){
       b.addEventListener('click', function(){
-        var did = b.closest('.rrow').dataset.did;
+        var did = b.closest('.play').dataset.did;
         if(!state.keptDefs) state.keptDefs = {};
         state.keptDefs[did] = !state.keptDefs[did];
         if(!state.keptDefs[did]) delete state.keptDefs[did];
         save(); renderDefList(); renderGameDay();
       });
     });
+    host.querySelectorAll('.dflip').forEach(function(b){
+      b.addEventListener('click', function(){
+        var did = b.closest('.play').dataset.did;
+        if(!state.defFlip) state.defFlip = {};
+        state.defFlip[did] = !state.defFlip[did];
+        if(!state.defFlip[did]) delete state.defFlip[did];
+        save(); renderDefList(); renderGameDay();
+      });
+    });
+    host.querySelectorAll('.dshare').forEach(function(b){
+      b.addEventListener('click', function(){ openDefShareModal(b.closest('.play').dataset.did); });
+    });
     host.querySelectorAll('.dedit').forEach(function(b){
-      b.addEventListener('click', function(){ openDfEditor(b.closest('.rrow').dataset.did); });
+      b.addEventListener('click', function(){ openDfEditor(b.closest('.play').dataset.did); });
     });
     host.querySelectorAll('.ddel').forEach(function(b){
-      armButton(b, function(){ deleteDef(b.closest('.rrow').dataset.did); }, '✕?');
+      armButton(b, function(){ deleteDef(b.closest('.play').dataset.did); }, 'Delete?');
     });
+  }
+  function openDefShareModal(did){
+    var cd = (state.customDefs||[]).filter(function(x){ return x.id === did; })[0];
+    if(!cd) return;
+    var o = {v:2, part:'def', customDefs:[cd]};
+    if(state.keptDefs && state.keptDefs[did]){ o.keptDefs = {}; o.keptDefs[did] = true; }
+    if(state.defFlip && state.defFlip[did]){ o.defFlip = {}; o.defFlip[did] = true; }
+    saveNow();
+    openLinkShareModal('Share “'+esc(cd.name)+'”', hashLink('#p=HRD2.'+lzPack(JSON.stringify(o))),
+      'The other coach points their phone camera here — the link adds this defense to their app.');
   }
   function deleteDef(did){
     state.customDefs = (state.customDefs||[]).filter(function(c){ return c.id !== did; });
@@ -3571,7 +3644,8 @@
     };
     dfHost.hidden = false;
     dfHost.innerHTML =
-      '<div class="card" style="border-color:var(--flag);margin-top:12px">'+
+      '<div class="pmodal-inner" style="max-width:1080px">'+
+      '<div class="card" style="border-color:var(--flag)">'+
       '<h3>'+(cd?'Edit defense':'New defense')+'</h3>'+
       '<p class="edhint">Drag the eight defenders where you want them, then tap one and give it a job: Man chases a kid, Zone owns a box, Blitz crosses the line. Tap open grass to draw a movement path for the selected defender — like a line kid dropping back to cover while the safety blitzes. You\'re defending the bottom end zone.</p>'+
       '<input class="tin" id="dfName" type="text" autocomplete="off" placeholder="Defense name" style="margin:10px 0 12px">'+
@@ -3585,7 +3659,7 @@
       '<div class="btns"><button type="button" id="dfUndoMove">Undo move point</button>'+
       '<button type="button" id="dfClearMove">Clear movement</button></div>'+
       '<div class="btns"><button type="button" id="dfSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(cd?'Save changes':'Save defense')+'</button>'+
-      '<button type="button" id="dfCancel">Cancel</button></div></div>';
+      '<button type="button" id="dfCancel">Cancel</button></div></div></div>';
     if(cd){ document.getElementById('dfName').value = cd.name; }
     var field = document.getElementById('dfField');
     function draw(){
@@ -3684,7 +3758,6 @@
       save(); closeDfEditor(); renderDefList(); renderGameDay();
     });
     draw();
-    dfHost.scrollIntoView({behavior: REDUCE?'auto':'smooth', block:'start'});
   }
   document.getElementById('newDef').addEventListener('click', function(){ openDfEditor(null); });
 
@@ -3703,17 +3776,17 @@
   }
   document.getElementById('teamQR').addEventListener('click', function(){
     saveNow();
-    openLinkShareModal('Team QR', shareUrl(),
+    openLinkShareModal('Share all', shareUrl(),
       'Scanning this loads your whole team — roster, series, plays — replacing theirs. Their old setup lands in History.');
   });
   document.getElementById('offQR').addEventListener('click', function(){
     saveNow();
-    openLinkShareModal('Playbook QR', hashLink('#p='+encodeOffCode()),
+    openLinkShareModal('Share playbook', hashLink('#p='+encodeOffCode()),
       'Scanning this merges your custom plays, formations, and keeps into the other coach\'s app.');
   });
   document.getElementById('defQR').addEventListener('click', function(){
     saveNow();
-    openLinkShareModal('Defense QR', hashLink('#p='+encodeDefCode()),
+    openLinkShareModal('Share defense', hashLink('#p='+encodeDefCode()),
       'Scanning this merges your custom defenses into the other coach\'s app.');
   });
   document.getElementById('scanQR').addEventListener('click', openScanner);
