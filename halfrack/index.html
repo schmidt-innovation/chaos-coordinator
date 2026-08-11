@@ -1886,6 +1886,7 @@
 
   /* ================= game plan: roster ================= */
   var rosterList = document.getElementById('rosterList');
+  var pickerBypass = false;
   function openColorChooser(pid){
     var p = playerById(pid);
     if(!p) return;
@@ -1900,7 +1901,7 @@
     document.getElementById('ccPick').addEventListener('click', function(){
       closeShareModal();
       var inp = rosterList.querySelector('.rrow[data-id="'+pid+'"] .palfull');
-      if(inp) inp.click();
+      if(inp){ pickerBypass = true; inp.click(); }
     });
     document.getElementById('ccNone').addEventListener('click', function(){
       delete p.color;
@@ -1937,6 +1938,7 @@
         save(); renderRoster(); renderGameDay();
       });
       lb.addEventListener('click', function(ev){
+        if(pickerBypass){ pickerBypass = false; return; }
         var p = playerById(pid);
         if(p && p.color){
           /* colored kids get the big-button chooser instead of the raw picker */
