@@ -229,7 +229,7 @@
     /* grid, not columns — column balancing floats right-column cards higher than the left */
     #pbKept,#mineList{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;align-items:start}
     #pbKept[hidden]{display:none}
-    #pbKept .callhead,#pbKept .benchline,#pbKept .card,
+    #pbKept .callhead,#pbKept .benchline,#pbKept .card,#pbKept .ghostbtn,
     #mineList .callhead,#mineList .empty{grid-column:1 / -1}
     .pgrid{grid-template-columns:repeat(3,1fr)}
     .slots{grid-template-columns:repeat(5,1fr)}
@@ -593,6 +593,7 @@
 <div class="pmodal" id="playModal" hidden></div>
 <div class="pmodal" id="fmHost" hidden></div>
 <div class="pmodal" id="edHost" hidden></div>
+<div class="pmodal" id="shareModal" hidden></div>
 
 <footer>Half Rack sideline card. Eight on the field, two on the line, flags win the down.</footer>
 
@@ -982,7 +983,7 @@
     }
     /* v2 codes: LZW-compressed */
     var lz = null;
-    if(txt.indexOf('HRO2.')===0 || txt.indexOf('HRD2.')===0){ lz = txt.slice(5); }
+    if(txt.indexOf('HRO2.')===0 || txt.indexOf('HRD2.')===0 || txt.indexOf('HRP2.')===0){ lz = txt.slice(5); }
     else if(txt.indexOf('HR2.')===0){ lz = txt.slice(4); }
     if(lz !== null){
       try{ return JSON.parse(lzUnpack(lz)); }catch(e){ return null; }
@@ -1742,6 +1743,7 @@
         '<button type="button" class="replay">Run it again</button>'+
         '<button type="button" class="flip">Flip ↔</button>'+
         '<button type="button" class="keep" aria-pressed="'+on+'">'+(on?'Kept ✓':'Keep')+'</button>'+
+        (p.custom?'<button type="button" class="pshare">Share</button>':'')+
         (p.custom?'<button type="button" class="pedit">Edit</button>':'')+
         (p.custom && !(opts&&opts.noDelete)?'<button type="button" class="pdel" style="color:var(--flag);border-color:var(--flag)">Delete</button>':'')+
       '</div></div>';
@@ -1767,6 +1769,11 @@
     container.querySelectorAll('.pedit').forEach(function(b){
       b.addEventListener('click', function(){
         editCustomPlay(b.closest('.play').dataset.cid);
+      });
+    });
+    container.querySelectorAll('.pshare').forEach(function(b){
+      b.addEventListener('click', function(){
+        openShareModal(b.closest('.play').dataset.cid);
       });
     });
     container.querySelectorAll('.pdel').forEach(function(b){
@@ -2997,13 +3004,16 @@
         items.map(function(p){ return playCardHtml(f, p, null); }).join('');
     });
     if(total){
-      host.innerHTML = '<div class="benchline" style="margin:0 0 4px">'+total+' play'+(total===1?'':'s')+' in the game plan.</div>'+html;
+      host.innerHTML = '<div class="benchline" style="margin:0 0 4px">'+total+' play'+(total===1?'':'s')+' in the game plan.</div>'+html+
+        '<button type="button" class="ghostbtn" id="addShared">⛶ Add a shared play</button>';
     } else {
       host.innerHTML = '<div class="card"><h3>No plays kept yet</h3>'+
         '<p>Browse the Stock tab, pick a formation, and tap <b>Keep</b> on four to six plays — that\'s a first-season game plan. Kept plays land here and lead on Game day.</p>'+
-        '<button type="button" class="ghostbtn solid gold" id="goStock">Browse the stock playbook →</button></div>';
+        '<button type="button" class="ghostbtn solid gold" id="goStock">Browse the stock playbook →</button></div>'+
+        '<button type="button" class="ghostbtn" id="addShared">⛶ Add a shared play</button>';
       document.getElementById('goStock').addEventListener('click', function(){ showPbTab('stock'); });
     }
+    document.getElementById('addShared').addEventListener('click', openScanner);
     wirePlayCards(host,
       function(){ renderKept(); updateCount(); renderGameDay(); },
       function(){ renderKept(); renderGameDay(); });
@@ -3765,6 +3775,12 @@
       codeMsg('Defense merged ✓ — '+rd.defs+' defense'+(rd.defs===1?'':'s')+' added.', true);
       return;
     }
+    if(loaded.part === 'play'){
+      var rp = mergePlay(loaded);
+      if(rp){ codeMsg('Play added ✓ — “'+rp.name+'” in '+rp.form+', kept.', true); }
+      else { codeMsg('That play couldn\'t be added — its formation didn\'t match this app.', false); }
+      return;
+    }
     applyFullLoad(loaded, 'Loaded ✓');
   });
 
@@ -3800,6 +3816,153 @@
     };
     rd.readAsText(f);
   });
+
+  /* ---- share a single play: QR + link ---- */
+  function toast(msg){
+    var t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;left:50%;bottom:76px;transform:translateX(-50%);max-width:88vw;background:var(--whistle);color:var(--deeper);font-weight:700;font-size:13px;padding:10px 16px;border-radius:999px;z-index:80;box-shadow:0 4px 14px rgba(0,0,0,.4)';
+    document.body.appendChild(t);
+    setTimeout(function(){ t.remove(); }, 3500);
+  }
+  function encodePlayCode(cid){
+    var c = (state.custom||[]).filter(function(x){ return x.id === cid; })[0];
+    if(!c) return null;
+    var f = FORMS[c.form] || FORMS[0];
+    var o = {v:2, part:'play', fname: f.name, n: c.n, t: c.t, d: c.d||'', routes: c.routes};
+    if(f.custom){
+      var cf = (state.customForms||[]).filter(function(x){ return x.id === f.cfid; })[0];
+      if(cf){ o.spots = cf.spots; }
+    }
+    var pid = f.name+':'+c.n;
+    if(state.alias && state.alias[pid]) o.alias = state.alias[pid];
+    return 'HRP2.'+lzPack(JSON.stringify(o));
+  }
+  function playShareUrl(cid){
+    var code = encodePlayCode(cid);
+    if(!code) return null;
+    if(location.protocol === 'http:' || location.protocol === 'https:'){
+      return location.origin + location.pathname + '#p=' + code;
+    }
+    return '#p=' + code;
+  }
+  var shareModal = document.getElementById('shareModal');
+  var scanStream = null, scanTimer = 0;
+  function closeShareModal(){
+    clearInterval(scanTimer); scanTimer = 0;
+    if(scanStream){ scanStream.getTracks().forEach(function(tr){ tr.stop(); }); scanStream = null; }
+    shareModal.hidden = true; shareModal.innerHTML = '';
+  }
+  shareModal.addEventListener('click', function(ev){ if(ev.target === shareModal) closeShareModal(); });
+  function openShareModal(cid){
+    var c = (state.custom||[]).filter(function(x){ return x.id === cid; })[0];
+    if(!c) return;
+    var url = playShareUrl(cid);
+    var qs = url ? qrSvgHtml(url) : null;
+    shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
+      '<h3>Share “'+esc(c.n)+'”</h3>'+
+      (qs ? qs + '<p class="edhint" style="text-align:center;margin:0 0 10px">The other coach points their phone camera here — the link adds the play (and its formation) to their app, already kept.</p>'
+          : '<p class="edhint">This play is too big for one QR — use the link buttons instead.</p>')+
+      '<div class="btns" style="margin:0">'+
+      (navigator.share?'<button type="button" id="shPlayShare">Share…</button>':'')+
+      '<button type="button" id="shPlayCopy">Copy link</button>'+
+      '<button type="button" id="shPlayClose">Close</button></div>'+
+      '<input class="tin" id="shPlayOut" readonly hidden style="font-size:11px;margin-top:8px" aria-label="Play link">'+
+      '</div></div>';
+    shareModal.hidden = false;
+    var sb = document.getElementById('shPlayShare');
+    if(sb){ sb.addEventListener('click', function(){ try{ navigator.share({title:'Play: '+c.n, url: url}); }catch(e){} }); }
+    document.getElementById('shPlayCopy').addEventListener('click', function(){
+      var okB = document.getElementById('shPlayCopy');
+      function fb(){
+        var outI = document.getElementById('shPlayOut');
+        outI.hidden = false; outI.value = url; outI.focus(); outI.select();
+        try{ document.execCommand('copy'); okB.textContent = 'Copied ✓'; }catch(e){}
+      }
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(function(){ okB.textContent = 'Copied ✓'; }, fb);
+      } else { fb(); }
+    });
+    document.getElementById('shPlayClose').addEventListener('click', closeShareModal);
+  }
+  /* a shared play lands in Custom (creating its formation if needed) and is kept */
+  function mergePlay(o){
+    if(!o || !Array.isArray(o.routes)) return null;
+    var fi = -1;
+    FORMS.forEach(function(f,i){
+      if(fi < 0 && f.name.toLowerCase() === String(o.fname||'').toLowerCase()) fi = i;
+    });
+    if(fi < 0){
+      if(!Array.isArray(o.spots)) return null;
+      var nm = String(o.fname||'Shared formation'), base = nm, k = 2;
+      var taken = FORMS.map(function(f){ return f.name.toLowerCase(); });
+      while(taken.indexOf(nm.toLowerCase()) > -1){ nm = base+' '+k; k++; }
+      state.seq++;
+      state.customForms = state.customForms||[];
+      state.customForms.push({id:'f'+state.seq, name:nm, spots:o.spots});
+      rebuildForms();
+      fi = FORMS.length-1;
+    }
+    var f2 = FORMS[fi];
+    var name = String(o.n||'Shared play'), base2 = name, k2 = 2;
+    var takenP = playsOf(f2).map(function(p){ return p.n.toLowerCase(); });
+    while(takenP.indexOf(name.toLowerCase()) > -1){ name = base2+' '+k2; k2++; }
+    state.seq++;
+    state.custom.push({id:'c'+state.seq, form:fi, n:name, t:(o.t==='run'?'run':'pass'), d:String(o.d||''), routes:o.routes});
+    state.kept[f2.name+':'+name] = true;
+    if(o.alias){ state.alias[f2.name+':'+name] = String(o.alias); }
+    save();
+    renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderGameDay(); updateCount(); renderSeriesList();
+    return {form: f2.name, name: name};
+  }
+  /* "Add a shared play": camera scan where the browser can, instructions where it can't */
+  function openScanner(){
+    var canScan = ('BarcodeDetector' in window) && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+    if(!canScan){
+      shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
+        '<h3>Add a shared play</h3>'+
+        '<p>Point your phone\'s <b>regular camera app</b> at the other coach\'s QR — the link that pops up adds the play here automatically.</p>'+
+        '<p class="edhint">Got a play link or code in a text instead? Tap the link, or paste it in <b>Settings → Load a save link or team code</b>.</p>'+
+        '<div class="btns" style="margin:0"><button type="button" id="scClose">Close</button></div></div></div>';
+      shareModal.hidden = false;
+      document.getElementById('scClose').addEventListener('click', closeShareModal);
+      return;
+    }
+    shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
+      '<h3>Scan the other coach\'s QR</h3>'+
+      '<video id="scVideo" playsinline autoplay muted style="width:100%;border-radius:10px;background:#000"></video>'+
+      '<p class="hintline" id="scMsg">Looking for a QR…</p>'+
+      '<div class="btns" style="margin:0"><button type="button" id="scClose">Cancel</button></div></div></div>';
+    shareModal.hidden = false;
+    document.getElementById('scClose').addEventListener('click', closeShareModal);
+    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(stream){
+      scanStream = stream;
+      var vid = document.getElementById('scVideo');
+      if(!vid){ closeShareModal(); return; }
+      vid.srcObject = stream;
+      var det = new BarcodeDetector({formats:['qr_code']});
+      scanTimer = setInterval(function(){
+        if(!vid.videoWidth) return;
+        det.detect(vid).then(function(codes){
+          if(!codes || !codes.length) return;
+          var raw = codes[0].rawValue || '';
+          var pm = raw.match(/#p=([^&#]+)/);
+          var shared = decodeCode(pm ? pm[1] : raw);
+          if(shared && shared.part === 'play'){
+            closeShareModal();
+            var res = mergePlay(shared);
+            if(res){ toast('Added “'+res.name+'” to your kept plays ✓'); }
+          } else {
+            var el = document.getElementById('scMsg');
+            if(el) el.textContent = 'That QR isn\'t a play from this app — keep looking…';
+          }
+        }).catch(function(){});
+      }, 350);
+    }, function(){
+      closeShareModal();
+      toast('Camera not available — point the phone\'s camera app at the QR instead.');
+    });
+  }
 
   /* ---- snapshot history UI ---- */
   function renderSnaps(){
@@ -3857,6 +4020,20 @@
   renderMine();
   renderDefList();
   if(!lineupReady()){ showTab('gameplan'); } else { setTimeout(drawVisible,140); }
+  /* a scanned/tapped play link: add the play, land on Kept */
+  (function(){
+    var pm = (location.hash||'').match(/^#p=(.+)$/);
+    if(!pm) return;
+    var shared = decodeCode(pm[1]);
+    if(shared && shared.part === 'play'){
+      var res = mergePlay(shared);
+      if(res){
+        showTab('playbook'); showPbTab('kept');
+        toast('Added “'+res.name+'” to your kept plays ✓');
+      }
+    }
+    saveNow(); /* rewrites the hash back to the normal save mirror */
+  })();
 })();
 </script>
 </body>
