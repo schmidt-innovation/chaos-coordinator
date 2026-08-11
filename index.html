@@ -532,19 +532,6 @@
 <section class="panel" id="defense">
   <p class="lede">At this age, defense is one skill wearing three different hats: get in front of the ball carrier and pull the flag. Start with ONE EACH. Only add zones once they can find their own person without help.</p>
 
-  <div class="card">
-    <h3>Defense rules that decide games</h3>
-    <ul class="tight">
-      <li><b>Rush from seven yards back.</b> Any number can rush from the rush line. Leave early and cross before a handoff or pass and it's an illegal rush (+5 yards, automatic first down) — step back to the line to reset. Once the ball is handed off, everyone can cross.</li>
-      <li><b>Nobody has to rush.</b> The 7-second clock forces the throw anyway — cover everyone and let it run.</li>
-      <li><b>Never touch the passer.</b> Batting the ball down is fine; any contact is roughing the passer (+5, automatic first down).</li>
-      <li><b>Dive for flags, don't tackle.</b> No holding, no running through the carrier, never strip the ball, and no pulling a flag before the receiver has the ball (+5, automatic first down).</li>
-      <li><b>The spot is the feet.</b> The ball goes where the carrier's feet were at the pull — not where the ball is.</li>
-      <li><b>Interceptions are yours at the spot</b> — the only change of possession that doesn't reset to the 5-yard line, and returnable (except on conversions).</li>
-      <li><b>Don't mimic their signals</b> — copying the offense's cadence is unsportsmanlike conduct.</li>
-    </ul>
-  </div>
-
   <div id="dfList"></div>
   <button type="button" class="ghostbtn" id="newDef" style="margin-bottom:14px">⊕ New defense</button>
 
@@ -578,6 +565,19 @@
     </div>
   </div>
 
+
+  <div class="card">
+    <h3>Defense rules that decide games</h3>
+    <ul class="tight">
+      <li><b>Rush from seven yards back.</b> Any number can rush from the rush line. Leave early and cross before a handoff or pass and it's an illegal rush (+5 yards, automatic first down) — step back to the line to reset. Once the ball is handed off, everyone can cross.</li>
+      <li><b>Nobody has to rush.</b> The 7-second clock forces the throw anyway — cover everyone and let it run.</li>
+      <li><b>Never touch the passer.</b> Batting the ball down is fine; any contact is roughing the passer (+5, automatic first down).</li>
+      <li><b>Dive for flags, don't tackle.</b> No holding, no running through the carrier, never strip the ball, and no pulling a flag before the receiver has the ball (+5, automatic first down).</li>
+      <li><b>The spot is the feet.</b> The ball goes where the carrier's feet were at the pull — not where the ball is.</li>
+      <li><b>Interceptions are yours at the spot</b> — the only change of possession that doesn't reset to the 5-yard line, and returnable (except on conversions).</li>
+      <li><b>Don't mimic their signals</b> — copying the offense's cadence is unsportsmanlike conduct.</li>
+    </ul>
+  </div>
 </section>
 
 <!-- ================= COACH NOTES ================= -->
@@ -3910,14 +3910,20 @@
         (fl?'<div class="tag">Flipped ↔</div>':'')+'</div>'+
         '<div class="field">'+defCardSvg(cd)+'</div>'+
         '<div class="btns">'+
+        '<button type="button" class="dreplay">Run it again</button>'+
         '<button type="button" class="dflip">Flip ↔</button>'+
-        '<button type="button" class="dkeep" aria-pressed="'+kd+'">'+(kd?'Kept ✓':'Keep')+'</button>'+
+        '<button type="button" class="keep dkeep" aria-pressed="'+kd+'">'+(kd?'Kept ✓':'Keep')+'</button>'+
         '<button type="button" class="dshare">Share</button>'+
         '<button type="button" class="dedit">Edit</button>'+
         '<button type="button" class="ddel" style="color:var(--flag);border-color:var(--flag)">Delete</button>'+
         '</div></div>';
     }).join('') : '<div class="empty">No custom defenses yet. Tap <b>⊕ New defense</b> to build your first look.</div>';
     hideRoutes(host);
+    host.querySelectorAll('.dreplay').forEach(function(b){
+      b.addEventListener('click', function(){
+        playAnim(b.closest('.play').querySelector('.field'));
+      });
+    });
     host.querySelectorAll('.dkeep').forEach(function(b){
       b.addEventListener('click', function(){
         var did = b.closest('.play').dataset.did;

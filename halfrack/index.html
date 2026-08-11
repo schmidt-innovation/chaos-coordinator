@@ -353,17 +353,6 @@
   <p class="lede">Half Rack defense in one sentence: exactly two on the line rushing, everyone else covering — and the flag pull still wins the down. Build your looks here, call them from the Defense tab on Game day.</p>
 
   <div class="card">
-    <h3>Defense rules that decide games</h3>
-    <ul class="tight">
-      <li><b>A sack is the flag.</b> The passer's flag pulled with the ball still in hand ends the play — no grace for a throwing motion.</li>
-      <li><b>The spot is the flag pull.</b> The ball goes where it was when the flag came out, or where the carrier left the field.</li>
-      <li><b>Dive for flags, grab flags not jersey</b> — holding is 10 yards. Never run through the carrier.</li>
-      <li><b>Coverage contact is legal inside five yards</b> — continuous, inside the frame, ball not in the air.</li>
-      <li><b>Knock passes down after they leave the hand</b> — never strip the ball.</li>
-    </ul>
-  </div>
-
-  <div class="card">
     <h3>The two on the line</h3>
     <ul class="tight">
       <li><b>Exactly two rushers, never more.</b> A corner walking up to jam a receiver doesn't count.</li>
@@ -376,6 +365,17 @@
 
   <div id="dfList"></div>
   <button type="button" class="ghostbtn" id="newDef" style="margin-bottom:14px">⊕ New defense</button>
+
+  <div class="card">
+    <h3>Defense rules that decide games</h3>
+    <ul class="tight">
+      <li><b>A sack is the flag.</b> The passer's flag pulled with the ball still in hand ends the play — no grace for a throwing motion.</li>
+      <li><b>The spot is the flag pull.</b> The ball goes where it was when the flag came out, or where the carrier left the field.</li>
+      <li><b>Dive for flags, grab flags not jersey</b> — holding is 10 yards. Never run through the carrier.</li>
+      <li><b>Coverage contact is legal inside five yards</b> — continuous, inside the frame, ball not in the air.</li>
+      <li><b>Knock passes down after they leave the hand</b> — never strip the ball.</li>
+    </ul>
+  </div>
 </section>
 
 
@@ -3575,14 +3575,20 @@
         (fl?'<div class="tag">Flipped ↔</div>':'')+'</div>'+
         '<div class="field">'+defCardSvg(cd)+'</div>'+
         '<div class="btns">'+
+        '<button type="button" class="dreplay">Run it again</button>'+
         '<button type="button" class="dflip">Flip ↔</button>'+
-        '<button type="button" class="dkeep" aria-pressed="'+kd+'">'+(kd?'Kept ✓':'Keep')+'</button>'+
+        '<button type="button" class="keep dkeep" aria-pressed="'+kd+'">'+(kd?'Kept ✓':'Keep')+'</button>'+
         '<button type="button" class="dshare">Share</button>'+
         '<button type="button" class="dedit">Edit</button>'+
         '<button type="button" class="ddel" style="color:var(--flag);border-color:var(--flag)">Delete</button>'+
         '</div></div>';
     }).join('') : '<div class="empty">No custom defenses yet. Tap <b>⊕ New defense</b> to build your first look.</div>';
     hideRoutes(host);
+    host.querySelectorAll('.dreplay').forEach(function(b){
+      b.addEventListener('click', function(){
+        playAnim(b.closest('.play').querySelector('.field'));
+      });
+    });
     host.querySelectorAll('.dkeep').forEach(function(b){
       b.addEventListener('click', function(){
         var did = b.closest('.play').dataset.did;
