@@ -1130,7 +1130,6 @@
   function path(pts,o){ return pathEl(pts,o); } /* defense diagrams use this */
 
   /* player colors: fixed sideline-bright palette, toggled in Settings */
-  var PCOLORS = ['#FF5A5F','#FF9F40','#FFC93C','#53D769','#35C8C0','#4FA3FF','#B07CFF','#FF7BC1','#F6F1E4'];
   var palOpenId = null;
   function pcolorOf(name){
     if(!state || !state.pcolors || !name) return null;
@@ -1891,9 +1890,9 @@
         '<input class="tin" type="text" autocomplete="off" placeholder="Player '+(i+1)+'" value="'+esc(p.name)+'" aria-label="Player '+(i+1)+' name">'+
         (state.pcolors ? '<button type="button" class="iconbtn cpick" aria-label="Player '+(i+1)+' color"><span style="display:block;width:22px;height:22px;border-radius:50%;margin:auto;'+(p.color?'background:'+p.color+';border:2px solid rgba(7,23,20,.5)':'border:2px dashed rgba(246,241,228,.5)')+'"></span></button>' : '')+
         '<button type="button" class="iconbtn" aria-label="Remove player">✕</button></div>'+
-        (state.pcolors && palOpenId===p.id ? '<div class="palrow" data-id="'+esc(p.id)+'" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px 42px">'+
-          PCOLORS.map(function(c){ return '<button type="button" class="palsw" data-c="'+c+'" aria-label="'+c+'" style="width:30px;height:30px;border-radius:50%;border:2px solid '+(p.color===c?'#fff':'transparent')+';background:'+c+';cursor:pointer"></button>'; }).join('')+
-          '<button type="button" class="palsw" data-c="" aria-label="No color" style="width:30px;height:30px;border-radius:50%;background:transparent;border:2px dashed rgba(246,241,228,.5);cursor:pointer"></button>'+
+        (state.pcolors && palOpenId===p.id ? '<div class="palrow" data-id="'+esc(p.id)+'" style="display:flex;gap:10px;align-items:center;margin:0 0 10px 42px">'+
+          '<input type="color" class="palfull" value="'+(p.color||'#FF5A5F')+'" aria-label="Player '+(i+1)+' color" style="width:64px;height:38px;padding:2px;border:1px solid var(--line);border-radius:9px;background:var(--deeper)">'+
+          '<button type="button" class="palnone" style="background:transparent;border:1px dashed var(--line);color:var(--paper-dim);font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:10px 12px;border-radius:9px;cursor:pointer">No color</button>'+
           '</div>' : '');
     }).join('');
     rosterList.querySelectorAll('.cpick').forEach(function(b){
@@ -1905,13 +1904,24 @@
     });
     rosterList.querySelectorAll('.palrow').forEach(function(pr){
       var pid = pr.dataset.id;
-      pr.querySelectorAll('.palsw').forEach(function(b){
-        b.addEventListener('click', function(){
-          var p = playerById(pid);
-          if(p){ if(b.dataset.c){ p.color = b.dataset.c; } else { delete p.color; } }
-          palOpenId = null;
-          save(); renderRoster(); renderGameDay();
-        });
+      var ci = pr.querySelector('.palfull');
+      ci.addEventListener('input', function(){
+        var p = playerById(pid);
+        if(!p) return;
+        p.color = ci.value;
+        var row = rosterList.querySelector('.rrow[data-id="'+pid+'"] .cpick span');
+        if(row){ row.style.background = ci.value; row.style.border = '2px solid rgba(7,23,20,.5)'; }
+        save();
+      });
+      ci.addEventListener('change', function(){
+        palOpenId = null;
+        save(); renderRoster(); renderGameDay();
+      });
+      pr.querySelector('.palnone').addEventListener('click', function(){
+        var p = playerById(pid);
+        if(p){ delete p.color; }
+        palOpenId = null;
+        save(); renderRoster(); renderGameDay();
       });
     });
     rosterList.querySelectorAll('.rrow').forEach(function(row){
@@ -3578,7 +3588,6 @@
       '<p class="edhint">Drag the eight players where you want them. Keep guard–center–guard tight and at least four on the line. Editing spots doesn\'t move routes already drawn in this formation.</p>'+
       '<input class="tin" id="fmName" type="text" autocomplete="off" placeholder="Formation name" style="margin:10px 0 12px">'+
       '<div class="field" id="fmField" style="touch-action:none"></div>'+
-      (state.pcolors ? '<div class="edchips" id="fmColors"></div><div id="fmPalHost"></div>' : '')+
       '<div class="btns"><button type="button" id="fmSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(cf?'Save changes':'Save formation')+'</button>'+
       '<button type="button" id="fmCancel">Cancel</button></div>'+
       '<p class="hintline" id="fmMsg" hidden></p></div></div>';
@@ -3613,37 +3622,6 @@
     });
     field.addEventListener('pointerup', function(){ dragIdx = -1; });
     field.addEventListener('pointercancel', function(){ dragIdx = -1; });
-    var fmPalOpen = -1;
-    function drawColors(){
-      var host = document.getElementById('fmColors');
-      if(!host) return;
-      host.innerHTML = fmState.spots.map(function(sp2,i){
-        var c = sp2[4];
-        return '<button type="button" data-ci="'+i+'"'+(c?' style="background:'+c+';color:#071714;border-color:'+c+'"':'')+'>'+esc(sp2[0])+'</button>';
-      }).join('');
-      var ph = document.getElementById('fmPalHost');
-      ph.innerHTML = fmPalOpen > -1 ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px">'+
-        PCOLORS.map(function(c){ return '<button type="button" class="fmsw" data-c="'+c+'" aria-label="'+c+'" style="width:30px;height:30px;border-radius:50%;border:2px solid '+(fmState.spots[fmPalOpen][4]===c?'#fff':'transparent')+';background:'+c+';cursor:pointer"></button>'; }).join('')+
-        '<button type="button" class="fmsw" data-c="" aria-label="No color" style="width:30px;height:30px;border-radius:50%;background:transparent;border:2px dashed rgba(246,241,228,.5);cursor:pointer"></button>'+
-        '</div>' : '';
-      host.querySelectorAll('button[data-ci]').forEach(function(b){
-        b.addEventListener('click', function(){
-          fmPalOpen = (fmPalOpen === +b.dataset.ci) ? -1 : +b.dataset.ci;
-          drawColors();
-        });
-      });
-      ph.querySelectorAll('.fmsw').forEach(function(b){
-        b.addEventListener('click', function(){
-          var sp3 = fmState.spots[fmPalOpen];
-          sp3[2] = sp3[2] || null;
-          sp3[3] = sp3[3] || null;
-          sp3[4] = b.dataset.c || null;
-          fmPalOpen = -1;
-          drawColors(); draw();
-        });
-      });
-    }
-    drawColors();
     document.getElementById('fmCancel').addEventListener('click', closeFmEditor);
     document.getElementById('fmSave').addEventListener('click', function(){
       var name = (document.getElementById('fmName').value||'').trim() || 'My formation';
