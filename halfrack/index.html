@@ -350,7 +350,10 @@
 
 <!-- ================= DEFENSE ================= -->
 <section class="panel" id="defense">
-  <p class="lede">Half Rack defense in one sentence: exactly two on the line rushing, everyone else covering — and the flag pull still wins the down. Build your looks here, call them from the Defense tab on Game day.</p>
+  <p class="lede" style="max-width:none">Two on the line, everyone else covering — the flag pull wins the down. Build your looks here, call them from Game day.</p>
+
+  <div id="dfList"></div>
+  <button type="button" class="ghostbtn" id="newDef" style="margin-bottom:14px">⊕ New defense</button>
 
   <div class="card">
     <h3>The two on the line</h3>
@@ -362,9 +365,6 @@
       <li>(3rd/4th grade) Rushers line up in the B gap — inside ear on the guard's outside ear.</li>
     </ul>
   </div>
-
-  <div id="dfList"></div>
-  <button type="button" class="ghostbtn" id="newDef" style="margin-bottom:14px">⊕ New defense</button>
 
   <div class="card">
     <h3>Defense rules that decide games</h3>
@@ -2323,6 +2323,7 @@
         '<div class="field" id="modalField" style="touch-action:none">'+playFieldSvg(cf, play, names)+'</div>'+
         '<p class="edhint">Drag a player onto a teammate to swap spots — for this play only.'+(hasOv?' <b style="color:var(--whistle)">Custom spots on.</b>':'')+'</p>'+
         '<div class="btns"><button type="button" id="modalRun">Run it ▶</button>'+
+        '<button type="button" id="modalFlip">Flip ↔</button>'+
         (hasOv?'<button type="button" id="modalResetPm">↺ Series lineup</button>':'')+
         '<button type="button" id="modalClose">Close</button></div>'+
         '</div></div>';
@@ -2331,6 +2332,13 @@
       playAnim(field);
       document.getElementById('modalRun').addEventListener('click', function(){ playAnim(field); });
       document.getElementById('modalClose').addEventListener('click', closePlayModal);
+      document.getElementById('modalFlip').addEventListener('click', function(){
+        var fid = cf.name+':'+play.n;
+        if(!state.flip) state.flip = {};
+        state.flip[fid] = !state.flip[fid];
+        if(!state.flip[fid]) delete state.flip[fid];
+        save(); renderGameDay(); renderModal();
+      });
       var prb = document.getElementById('modalResetPm');
       if(prb){
         prb.addEventListener('click', function(){
@@ -2455,6 +2463,7 @@
         '<div class="field" id="modalField" style="touch-action:none">'+defFieldSvg(cs)+'</div>'+
         (schemePosMap(d) ? '<p class="edhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
         '<div class="btns"><button type="button" id="modalRun">Run it ▶</button>'+
+        (dm.custom?'<button type="button" id="modalFlip">Flip ↔</button>':'')+
         '<button type="button" id="modalClose">Close</button></div>'+
         '</div></div>';
       var field = document.getElementById('modalField');
@@ -2462,6 +2471,13 @@
       playAnim(field);
       document.getElementById('modalRun').addEventListener('click', function(){ playAnim(field); });
       document.getElementById('modalClose').addEventListener('click', closePlayModal);
+      var mf = document.getElementById('modalFlip');
+      if(mf){ mf.addEventListener('click', function(){
+        if(!state.defFlip) state.defFlip = {};
+        state.defFlip[d.scheme] = !state.defFlip[d.scheme];
+        if(!state.defFlip[d.scheme]) delete state.defFlip[d.scheme];
+        save(); renderGameDay(); renderDefList(); renderM();
+      }); }
 
       var posMap = schemePosMap(d);
       if(!posMap) return;
