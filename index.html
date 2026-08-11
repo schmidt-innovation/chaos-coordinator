@@ -252,6 +252,7 @@
   <button role="tab" aria-selected="false" data-target="defense">Defense</button>
   <button role="tab" aria-selected="false" data-target="practices">Practices</button>
   <button role="tab" aria-selected="false" data-target="rules">Rules</button>
+  <button role="tab" aria-selected="false" data-target="settings">Settings</button>
   <button role="tab" aria-selected="false" data-target="coach">Notes</button>
 </nav>
 
@@ -319,35 +320,14 @@
   <div id="seriesList"></div>
   <button type="button" class="ghostbtn" id="addSeries">+ Add a series</button>
 
-  <div class="card" style="margin-top:14px">
-    <h3>Save &amp; transfer</h3>
-    <p id="saveStatus"></p>
-    <div class="btns" style="margin:0">
-      <button type="button" id="copyCode">Copy team code</button>
-      <button type="button" id="copyOffCode">Copy playbook code</button>
-      <button type="button" id="copyDefCode">Copy defense code</button>
-      <button type="button" id="shareCode" hidden>Share…</button>
-    </div>
-    <textarea class="tin" id="codeOut" rows="3" hidden readonly
-      style="font-size:11px;word-break:break-all;margin-top:8px;resize:none" aria-label="Team code"></textarea>
-    <p class="hintline" id="codeMsg" hidden></p>
-    <label class="flab" style="margin-top:12px">Load a saved team code</label>
-    <div class="rrow" style="margin-bottom:0">
-      <input class="tin" id="codeIn" type="text" autocomplete="off" placeholder="Paste a team code or save link">
-      <button type="button" class="iconbtn" id="codeGo" aria-label="Load team code">→</button>
-    </div>
-  </div>
-
   <div class="card">
     <h3>Tips</h3>
     <ul class="tight">
       <li><b>QB and Center</b> should be kids who took those snaps in practice. Everything else can rotate freely.</li>
       <li><b>Formation per series</b> is allowed to differ — but one formation all game is completely fine for week one.</li>
-      <li><b>Before the first game,</b> copy your team code into Notes or a text to yourself. It's the setup in one paste-able string — it works on any device, no matter what the browser does.</li>
+      <li><b>Before the first game,</b> share yourself a save link from the Settings tab — it's the whole setup in one tappable link, and it works on any device no matter what the browser does.</li>
     </ul>
   </div>
-
-  <button type="button" class="ghostbtn" id="resetAll" style="margin-top:6px">Reset roster &amp; series</button>
 </section>
 
 <!-- ================= PLAYBOOK ================= -->
@@ -844,6 +824,53 @@
   <p class="edhint" style="margin-top:12px">Condensed from the NFL FLAG 2017 Regular Season Rule Book — all eighteen sections.</p>
 </section>
 
+<!-- ================= SETTINGS ================= -->
+<section class="panel" id="settings">
+  <p class="lede">Everything lives in the <b>team code</b> — roster, series, custom plays, keeps. Share it as a link, show it as a QR, or keep a file. Loading a full code replaces this device's setup.</p>
+
+  <div class="card">
+    <h3>Share &amp; transfer</h3>
+    <p id="saveStatus"></p>
+    <div class="btns" style="margin:0">
+      <button type="button" id="shareCode" hidden>Share save link…</button>
+      <button type="button" id="copyLink">Copy save link</button>
+      <button type="button" id="showQR">Show QR</button>
+    </div>
+    <div id="qrHost" hidden></div>
+    <div class="btns">
+      <button type="button" id="copyCode">Copy team code</button>
+      <button type="button" id="copyOffCode">Copy playbook code</button>
+      <button type="button" id="copyDefCode">Copy defense code</button>
+    </div>
+    <textarea class="tin" id="codeOut" rows="3" hidden readonly
+      style="font-size:11px;word-break:break-all;margin-top:8px;resize:none" aria-label="Team code"></textarea>
+    <p class="hintline" id="codeMsg" hidden></p>
+    <label class="flab" style="margin-top:12px">Load a save link or team code</label>
+    <div class="rrow" style="margin-bottom:0">
+      <input class="tin" id="codeIn" type="text" autocomplete="off" placeholder="Paste a save link or team code">
+      <button type="button" class="iconbtn" id="codeGo" aria-label="Load team code">→</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Team file</h3>
+    <p>A small file with the whole setup — stash it in Drive, iCloud, or email. Importing one replaces this device's setup.</p>
+    <div class="btns" style="margin:0">
+      <button type="button" id="fileExport">Export team file</button>
+      <button type="button" id="fileImport">Import team file</button>
+    </div>
+    <input type="file" id="fileIn" accept=".json,application/json" hidden>
+  </div>
+
+  <div class="card">
+    <h3>History</h3>
+    <p>Automatic backups from the last few sessions on this device — if something gets deleted by accident, restore from before it happened.</p>
+    <div id="snapList"></div>
+  </div>
+
+  <button type="button" class="ghostbtn" id="resetAll" style="margin-top:6px">Reset roster &amp; series</button>
+</section>
+
 <section class="panel" id="coach">
   <p class="lede">The things that decide whether an hour with eight first- and second-graders works or falls apart.</p>
   <div class="facts" style="margin:0 0 16px">
@@ -895,10 +922,329 @@
   function saveNow(){
     var json = JSON.stringify(state);
     try{ localStorage.setItem(KEY, json); }catch(e){}
-    try{ history.replaceState(null,'','#d='+encodeURIComponent(json)); }catch(e){}
+    try{ history.replaceState(null,'','#d='+encodeState()); }catch(e){}
+    takeSnapshot();
   }
   var saveT = null;
   function save(){ clearTimeout(saveT); saveT = setTimeout(saveNow, 300); }
+
+  /* ---- compact LZW with variable-width codes, packed base64url ---- */
+  var B64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  function lzPack(s){
+    s = unescape(encodeURIComponent(s));
+    var dict = {}, dictSize = 256, i;
+    for(i=0;i<256;i++){ dict[String.fromCharCode(i)] = i; }
+    var width = 9, cap = 512;
+    var bits = 0, nbits = 0, out = '';
+    function emit(code){
+      bits = (bits << width) | code;
+      nbits += width;
+      while(nbits >= 6){
+        nbits -= 6;
+        out += B64URL.charAt((bits >> nbits) & 63);
+      }
+      bits &= (1 << nbits) - 1;
+    }
+    var w = '';
+    for(i=0;i<s.length;i++){
+      var c = s.charAt(i);
+      if(dict[w+c] !== undefined){ w = w+c; continue; }
+      emit(dict[w]);
+      if(dictSize < 65536){
+        dict[w+c] = dictSize++;
+        if(dictSize > cap && width < 16){ width++; cap <<= 1; }
+      }
+      w = c;
+    }
+    if(w !== ''){ emit(dict[w]); }
+    if(nbits > 0){ out += B64URL.charAt((bits << (6-nbits)) & 63); }
+    return out;
+  }
+  function lzUnpack(t){
+    if(!t) return '';
+    var dict = [], i;
+    for(i=0;i<256;i++){ dict[i] = String.fromCharCode(i); }
+    var dictSize = 256, width = 9, cap = 512;
+    var bits = 0, nbits = 0, pos = 0;
+    function read(){
+      while(nbits < width){
+        if(pos >= t.length) return -1;
+        var v = B64URL.indexOf(t.charAt(pos++));
+        if(v < 0) return -1;
+        bits = (bits << 6) | v;
+        nbits += 6;
+      }
+      nbits -= width;
+      var code = (bits >> nbits) & ((1 << width) - 1);
+      bits &= (1 << nbits) - 1;
+      return code;
+    }
+    var first = read();
+    if(first < 0) return '';
+    var w = dict[first], out = w;
+    for(;;){
+      var willAdd = dictSize < 65536;
+      if(willAdd && dictSize+1 > cap && width < 16){ width++; cap <<= 1; }
+      var code = read();
+      if(code < 0) break;
+      var entry;
+      if(dict[code] !== undefined){ entry = dict[code]; }
+      else if(code === dictSize){ entry = w + w.charAt(0); }
+      else { return ''; }
+      out += entry;
+      if(willAdd){ dict[dictSize++] = w + entry.charAt(0); }
+      w = entry;
+    }
+    try{ return decodeURIComponent(escape(out)); }catch(e){ return ''; }
+  }
+
+  /* ---- snapshot history: a rolling backup every 10 minutes of changes ---- */
+  var SNAP_KEY = 'ffcc-snaps-v1';
+  function loadSnaps(){
+    try{ return JSON.parse(localStorage.getItem(SNAP_KEY)||'[]'); }catch(e){ return []; }
+  }
+  function takeSnapshot(force){
+    if(!canPersist) return;
+    try{
+      var snaps = loadSnaps();
+      var now = Date.now();
+      if(!force && snaps.length && now - snaps[0].t < 10*60*1000) return;
+      snaps.unshift({t: now, d: encodeState()});
+      if(snaps.length > 10) snaps.length = 10;
+      localStorage.setItem(SNAP_KEY, JSON.stringify(snaps));
+    }catch(e){}
+  }
+
+  /* ---- QR encoder: byte mode, EC level L, versions 1-40 ---- */
+  function qrMatrix(text){
+    var TOTAL = [26,44,70,100,134,172,196,242,292,346,404,466,532,581,655,733,815,901,991,1085,1156,1258,1364,1474,1588,1706,1828,1921,2051,2185,2323,2465,2611,2761,2876,3034,3196,3362,3532,3706];
+    var ECPB  = [7,10,15,20,26,18,20,24,30,18,20,24,26,30,22,24,28,30,28,28,28,28,30,30,26,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30];
+    var NBLK  = [1,1,1,1,1,2,2,2,2,4,4,4,4,4,6,6,6,6,7,8,8,9,9,10,12,12,12,13,14,15,16,17,18,19,19,20,21,22,24,25];
+    var ALIGN = [[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]];
+    var data = unescape(encodeURIComponent(text));
+    var n = data.length;
+    var v = -1, dataCW;
+    for(var vi=0; vi<40; vi++){
+      dataCW = TOTAL[vi] - ECPB[vi]*NBLK[vi];
+      var headerBits = 4 + (vi < 9 ? 8 : 16);
+      if(dataCW*8 >= headerBits + n*8){ v = vi; break; }
+    }
+    if(v < 0) return null;
+    dataCW = TOTAL[v] - ECPB[v]*NBLK[v];
+    var buf = [], bits = 0, acc = 0;
+    function put(val, len){
+      for(var b=len-1;b>=0;b--){
+        acc = (acc<<1) | ((val>>b)&1);
+        if(++bits === 8){ buf.push(acc); acc = 0; bits = 0; }
+      }
+    }
+    put(4,4);
+    put(n, v < 9 ? 8 : 16);
+    for(var ci=0;ci<n;ci++){ put(data.charCodeAt(ci), 8); }
+    var termBits = Math.min(4, dataCW*8 - (buf.length*8 + bits));
+    if(termBits > 0) put(0, termBits);
+    if(bits > 0){ put(0, 8-bits); }
+    var pads = [0xEC,0x11], pi = 0;
+    while(buf.length < dataCW){ buf.push(pads[pi]); pi ^= 1; }
+    var EXP = new Array(512), LOG = new Array(256);
+    var gx = 1;
+    for(var e=0;e<255;e++){ EXP[e]=gx; LOG[gx]=e; gx<<=1; if(gx&0x100) gx^=0x11d; }
+    for(e=255;e<512;e++){ EXP[e]=EXP[e-255]; }
+    function rsGen(deg){
+      var g=[1];
+      for(var d=0;d<deg;d++){
+        var ng=new Array(g.length+1);
+        for(var z=0;z<ng.length;z++) ng[z]=0;
+        for(var gi=0;gi<g.length;gi++){
+          ng[gi] ^= g[gi];
+          ng[gi+1] ^= (g[gi] ? EXP[(LOG[g[gi]]+d)%255] : 0);
+        }
+        g = ng;
+      }
+      return g;
+    }
+    function rsEC(block, deg){
+      var gen = rsGen(deg);
+      var rem = block.slice();
+      for(var z=0;z<deg;z++) rem.push(0);
+      for(var ri=0;ri<block.length;ri++){
+        var f = rem[ri];
+        if(!f) continue;
+        var lf = LOG[f];
+        for(var gi=1;gi<gen.length;gi++){
+          rem[ri+gi] ^= gen[gi] ? EXP[(LOG[gen[gi]]+lf)%255] : 0;
+        }
+        rem[ri] = 0;
+      }
+      return rem.slice(block.length);
+    }
+    var nb = NBLK[v], ecLen = ECPB[v];
+    var shortLen = Math.floor(dataCW/nb), longCnt = dataCW % nb;
+    var blocks = [], ecs = [], off = 0, maxLen = 0;
+    for(var bi=0;bi<nb;bi++){
+      var blen = shortLen + (bi >= nb-longCnt ? 1 : 0);
+      var blk = buf.slice(off, off+blen); off += blen;
+      blocks.push(blk); ecs.push(rsEC(blk, ecLen));
+      if(blen > maxLen) maxLen = blen;
+    }
+    var stream = [];
+    for(var col=0;col<maxLen;col++){ for(bi=0;bi<nb;bi++){ if(col < blocks[bi].length) stream.push(blocks[bi][col]); } }
+    for(col=0;col<ecLen;col++){ for(bi=0;bi<nb;bi++){ stream.push(ecs[bi][col]); } }
+    var size = 17 + 4*(v+1);
+    var mm = [], used = [];
+    for(var r=0;r<size;r++){
+      mm.push(new Array(size)); used.push(new Array(size));
+      for(var cz=0;cz<size;cz++){ mm[r][cz]=0; used[r][cz]=false; }
+    }
+    function setM(r,c,val){ mm[r][c] = val?1:0; used[r][c] = true; }
+    function finder(r,c){
+      for(var dr=-1;dr<=7;dr++) for(var dc=-1;dc<=7;dc++){
+        var rr=r+dr, cc=c+dc;
+        if(rr<0||cc<0||rr>=size||cc>=size) continue;
+        var on = (dr>=0&&dr<=6&&(dc===0||dc===6)) || (dc>=0&&dc<=6&&(dr===0||dr===6)) || (dr>=2&&dr<=4&&dc>=2&&dc<=4);
+        setM(rr,cc,on);
+      }
+    }
+    finder(0,0); finder(0,size-7); finder(size-7,0);
+    for(var t=8;t<size-8;t++){ if(!used[6][t]) setM(6,t,t%2===0); if(!used[t][6]) setM(t,6,t%2===0); }
+    var ap = ALIGN[v];
+    for(var ai=0;ai<ap.length;ai++) for(var aj=0;aj<ap.length;aj++){
+      var ar=ap[ai], ac=ap[aj];
+      if((ar<9&&ac<9) || (ar<9&&ac>size-10) || (ar>size-10&&ac<9)) continue;
+      for(var dr2=-2;dr2<=2;dr2++) for(var dc2=-2;dc2<=2;dc2++){
+        setM(ar+dr2, ac+dc2, Math.max(Math.abs(dr2),Math.abs(dc2))!==1);
+      }
+    }
+    setM(size-8, 8, 1);
+    for(t=0;t<9;t++){ if(!used[8][t]) setM(8,t,0); if(!used[t][8]) setM(t,8,0); }
+    for(t=0;t<8;t++){ if(!used[8][size-1-t]) setM(8,size-1-t,0); if(!used[size-1-t][8]) setM(size-1-t,8,0); }
+    if(v >= 6){
+      var vn = v+1, rem18 = vn << 12;
+      for(var vb=17;vb>=12;vb--){ if(rem18 & (1<<vb)){ rem18 ^= 0x1f25 << (vb-12); } }
+      var vinfo = (vn<<12) | rem18;
+      for(t=0;t<18;t++){
+        var vbit = (vinfo>>t)&1;
+        setM(Math.floor(t/3), size-11+(t%3), vbit);
+        setM(size-11+(t%3), Math.floor(t/3), vbit);
+      }
+    }
+    var totalBits = stream.length*8, bitIdx = 0;
+    function dataBit(i){ return (stream[i>>3] >> (7-(i&7))) & 1; }
+    var dataPos = [];
+    var upward = true;
+    for(var c2=size-1; c2>0; c2-=2){
+      if(c2===6) c2--;
+      for(var s2=0;s2<size;s2++){
+        var r2 = upward ? size-1-s2 : s2;
+        for(var k2=0;k2<2;k2++){
+          var cc2 = c2-k2;
+          if(used[r2][cc2]) continue;
+          mm[r2][cc2] = bitIdx < totalBits ? dataBit(bitIdx) : 0;
+          bitIdx++;
+          dataPos.push([r2,cc2]);
+        }
+      }
+      upward = !upward;
+    }
+    var MASKS = [
+      function(r,c){ return (r+c)%2===0; },
+      function(r,c){ return r%2===0; },
+      function(r,c){ return c%3===0; },
+      function(r,c){ return (r+c)%3===0; },
+      function(r,c){ return (Math.floor(r/2)+Math.floor(c/3))%2===0; },
+      function(r,c){ return (r*c)%2 + (r*c)%3 === 0; },
+      function(r,c){ return ((r*c)%2 + (r*c)%3)%2 === 0; },
+      function(r,c){ return ((r+c)%2 + (r*c)%3)%2 === 0; }
+    ];
+    function fmtBits(mask){
+      var f = (1<<3) | mask;
+      var rem15 = f << 10;
+      for(var fb=14;fb>=10;fb--){ if(rem15 & (1<<fb)){ rem15 ^= 0x537 << (fb-10); } }
+      return (((f<<10) | rem15) ^ 0x5412) & 0x7fff;
+    }
+    function applyFormat(mask){
+      var fi2 = fmtBits(mask);
+      for(var b2=0;b2<15;b2++){
+        var v2 = (fi2>>b2)&1;
+        if(b2<6){ mm[b2][8] = v2; }
+        else if(b2===6){ mm[7][8] = v2; }
+        else if(b2===7){ mm[8][8] = v2; }
+        else if(b2===8){ mm[8][7] = v2; }
+        else { mm[8][14-b2] = v2; }
+        if(b2<8){ mm[8][size-1-b2] = v2; }
+        else { mm[size-15+b2][8] = v2; }
+      }
+      mm[size-8][8] = 1;
+    }
+    function penalty(){
+      var p=0, r3, c3;
+      for(var dir=0;dir<2;dir++){
+        for(r3=0;r3<size;r3++){
+          var run=1;
+          for(c3=1;c3<size;c3++){
+            var a = dir? mm[c3][r3] : mm[r3][c3];
+            var b = dir? mm[c3-1][r3] : mm[r3][c3-1];
+            if(a===b){ run++; } else { if(run>=5) p += 3+run-5; run=1; }
+          }
+          if(run>=5) p += 3+run-5;
+        }
+      }
+      for(r3=0;r3<size-1;r3++) for(c3=0;c3<size-1;c3++){
+        var q=mm[r3][c3];
+        if(q===mm[r3][c3+1] && q===mm[r3+1][c3] && q===mm[r3+1][c3+1]) p += 3;
+      }
+      var P1=[1,0,1,1,1,0,1,0,0,0,0], P2=[0,0,0,0,1,0,1,1,1,0,1];
+      for(var dir2=0;dir2<2;dir2++) for(r3=0;r3<size;r3++) for(c3=0;c3<size-10;c3++){
+        var ok1=true, ok2=true;
+        for(var pk=0;pk<11;pk++){
+          var mv2 = dir2? mm[c3+pk][r3] : mm[r3][c3+pk];
+          if(mv2!==P1[pk]) ok1=false;
+          if(mv2!==P2[pk]) ok2=false;
+        }
+        if(ok1) p+=40; if(ok2) p+=40;
+      }
+      var dark=0;
+      for(r3=0;r3<size;r3++) for(c3=0;c3<size;c3++) dark += mm[r3][c3];
+      p += Math.floor(Math.abs(dark*100/(size*size)-50)/5)*10;
+      return p;
+    }
+    var best=-1, bestP=Infinity;
+    var saved = dataPos.map(function(pp){ return mm[pp[0]][pp[1]]; });
+    for(var mk=0;mk<8;mk++){
+      for(var di=0;di<dataPos.length;di++){
+        var pp = dataPos[di];
+        mm[pp[0]][pp[1]] = saved[di] ^ (MASKS[mk](pp[0],pp[1]) ? 1 : 0);
+      }
+      applyFormat(mk);
+      var pen = penalty();
+      if(pen < bestP){ bestP = pen; best = mk; }
+    }
+    for(di=0;di<dataPos.length;di++){
+      var pp2 = dataPos[di];
+      mm[pp2[0]][pp2[1]] = saved[di] ^ (MASKS[best](pp2[0],pp2[1]) ? 1 : 0);
+    }
+    applyFormat(best);
+    return mm;
+  }
+  function qrSvgHtml(text){
+    var m = qrMatrix(text);
+    if(!m) return null;
+    var n = m.length, cell = 4, quiet = 16, dim = n*cell + 2*quiet;
+    var rects = '';
+    for(var r=0;r<n;r++){
+      /* merge horizontal runs to keep the SVG small */
+      var c = 0;
+      while(c < n){
+        if(!m[r][c]){ c++; continue; }
+        var c0 = c;
+        while(c < n && m[r][c]) c++;
+        rects += '<rect x="'+(quiet+c0*cell)+'" y="'+(quiet+r*cell)+'" width="'+((c-c0)*cell)+'" height="'+cell+'"/>';
+      }
+    }
+    return '<svg viewBox="0 0 '+dim+' '+dim+'" role="img" aria-label="QR code with your save link" '+
+      'style="display:block;width:100%;max-width:320px;margin:10px auto;background:#fff;border-radius:8px">'+
+      '<g fill="#000">'+rects+'</g></svg>';
+  }
 
   function b64urlEncode(obj){
     var b = btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
@@ -909,21 +1255,39 @@
     while(txt.length%4){ txt += '='; }
     return JSON.parse(decodeURIComponent(escape(atob(txt))));
   }
-  function encodeState(){ return 'FF1.'+b64urlEncode(state); }
+  function encodeState(){ return 'FF2.'+lzPack(JSON.stringify(state)); }
   function encodeOffCode(){
-    return 'FFO1.'+b64urlEncode({v:2, part:'off',
+    return 'FFO2.'+lzPack(JSON.stringify({v:2, part:'off',
       kept:state.kept, alias:state.alias, flip:state.flip,
-      custom:state.custom, customForms:state.customForms});
+      custom:state.custom, customForms:state.customForms}));
   }
   function encodeDefCode(){
-    return 'FFD1.'+b64urlEncode({v:2, part:'def',
-      customDefs:state.customDefs, keptDefs:state.keptDefs, defFlip:state.defFlip});
+    return 'FFD2.'+lzPack(JSON.stringify({v:2, part:'def',
+      customDefs:state.customDefs, keptDefs:state.keptDefs, defFlip:state.defFlip}));
+  }
+  function shareUrl(){
+    if(location.protocol === 'http:' || location.protocol === 'https:'){
+      return location.origin + location.pathname + '#d=' + encodeState();
+    }
+    return '#d=' + encodeState();
   }
   function decodeCode(txt){
     txt = String(txt||'').replace(/\s+/g,'');
     if(!txt) return null;
     var m = txt.match(/#d=([^&#]+)/);
-    if(m){ try{ return JSON.parse(decodeURIComponent(m[1])); }catch(e){ return null; } }
+    if(m){
+      var inner = decodeCode(m[1]);
+      if(inner) return inner;
+      try{ return JSON.parse(decodeURIComponent(m[1])); }catch(e){ return null; }
+    }
+    /* v2 codes: LZW-compressed */
+    var lz = null;
+    if(txt.indexOf('FFO2.')===0 || txt.indexOf('FFD2.')===0){ lz = txt.slice(5); }
+    else if(txt.indexOf('FF2.')===0){ lz = txt.slice(4); }
+    if(lz !== null){
+      try{ return JSON.parse(lzUnpack(lz)); }catch(e){ return null; }
+    }
+    /* v1 codes: plain base64url */
     if(txt.indexOf('FFO1.')===0){ txt = txt.slice(5); }
     else if(txt.indexOf('FFD1.')===0){ txt = txt.slice(5); }
     else if(txt.indexOf('FF1.')===0){ txt = txt.slice(4); }
@@ -1025,7 +1389,11 @@
     state = defaultState();
     var loaded = null;
     var m = (location.hash||'').match(/^#d=(.+)$/);
-    if(m){ try{ loaded = JSON.parse(decodeURIComponent(m[1])); }catch(e){} }
+    if(m){
+      loaded = decodeCode(m[1]);
+      if(!loaded){ try{ loaded = JSON.parse(decodeURIComponent(m[1])); }catch(e){} }
+      if(loaded && loaded.part){ loaded = null; } /* partial codes can't boot a device */
+    }
     if(!loaded){ try{ loaded = JSON.parse(localStorage.getItem(KEY)||''); }catch(e){} }
     mergeLoaded(loaded);
     if(state.current >= state.series.length) state.current = 0;
@@ -1692,6 +2060,7 @@
   function showTab(id){
     tabs.forEach(function(x){ x.setAttribute('aria-selected', x.dataset.target===id ? 'true':'false'); });
     panels.forEach(function(p){ p.classList.toggle('on', p.id === id); });
+    if(id === 'settings') renderSnaps();
     window.scrollTo({top:0,behavior:'smooth'});
     setTimeout(drawVisible,140);
   }
@@ -3693,8 +4062,8 @@
   }
   function renderSaveCard(){
     document.getElementById('saveStatus').innerHTML = (canPersist
-      ? 'This device auto-saves your setup. The team code is the full backup — roster, series, everything; loading one replaces this device\'s setup.'
-      : '<b style="color:var(--flag)">Heads up: this view can\'t auto-save between visits.</b> After you make changes, copy your team code and keep it in Notes or a text to yourself — paste it back in next time and everything returns.')+
+      ? 'This device auto-saves your setup. The <b>save link</b> carries everything — text it to yourself or the other coach and they just tap it.'
+      : '<b style="color:var(--flag)">Heads up: this view can\'t auto-save between visits.</b> After you make changes, copy your save link and keep it in Notes or a text to yourself — tap it next time and everything returns.')+
       ' The <b>playbook</b> and <b>defense</b> codes carry just that side of the ball and <b>merge</b> when loaded — so one coach can build the offense, another the defense, and paste each other\'s codes without losing their own work.';
     if(navigator.share){ document.getElementById('shareCode').hidden = false; }
   }
@@ -3719,8 +4088,31 @@
   document.getElementById('copyDefCode').addEventListener('click', function(){ doCopy(encodeDefCode(), 'Defense code'); });
   document.getElementById('shareCode').addEventListener('click', function(){
     saveNow();
-    try{ navigator.share({title:'Coach Card team code', text: encodeState()}); }catch(e){}
+    try{ navigator.share({title:'Coach Card team', url: shareUrl()}); }catch(e){}
   });
+  document.getElementById('copyLink').addEventListener('click', function(){ doCopy(shareUrl(), 'Save link'); });
+  document.getElementById('showQR').addEventListener('click', function(){
+    var host = document.getElementById('qrHost');
+    if(!host.hidden){ host.hidden = true; host.innerHTML = ''; return; }
+    saveNow();
+    var svgQ = qrSvgHtml(shareUrl());
+    if(!svgQ){
+      codeMsg('Too much data for one QR — use Copy save link or a team file instead.', false);
+      return;
+    }
+    host.innerHTML = svgQ + '<p class="edhint" style="text-align:center;margin:0 0 4px">Point the other phone\'s camera at this — the link opens with everything loaded.</p>';
+    host.hidden = false;
+  });
+  function applyFullLoad(loaded, msg){
+    takeSnapshot(true); /* pin what's here now, so the load can be undone */
+    state = defaultState();
+    mergeLoaded(loaded);
+    saveNow();
+    rebuildForms();
+    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderStockPicker(); renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderDefList(); renderSaveCard(); renderSnaps();
+    var np = namedPlayers().length;
+    codeMsg((msg||'Loaded ✓')+' — '+np+' player'+(np===1?'':'s')+', '+state.series.length+' series.', true);
+  }
   document.getElementById('codeGo').addEventListener('click', function(){
     var loaded = decodeCode(document.getElementById('codeIn').value);
     if(!loaded || !(loaded.v === 2)){
@@ -3742,18 +4134,81 @@
       codeMsg('Defense merged ✓ — '+rd.defs+' defense'+(rd.defs===1?'':'s')+' added.', true);
       return;
     }
-    state = defaultState();
-    mergeLoaded(loaded);
-    saveNow();
-    rebuildForms();
-    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderStockPicker(); renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderDefList(); renderSaveCard();
-    var np = namedPlayers().length;
-    codeMsg('Loaded ✓ — '+np+' player'+(np===1?'':'s')+', '+state.series.length+' series.', true);
+    applyFullLoad(loaded, 'Loaded ✓');
   });
+
+  /* ---- team file export / import ---- */
+  document.getElementById('fileExport').addEventListener('click', function(){
+    saveNow();
+    var blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    var d = new Date();
+    function p2(x){ return (x<10?'0':'')+x; }
+    a.download = 'coach-card-'+d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'.json';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    codeMsg('Team file downloaded — stash it in Drive, iCloud, or email.', true);
+  });
+  document.getElementById('fileImport').addEventListener('click', function(){
+    document.getElementById('fileIn').click();
+  });
+  document.getElementById('fileIn').addEventListener('change', function(ev){
+    var f = ev.target.files && ev.target.files[0];
+    ev.target.value = '';
+    if(!f) return;
+    var rd = new FileReader();
+    rd.onload = function(){
+      var loaded = null;
+      try{ loaded = JSON.parse(rd.result); }catch(e){}
+      if(!loaded || loaded.v !== 2 || loaded.part){
+        codeMsg('That file didn\'t look like a team file from this app.', false);
+        return;
+      }
+      applyFullLoad(loaded, 'Team file loaded ✓');
+    };
+    rd.readAsText(f);
+  });
+
+  /* ---- snapshot history UI ---- */
+  function renderSnaps(){
+    var host = document.getElementById('snapList');
+    if(!host) return;
+    var snaps = loadSnaps();
+    if(!snaps.length){
+      host.innerHTML = '<p class="edhint" style="margin:0">No backups yet — they collect automatically as you make changes.</p>';
+      return;
+    }
+    host.innerHTML = snaps.map(function(sn, i){
+      var st = null;
+      try{ st = decodeCode(sn.d); }catch(e){}
+      var when = new Date(sn.t);
+      var label = (when.getMonth()+1)+'/'+when.getDate()+' '+when.getHours()+':'+(when.getMinutes()<10?'0':'')+when.getMinutes();
+      var sum = st ? (st.players||[]).filter(function(p){ return p.name && p.name.trim(); }).length+' players · '+
+        Object.keys(st.kept||{}).length+' kept · '+(st.custom||[]).length+' custom' : 'unreadable';
+      return '<div class="rrow" data-si="'+i+'"><div class="jersey" style="font-size:10px">↺</div>'+
+        '<div style="flex:1;min-width:0"><b style="font-size:13px">'+label+'</b>'+
+        '<span style="display:block;font-size:11.5px;color:var(--paper-dim)">'+sum+'</span></div>'+
+        '<button type="button" class="iconbtn srestore" aria-label="Restore this backup" style="flex:0 0 auto;width:auto;padding:0 12px;font-size:12px">Restore</button></div>';
+    }).join('');
+    host.querySelectorAll('.srestore').forEach(function(b){
+      armButton(b, function(){
+        var i = +b.closest('.rrow').dataset.si;
+        var snaps2 = loadSnaps();
+        var loaded = snaps2[i] ? decodeCode(snaps2[i].d) : null;
+        if(!loaded){ codeMsg('That backup couldn\'t be read.', false); return; }
+        applyFullLoad(loaded, 'Restored ✓');
+      }, 'Sure?');
+    });
+  }
 
   /* offline support when hosted (no-op on file:// and hosts without sw.js) */
   if('serviceWorker' in navigator && location.protocol === 'https:'){
     try{ navigator.serviceWorker.register('./sw.js').catch(function(){}); }catch(e){}
+  }
+  /* ask the browser to protect our storage from eviction */
+  if(navigator.storage && navigator.storage.persist){
+    try{ navigator.storage.persist().catch(function(){}); }catch(e){}
   }
 
   /* ================= init ================= */
