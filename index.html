@@ -89,6 +89,12 @@
   .picker button[aria-pressed="true"]{background:var(--whistle);color:var(--deeper);border-color:var(--whistle)}
   .picker button:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
   .picker button.newf{border-style:dashed;border-color:var(--whistle);color:var(--whistle);background:transparent}
+  .togglerow{display:flex;align-items:center;gap:10px}
+  .tswitch{width:46px;height:26px;border-radius:999px;background:var(--deeper);border:1px solid var(--line);position:relative;cursor:pointer;flex:0 0 auto;padding:0}
+  .tswitch::after{content:"";position:absolute;top:2px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--paper-dim);transition:left .15s}
+  .tswitch[aria-pressed="true"]{background:var(--whistle);border-color:var(--whistle)}
+  .tswitch[aria-pressed="true"]::after{left:21px;background:var(--deeper)}
+  .tswitch:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
 
   .fcard{background:var(--turf);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px}
   .fcard h2{font-size:22px;color:var(--whistle)}
@@ -817,6 +823,18 @@
   <p class="lede">Everything here moves between phones as a <b>QR code or tappable link</b> — the whole team, just the playbook, or just the defense. Team files and automatic backups live here too.</p>
 
   <div class="card">
+    <h3>Display</h3>
+    <div class="togglerow" style="margin-bottom:10px">
+      <button type="button" class="tswitch" id="pcolorsTog" role="switch" aria-pressed="false" aria-label="Player colors"></button>
+      <p style="margin:0"><b>Player colors</b> — give each kid a color on the roster (and formation spots in the builder) and their tag wears it on every diagram. The ball stays gold.</p>
+    </div>
+    <div class="togglerow">
+      <button type="button" class="tswitch" id="animTog" role="switch" aria-pressed="true" aria-label="Play animation"></button>
+      <p style="margin:0"><b>Play animation</b> — routes draw on, players run them, the ball travels. Turn off for still diagrams.</p>
+    </div>
+  </div>
+
+  <div class="card">
     <h3>Share &amp; transfer</h3>
     <p id="saveStatus"></p>
     <div class="btns" style="margin:0">
@@ -847,12 +865,6 @@
     <h3>History</h3>
     <p>Automatic backups kept on this device — one as you work (at most every 10 minutes) plus one before every load, import, or reset. If something gets deleted by accident, restore from before it happened.</p>
     <div id="snapList"></div>
-  </div>
-
-  <div class="card">
-    <h3>Player colors</h3>
-    <p>Give each kid a color on the roster — their name tag wears it on every play diagram. Great when the team wears colored wristbands. The ball stays gold.</p>
-    <div class="btns" style="margin:0"><button type="button" class="keep" id="pcolorsTog" aria-pressed="false">Off</button></div>
   </div>
 
   <div class="card">
@@ -887,7 +899,7 @@
     for(i=0;i<8;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:9};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, anim:true, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:9};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -1358,6 +1370,7 @@
     if(loaded.flip) state.flip = loaded.flip;
     if(loaded.formKept) state.formKept = loaded.formKept;
     if(typeof loaded.pcolors === 'boolean') state.pcolors = loaded.pcolors;
+    if(typeof loaded.anim === 'boolean') state.anim = loaded.anim;
     if(Array.isArray(loaded.custom)) state.custom = loaded.custom;
     if(Array.isArray(loaded.customForms)) state.customForms = loaded.customForms;
     if(Array.isArray(loaded.customDefs)) state.customDefs = loaded.customDefs;
@@ -1423,7 +1436,7 @@
     return n.length > 9 ? n.slice(0,8)+'…' : n;
   }
   /* inside-stack markers: the name lives IN the circle, position letter tucked beneath it */
-  function dot(p,label,kind,name,pos){
+  function dot(p,label,kind,name,pos,scolor){
     var x=p[0], y=p[1], out='';
     if(kind==='d'){
       if(name){
@@ -1443,7 +1456,7 @@
       /* lollipop: the name pill is the marker, position letter rides on top */
       var nm = esc(dotName(name));
       var w = Math.max(nm.length*5.6+12, 26);
-      var pc = pcolorOf(name);
+      var pc = pcolorOf(name) || scolor || null;
       var pf = kind==='ball' ? '#FFC93C' : 'rgba(7,23,20,.95)';
       var ps = kind==='ball' ? '#FFC93C' : 'rgba(246,241,228,.7)';
       var pt = kind==='ball' ? '#0B211C' : '#F6F1E4';
@@ -1461,6 +1474,7 @@
         '<circle cx="'+x+'" cy="'+(y-12)+'" r="6.5" fill="'+chip+'" stroke="#F6F1E4" stroke-width="1.3"/>'+
         '<text x="'+x+'" y="'+(y-9.6)+'" text-anchor="middle" font-size="5.8" font-weight="700" font-family="Archivo,sans-serif" fill="'+(pc?'#071714':pt)+'">'+label+'</text>';
     }
+    if(scolor && kind!=='ball'){ fill = scolor; txt = '#071714'; }
     out += '<circle cx="'+x+'" cy="'+y+'" r="10" fill="'+fill+'" stroke="#F6F1E4" stroke-width="1.6"/>'+
       '<text x="'+x+'" y="'+(y+3.8)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="'+txt+'">'+label+'</text>';
     return out;
@@ -1880,7 +1894,7 @@
         var gs = (flipped && goldSlot) ? goldSlot : goldSlot;
         kd = (s[0] === gs) ? 'ball' : null;
       }
-      return '<g class="pmk" data-slot="'+s[0]+'" data-ox="'+sp[0]+'" data-oy="'+sp[1]+'">'+dot(sp, s[0], kd, names ? names[s[0]] : null, lp)+'</g>';
+      return '<g class="pmk" data-slot="'+s[0]+'" data-ox="'+sp[0]+'" data-oy="'+sp[1]+'">'+dot(sp, s[0], kd, names ? names[s[0]] : null, lp, (state.pcolors && s[4]) || null)+'</g>';
     }).join('');
     return svg(inner);
   }
@@ -1893,13 +1907,14 @@
     return p.__len;
   }
   var REDUCE = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function animOff(){ return REDUCE || (state && state.anim === false); }
 
   function stopBall(el){
     if(el.__ballStop){ el.__ballStop(); el.__ballStop = null; }
   }
   function scheduleBall(el){
     stopBall(el);
-    if(REDUCE) return;
+    if(animOff()) return;
     var svgEl = el.querySelector('svg');
     if(!svgEl) return;
     var paths = [].slice.call(svgEl.querySelectorAll('[data-ball]'));
@@ -1948,7 +1963,7 @@
   /* after the routes draw, the players themselves run them */
   function scheduleRunners(el){
     stopRunners(el);
-    if(REDUCE) return;
+    if(animOff()) return;
     var svgEl = el.querySelector('svg');
     if(!svgEl) return;
     var paths = [].slice.call(svgEl.querySelectorAll('path.route[data-mv]'));
@@ -2010,7 +2025,7 @@
       if(p.dataset.dashed){
         p.style.opacity = '0';
         void p.getBoundingClientRect();
-        if(!REDUCE){ p.style.transition = 'opacity 1s ease ' + (i*0.2) + 's'; }
+        if(!animOff()){ p.style.transition = 'opacity 1s ease ' + (i*0.2) + 's'; }
         p.style.opacity = '1';
         return;
       }
@@ -2018,14 +2033,14 @@
       p.style.strokeDasharray = len + '';
       p.style.strokeDashoffset = len + '';
       void p.getBoundingClientRect();
-      if(REDUCE){ p.style.strokeDashoffset = '0'; return; }
+      if(animOff()){ p.style.strokeDashoffset = '0'; return; }
       p.style.transition = 'stroke-dashoffset 1.8s cubic-bezier(.4,0,.2,1) ' + (i*0.2) + 's';
       p.style.strokeDashoffset = '0';
     });
     el.querySelectorAll('.late').forEach(function(g){
       g.style.transition='none'; g.style.opacity='0';
       void g.getBoundingClientRect();
-      if(REDUCE){ g.style.opacity='1'; return; }
+      if(animOff()){ g.style.opacity='1'; return; }
       g.style.transition='opacity .8s ease 1.9s';
       g.style.opacity='1';
     });
@@ -2698,7 +2713,8 @@
       playModal.innerHTML = '<div class="pmodal-inner"><div class="play">'+
         '<div class="phead"><h3>'+esc(displayName(cf, play))+'</h3>'+
         '<div class="tag'+(play.t==='run'?' run':'')+'">'+(play.t==='run'?'Run':'Pass')+'</div>'+
-        (fl?'<div class="tag">Flipped ↔</div>':'')+'</div>'+
+        (fl?'<div class="tag">Flipped ↔</div>':'')+
+        '<button type="button" class="tswitch" id="modalColors" role="switch" aria-pressed="'+(state.pcolors?'true':'false')+'" aria-label="Player colors" style="margin-left:auto"></button></div>'+
         '<div class="field" id="modalField" style="touch-action:none">'+playFieldSvg(cf, play, names)+'</div>'+
         '<p class="edhint">Drag a player onto a teammate to swap spots — for this play only.'+(hasOv?' <b style="color:var(--whistle)">Custom spots on.</b>':'')+'</p>'+
         '<div class="btns"><button type="button" id="modalRun">Run it ▶</button>'+
@@ -2717,6 +2733,10 @@
         state.flip[fid] = !state.flip[fid];
         if(!state.flip[fid]) delete state.flip[fid];
         save(); renderGameDay(); renderModal();
+      });
+      document.getElementById('modalColors').addEventListener('click', function(){
+        state.pcolors = !state.pcolors;
+        save(); renderSaveCard(); renderGameDay(); renderModal();
       });
       var prb = document.getElementById('modalResetPm');
       if(prb){
@@ -3621,7 +3641,7 @@
     });
     inner += f.spots.map(function(s){
       var ring = s[0]===edState.active ? '<circle cx="'+s[1][0]+'" cy="'+s[1][1]+'" r="15" fill="none" stroke="#FFC93C" stroke-width="2" stroke-dasharray="4 3"/>' : '';
-      return ring + dot(s[1], s[0], s[2], null, s[3]);
+      return ring + dot(s[1], s[0], s[2], null, s[3], (state.pcolors && s[4]) || null);
     }).join('');
     return svg(inner);
   }
@@ -3893,13 +3913,14 @@
       '<p class="edhint">Drag the five players where you want them to line up. C snaps the ball to the QB. Editing spots doesn\'t move routes already drawn in this formation.</p>'+
       '<input class="tin" id="fmName" type="text" autocomplete="off" placeholder="Formation name" style="margin:10px 0 12px">'+
       '<div class="field" id="fmField" style="touch-action:none"></div>'+
+      (state.pcolors ? '<div class="edchips" id="fmColors"></div><div id="fmPalHost"></div>' : '')+
       '<div class="btns"><button type="button" id="fmSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(cf?'Save changes':'Save formation')+'</button>'+
       '<button type="button" id="fmCancel">Cancel</button></div>'+
       '<p class="hintline" id="fmMsg" hidden></p></div></div>';
     if(cf){ document.getElementById('fmName').value = cf.name; }
     var field = document.getElementById('fmField');
     function draw(){
-      field.innerHTML = svg(fmState.spots.map(function(s){ return dot(s[1], s[0], s[2]); }).join(''));
+      field.innerHTML = svg(fmState.spots.map(function(s){ return dot(s[1], s[0], s[2], null, s[3], state.pcolors ? s[4] : null); }).join(''));
     }
     var dragIdx = -1, raf = 0;
     function evPos(ev){
@@ -3927,6 +3948,37 @@
     });
     field.addEventListener('pointerup', function(){ dragIdx = -1; });
     field.addEventListener('pointercancel', function(){ dragIdx = -1; });
+    var fmPalOpen = -1;
+    function drawColors(){
+      var host = document.getElementById('fmColors');
+      if(!host) return;
+      host.innerHTML = fmState.spots.map(function(sp2,i){
+        var c = sp2[4];
+        return '<button type="button" data-ci="'+i+'"'+(c?' style="background:'+c+';color:#071714;border-color:'+c+'"':'')+'>'+esc(sp2[0])+'</button>';
+      }).join('');
+      var ph = document.getElementById('fmPalHost');
+      ph.innerHTML = fmPalOpen > -1 ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px">'+
+        PCOLORS.map(function(c){ return '<button type="button" class="fmsw" data-c="'+c+'" aria-label="'+c+'" style="width:30px;height:30px;border-radius:50%;border:2px solid '+(fmState.spots[fmPalOpen][4]===c?'#fff':'transparent')+';background:'+c+';cursor:pointer"></button>'; }).join('')+
+        '<button type="button" class="fmsw" data-c="" aria-label="No color" style="width:30px;height:30px;border-radius:50%;background:transparent;border:2px dashed rgba(246,241,228,.5);cursor:pointer"></button>'+
+        '</div>' : '';
+      host.querySelectorAll('button[data-ci]').forEach(function(b){
+        b.addEventListener('click', function(){
+          fmPalOpen = (fmPalOpen === +b.dataset.ci) ? -1 : +b.dataset.ci;
+          drawColors();
+        });
+      });
+      ph.querySelectorAll('.fmsw').forEach(function(b){
+        b.addEventListener('click', function(){
+          var sp3 = fmState.spots[fmPalOpen];
+          sp3[2] = sp3[2] || null;
+          sp3[3] = sp3[3] || null;
+          sp3[4] = b.dataset.c || null;
+          fmPalOpen = -1;
+          drawColors(); draw();
+        });
+      });
+    }
+    drawColors();
     document.getElementById('fmCancel').addEventListener('click', closeFmEditor);
     document.getElementById('fmSave').addEventListener('click', function(){
       var name = (document.getElementById('fmName').value||'').trim() || 'My formation';
@@ -4223,15 +4275,18 @@
       : '<b style="color:var(--flag)">Heads up: this view can\'t auto-save between visits.</b> After you make changes, copy your link (Share all → Copy link) and keep it in Notes or a text to yourself — tap it next time and everything returns.')+
       ' <b>Share all</b> carries everything — roster, series, plays — and replaces the other device\'s setup (their old one lands in History). <b>Share playbook</b> and <b>Share defense</b> carry just that side of the ball and <b>merge</b>, so one coach can build the offense, another the defense, and they can trade without losing their own work.';
     var pcT = document.getElementById('pcolorsTog');
-    if(pcT){
-      pcT.setAttribute('aria-pressed', state.pcolors ? 'true' : 'false');
-      pcT.textContent = state.pcolors ? 'On ✓' : 'Off';
-    }
+    if(pcT){ pcT.setAttribute('aria-pressed', state.pcolors ? 'true' : 'false'); }
+    var anT = document.getElementById('animTog');
+    if(anT){ anT.setAttribute('aria-pressed', state.anim === false ? 'false' : 'true'); }
   }
   document.getElementById('pcolorsTog').addEventListener('click', function(){
     state.pcolors = !state.pcolors;
     if(!state.pcolors) palOpenId = null;
     save(); renderSaveCard(); renderRoster(); renderGameDay();
+  });
+  document.getElementById('animTog').addEventListener('click', function(){
+    state.anim = (state.anim === false);
+    save(); renderSaveCard();
   });
   document.getElementById('teamQR').addEventListener('click', function(){
     saveNow();
