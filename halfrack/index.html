@@ -1130,7 +1130,6 @@
   function path(pts,o){ return pathEl(pts,o); } /* defense diagrams use this */
 
   /* player colors: fixed sideline-bright palette, toggled in Settings */
-  var palOpenId = null;
   function pcolorOf(name){
     if(!state || !state.pcolors || !name) return null;
     for(var i=0;i<state.players.length;i++){
@@ -1888,41 +1887,36 @@
       return '<div class="rrow" data-id="'+esc(p.id)+'">'+
         '<div class="jersey">'+(i+1)+'</div>'+
         '<input class="tin" type="text" autocomplete="off" placeholder="Player '+(i+1)+'" value="'+esc(p.name)+'" aria-label="Player '+(i+1)+' name">'+
-        (state.pcolors ? '<button type="button" class="iconbtn cpick" aria-label="Player '+(i+1)+' color"><span style="display:block;width:22px;height:22px;border-radius:50%;margin:auto;'+(p.color?'background:'+p.color+';border:2px solid rgba(7,23,20,.5)':'border:2px dashed rgba(246,241,228,.5)')+'"></span></button>' : '')+
-        '<button type="button" class="iconbtn" aria-label="Remove player">✕</button></div>'+
-        (state.pcolors && palOpenId===p.id ? '<div class="palrow" data-id="'+esc(p.id)+'" style="display:flex;gap:10px;align-items:center;margin:0 0 10px 42px">'+
-          '<input type="color" class="palfull" value="'+(p.color||'#FF5A5F')+'" aria-label="Player '+(i+1)+' color" style="width:64px;height:38px;padding:2px;border:1px solid var(--line);border-radius:9px;background:var(--deeper)">'+
-          '<button type="button" class="palnone" style="background:transparent;border:1px dashed var(--line);color:var(--paper-dim);font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:10px 12px;border-radius:9px;cursor:pointer">No color</button>'+
-          '</div>' : '');
+        (state.pcolors ? '<label class="iconbtn cpick" style="position:relative;display:grid;place-items:center;cursor:pointer;padding:0;overflow:visible">'+
+          '<input type="color" class="palfull" value="'+(p.color||'#FF5A5F')+'" aria-label="Player '+(i+1)+' color" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer">'+
+          '<span class="csw" style="display:block;width:22px;height:22px;border-radius:50%;pointer-events:none;'+(p.color?'background:'+p.color+';border:2px solid rgba(7,23,20,.5)':'border:2px dashed rgba(246,241,228,.5)')+'"></span>'+
+          (p.color?'<span class="cclear" role="button" tabindex="0" aria-label="Clear player '+(i+1)+' color" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--deeper);border:1px solid var(--line);color:var(--paper-dim);font-size:10px;line-height:16px;text-align:center;cursor:pointer">✕</span>':'')+
+          '</label>' : '')+
+        '<button type="button" class="iconbtn" aria-label="Remove player">✕</button></div>';
     }).join('');
-    rosterList.querySelectorAll('.cpick').forEach(function(b){
-      b.addEventListener('click', function(){
-        var id = b.closest('.rrow').dataset.id;
-        palOpenId = (palOpenId===id ? null : id);
-        renderRoster();
-      });
-    });
-    rosterList.querySelectorAll('.palrow').forEach(function(pr){
-      var pid = pr.dataset.id;
-      var ci = pr.querySelector('.palfull');
+    rosterList.querySelectorAll('.cpick').forEach(function(lb){
+      var pid = lb.closest('.rrow').dataset.id;
+      var ci = lb.querySelector('.palfull');
       ci.addEventListener('input', function(){
         var p = playerById(pid);
         if(!p) return;
         p.color = ci.value;
-        var row = rosterList.querySelector('.rrow[data-id="'+pid+'"] .cpick span');
-        if(row){ row.style.background = ci.value; row.style.border = '2px solid rgba(7,23,20,.5)'; }
+        var sw = lb.querySelector('.csw');
+        if(sw){ sw.style.background = ci.value; sw.style.border = '2px solid rgba(7,23,20,.5)'; }
         save();
       });
       ci.addEventListener('change', function(){
-        palOpenId = null;
         save(); renderRoster(); renderGameDay();
       });
-      pr.querySelector('.palnone').addEventListener('click', function(){
-        var p = playerById(pid);
-        if(p){ delete p.color; }
-        palOpenId = null;
-        save(); renderRoster(); renderGameDay();
-      });
+      var cc = lb.querySelector('.cclear');
+      if(cc){
+        cc.addEventListener('click', function(ev){
+          ev.preventDefault(); ev.stopPropagation();
+          var p = playerById(pid);
+          if(p){ delete p.color; }
+          save(); renderRoster(); renderGameDay();
+        });
+      }
     });
     rosterList.querySelectorAll('.rrow').forEach(function(row){
       var id = row.dataset.id;
@@ -3898,7 +3892,6 @@
   }
   document.getElementById('pcolorsTog').addEventListener('click', function(){
     state.pcolors = !state.pcolors;
-    if(!state.pcolors) palOpenId = null;
     save(); renderSaveCard(); renderRoster(); renderGameDay();
   });
   document.getElementById('animTog').addEventListener('click', function(){
