@@ -1914,7 +1914,7 @@
       var mv = moves && moves[i] && moves[i].length ? moves[i] : null;
       var base = mv ? mv[mv.length-1] : p;
       if(mv){
-        out += pathEl([p].concat(mv), {color:'#FF5A5F', width: roles[i]==='blitz'?3.2:2.4, dashed:true, dash:'4 4'});
+        out += pathEl([p].concat(mv), {color:'#FF5A5F', width: roles[i]==='blitz'?3.2:2.4, dashed:true, dash:'4 4', mv:'D'+(i+1)});
       }
       if(roles[i] === 'zone'){
         var w = (sizes && sizes[i] && sizes[i][0]) || 88;
@@ -1930,7 +1930,7 @@
         var sy = p[1]-13;
         var ex = Math.round(p[0] + (150-p[0])*0.85), ey = 46;
         if(sy - 14 < ey){ ex = p[0]; ey = Math.max(30, sy-14); }
-        out += pathEl([[p[0],sy],[ex,ey]], {color:'#FF5A5F', width:3.2});
+        out += pathEl([[p[0],sy],[ex,ey]], {color:'#FF5A5F', width:3.2, mv:'D'+(i+1)});
       }
     });
     for(var pass=0; pass<2; pass++){
@@ -2097,7 +2097,7 @@
       pos2.forEach(function(p,i){
         var key = 'D'+(i+1);
         if(!d.slots[key] && free.length){ d.slots[key] = free.shift(); }
-        inner += dot(p, String(i+1), 'd', pNameOf(d.slots[key]));
+        inner += '<g class="pmk" data-slot="D'+(i+1)+'" data-ox="'+p[0]+'" data-oy="'+p[1]+'">'+dot(p, String(i+1), 'd', pNameOf(d.slots[key]))+'</g>';
       });
     } else if(d.scheme === 'zone233'){
       inner += '<g fill="rgba(255,90,95,.13)" stroke="rgba(255,90,95,.5)" stroke-width="1" stroke-dasharray="5 4">'+
@@ -3584,7 +3584,7 @@
       return fl ? mv.map(function(q){ return [300-q[0], q[1]]; }) : mv;
     }) : null;
     var inner = defRoleGlyphsAll(pos2, roles, cd.sizes||null, moves2) + oppBase();
-    pos2.forEach(function(p,i){ inner += dot(p, String(i+1), 'd'); });
+    pos2.forEach(function(p,i){ inner += '<g class="pmk" data-slot="D'+(i+1)+'" data-ox="'+p[0]+'" data-oy="'+p[1]+'">'+dot(p, String(i+1), 'd')+'</g>'; });
     return svg(inner);
   }
   function renderDefList(){
