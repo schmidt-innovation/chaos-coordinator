@@ -1989,7 +1989,7 @@
     var customs = customDefSchemes();
     var kept = customs.filter(function(c){ return state.keptDefs && state.keptDefs[c.key]; });
     var rest = customs.filter(function(c){ return !(state.keptDefs && state.keptDefs[c.key]); });
-    return kept.concat(rest).concat(DEFS);
+    return kept.concat(rest);
   }
   function sDef(s){
     if(!s.def || !s.def.scheme){ s.def = {scheme:defaultSchemeKey(), slots:{}}; }
@@ -2305,6 +2305,7 @@
   /* ================= game day: execute screen ================= */
   var gd = document.getElementById('gdcontent');
   var gdTab = 'off';
+  var gdFieldSide = 'off';
 
   /* full-screen play modal: big diagram, replay, drag kids to swap spots */
   var playModal = document.getElementById('playModal');
@@ -2593,10 +2594,6 @@
     var order = slotOrder(lf);
     var bench = benchOf(cs);
 
-    /* keep the lineup box open/closed the way the coach left it */
-    var prevBox = document.getElementById('lineupBox');
-    var boxOpen = prevBox ? prevBox.open : true;
-
     var chips = '<div class="serbar" role="group" aria-label="Current series">'+
       state.series.map(function(s,i){
         return '<button type="button" data-si="'+i+'" aria-pressed="'+(i===state.current)+'">'+esc(s.label||('Series '+(i+1)))+'</button>';
@@ -2634,24 +2631,16 @@
       }
     }
 
-    var onField = order.map(function(slot){
-      var lid = liveSlots(cs)[slot];
-      var p = lid ? playerById(lid) : null;
-      return p && p.name.trim() ? firstName(p.name) : null;
-    }).filter(Boolean);
-    var lineupBox = '<details class="prac" id="lineupBox"'+(boxOpen?' open':'')+'>'+
-      '<summary><div class="num">'+onField.length+'</div><div class="ptitle"><b>'+esc(cs.label||'Series')+' — on the field'+(liveDiffers(cs)?' · subbed':'')+'</b>'+
-      '<span>'+(onField.length?esc(onField.join(', ')):'nobody assigned yet')+'</span></div><div class="chev">▼</div></summary>'+
-      '<div class="pbody">'+
-      '<div class="field" id="gdLineup" style="touch-action:none;margin-top:12px">'+formationSvg(lf, namesForForm(cs, cs.form))+'</div>'+
-      '<p class="edhint">Drag a player onto a teammate to swap their spots.</p>'+
-      lineup+benchHtml+subHtml+'</div></details>';
-
-    /* defense pane: same five kids, other side of the ball */
+    /* defense: game day calls custom schemes only */
+    var customsGd = customDefSchemes();
     var dCur = sDef(cs), dMeta = defByKey(dCur.scheme);
+    if(customsGd.length && !customsGd.some(function(c){ return c.key === dCur.scheme; })){
+      dCur.scheme = gameDayDefList()[0].key;
+      dMeta = defByKey(dCur.scheme);
+    }
     var defField = '<div class="field" id="gdDef" style="touch-action:none">'+defFieldSvg(cs)+'</div>';
     var dSlotsUi = '';
-    if(dMeta.slots.length){
+    if(customsGd.length && dMeta.slots.length){
       var defOptsGd = onFieldIds(cs).map(function(id){ return playerById(id); }).filter(function(p){ return p && p.name.trim(); });
       if(!defOptsGd.length) defOptsGd = namedPlayers();
       dSlotsUi = '<div class="slots">'+dMeta.slots.map(function(sl){
@@ -2663,23 +2652,47 @@
           '</select></div>';
       }).join('')+'</div>';
     }
-    var defPane = '<h3 class="callhead">Defense</h3>'+
-      '<div class="picker" id="defpicker" role="group" aria-label="Defense call">'+
-      gameDayDefList().map(function(dd){
-        var kd = dd.custom && state.keptDefs && state.keptDefs[dd.key];
-        var fl = dd.custom && state.defFlip && state.defFlip[dd.key];
-        return '<button type="button" data-dk="'+esc(dd.key)+'" aria-pressed="'+(dd.key===dCur.scheme)+'">'+(kd?'★ ':'')+esc(dd.name)+(fl?' ↔':'')+'</button>';
-      }).join('')+
-      '</div>'+
-      defField+
-      (schemePosMap(dCur) ? '<p class="edhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
-      '<div class="btns" style="margin:8px 0 0"><button type="button" id="gdDefRun">Run it ▶</button>'+
-      (dMeta.custom ? '<button type="button" id="gdDefFlip">Flip ↔'+
-        (state.defFlip && state.defFlip[dCur.scheme] ? ' ✓' : '')+'</button>' : '')+'</div>'+
-      dSlotsUi+
-      '<p style="font-size:12.5px;color:var(--paper-dim);margin:10px 0 0">'+dMeta.tip+'</p>';
+    var defEmpty = '<div class="card" style="margin-top:14px"><h3>No custom defenses yet</h3>'+
+      '<p>Game day calls your own defenses. Build one in the Defense tab — zones, man coverage, blitzes — and call it from here.</p>'+
+      '<button type="button" class="ghostbtn solid gold" id="gdGoDefense">Open the Defense tab →</button></div>';
+    var defPane = '<h3 class="callhead">Defense</h3>'+(customsGd.length
+      ? '<div class="picker" id="defpicker" role="group" aria-label="Defense call">'+
+        gameDayDefList().map(function(dd){
+          var kd = dd.custom && state.keptDefs && state.keptDefs[dd.key];
+          var fl = dd.custom && state.defFlip && state.defFlip[dd.key];
+          return '<button type="button" data-dk="'+esc(dd.key)+'" aria-pressed="'+(dd.key===dCur.scheme)+'">'+(kd?'★ ':'')+esc(dd.name)+(fl?' ↔':'')+'</button>';
+        }).join('')+
+        '</div>'+
+        defField+
+        (schemePosMap(dCur) ? '<p class="edhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
+        '<div class="btns" style="margin:8px 0 0"><button type="button" id="gdDefRun">Run it ▶</button>'+
+        (dMeta.custom ? '<button type="button" id="gdDefFlip">Flip ↔'+
+          (state.defFlip && state.defFlip[dCur.scheme] ? ' ✓' : '')+'</button>' : '')+'</div>'+
+        '<p style="font-size:12.5px;color:var(--paper-dim);margin:10px 0 0">'+dMeta.tip+'</p>'
+      : defEmpty);
 
-    var sideTabs = '<div class="picker" id="gdSideTabs" role="group" aria-label="Side of the ball">'+
+    /* on-the-field pane: who is standing where, either side of the ball */
+    var fieldToggle = '<div class="picker" id="gdFieldSide" role="group" aria-label="Side of the ball">'+
+      '<button type="button" data-fs="off" aria-pressed="'+(gdFieldSide==='off')+'">🏈 Offense</button>'+
+      '<button type="button" data-fs="def" aria-pressed="'+(gdFieldSide==='def')+'">🛡 Defense</button></div>';
+    var fieldPane;
+    if(gdFieldSide === 'off'){
+      fieldPane = fieldToggle+
+        '<h3 class="callhead">'+esc(cs.label||'Series')+' — on the field'+(liveDiffers(cs)?' · subbed':'')+'</h3>'+
+        '<div class="field" id="gdLineup" style="touch-action:none">'+formationSvg(lf, namesForForm(cs, cs.form))+'</div>'+
+        '<p class="edhint">Drag a player onto a teammate to swap their spots.</p>'+
+        lineup+benchHtml+subHtml;
+    } else {
+      fieldPane = fieldToggle+(customsGd.length
+        ? '<h3 class="callhead">'+esc(dMeta.name)+' — on the field</h3>'+
+          defField+
+          (schemePosMap(dCur) ? '<p class="edhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
+          dSlotsUi
+        : defEmpty);
+    }
+
+    var sideTabs = '<div class="picker" id="gdSideTabs" role="group" aria-label="Game day sections">'+
+      '<button type="button" data-gt="field" aria-pressed="'+(gdTab==='field')+'">On the field</button>'+
       '<button type="button" data-gt="off" aria-pressed="'+(gdTab==='off')+'">🏈 Offense</button>'+
       '<button type="button" data-gt="def" aria-pressed="'+(gdTab==='def')+'">🛡 Defense</button></div>';
 
@@ -2734,7 +2747,9 @@
 
     gd.innerHTML = chips + sideTabs + (gdTab==='def'
       ? defPane
-      : lineupBox+picker+grid+'<div id="gdplay">'+playHtml+'</div>');
+      : (gdTab==='field'
+        ? fieldPane
+        : picker+grid+'<div id="gdplay">'+playHtml+'</div>'));
 
     gd.querySelectorAll('.serbar button').forEach(function(b){
       b.addEventListener('click', function(){
@@ -2749,6 +2764,14 @@
         renderGameDay();
       });
     });
+    gd.querySelectorAll('#gdFieldSide button').forEach(function(b){
+      b.addEventListener('click', function(){
+        gdFieldSide = b.dataset.fs;
+        renderGameDay();
+      });
+    });
+    var gdb = document.getElementById('gdGoDefense');
+    if(gdb){ gdb.addEventListener('click', function(){ showTab('defense'); }); }
     gd.querySelectorAll('#defpicker button').forEach(function(b){
       b.addEventListener('click', function(){
         var d = sDef(cs);
