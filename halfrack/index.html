@@ -276,7 +276,10 @@
   <p class="lede">Do this before the game: put in your roster, then build each series — who's on the field, who plays where, and who owns each defensive zone. Formations get called on Game day from your kept plays. The <b>Settings</b> tab is where saving and sharing live.</p>
 
   <div class="card">
-    <h3>Roster</h3>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <h3 style="margin:0;flex:1">Roster</h3>
+      <button type="button" class="iconbtn" id="rosterLock" aria-label="Lock roster" aria-pressed="false" style="flex:0 0 44px">🔓</button>
+    </div>
     <p>First names are enough — they go on the play diagrams.</p>
     <div id="rosterList"></div>
     <button type="button" class="ghostbtn" id="addPlayer">+ Add a player</button>
@@ -607,7 +610,7 @@
     for(i=0;i<10;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, anim:true, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:11};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, anim:true, rosterLock:false, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:11};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -1079,6 +1082,7 @@
     if(loaded.formKept) state.formKept = loaded.formKept;
     if(typeof loaded.pcolors === 'boolean') state.pcolors = loaded.pcolors;
     if(typeof loaded.anim === 'boolean') state.anim = loaded.anim;
+    if(typeof loaded.rosterLock === 'boolean') state.rosterLock = loaded.rosterLock;
     if(Array.isArray(loaded.custom)) state.custom = loaded.custom;
     if(Array.isArray(loaded.customForms)) state.customForms = loaded.customForms;
     if(Array.isArray(loaded.customDefs)) state.customDefs = loaded.customDefs;
@@ -1882,17 +1886,39 @@
 
   /* ================= game plan: roster ================= */
   var rosterList = document.getElementById('rosterList');
+  function openColorChooser(pid){
+    var p = playerById(pid);
+    if(!p) return;
+    shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:360px"><div class="card" style="margin:0">'+
+      '<h3>'+esc(firstName(p.name)||('Player'))+'\u2019s color</h3>'+
+      '<div style="width:44px;height:44px;border-radius:50%;background:'+(p.color||'transparent')+';border:2px solid rgba(7,23,20,.5);margin:4px 0 12px"></div>'+
+      '<div class="btns" style="margin:0">'+
+      '<button type="button" id="ccPick" style="border-color:var(--whistle);color:var(--whistle)">Pick a new color\u2026</button>'+
+      '<button type="button" id="ccNone" style="border-color:var(--flag);color:var(--flag)">No color</button>'+
+      '<button type="button" id="ccCancel">Cancel</button></div></div></div>';
+    shareModal.hidden = false;
+    document.getElementById('ccPick').addEventListener('click', function(){
+      closeShareModal();
+      var inp = rosterList.querySelector('.rrow[data-id="'+pid+'"] .palfull');
+      if(inp) inp.click();
+    });
+    document.getElementById('ccNone').addEventListener('click', function(){
+      delete p.color;
+      closeShareModal();
+      save(); renderRoster(); renderGameDay();
+    });
+    document.getElementById('ccCancel').addEventListener('click', closeShareModal);
+  }
   function renderRoster(){
     rosterList.innerHTML = state.players.map(function(p,i){
       return '<div class="rrow" data-id="'+esc(p.id)+'">'+
         '<div class="jersey">'+(i+1)+'</div>'+
-        '<input class="tin" type="text" autocomplete="off" placeholder="Player '+(i+1)+'" value="'+esc(p.name)+'" aria-label="Player '+(i+1)+' name">'+
-        (state.pcolors ? '<label class="iconbtn cpick" style="position:relative;display:grid;place-items:center;cursor:pointer;padding:0;overflow:visible">'+
+        '<input class="tin" type="text" '+(state.rosterLock?'readonly ':'')+'autocomplete="off" placeholder="Player '+(i+1)+'" value="'+esc(p.name)+'" aria-label="Player '+(i+1)+' name">'+
+        (state.pcolors && !state.rosterLock ? '<label class="iconbtn cpick" style="position:relative;display:grid;place-items:center;cursor:pointer;padding:0;overflow:visible">'+
           '<input type="color" class="palfull" value="'+(p.color||'#FF5A5F')+'" aria-label="Player '+(i+1)+' color" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer">'+
           '<span class="csw" style="display:block;width:22px;height:22px;border-radius:50%;pointer-events:none;'+(p.color?'background:'+p.color+';border:2px solid rgba(7,23,20,.5)':'border:2px dashed rgba(246,241,228,.5)')+'"></span>'+
-          (p.color?'<span class="cclear" role="button" tabindex="0" aria-label="Clear player '+(i+1)+' color" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--deeper);border:1px solid var(--line);color:var(--paper-dim);font-size:10px;line-height:16px;text-align:center;cursor:pointer">✕</span>':'')+
           '</label>' : '')+
-        '<button type="button" class="iconbtn" aria-label="Remove player">✕</button></div>';
+        (state.rosterLock ? '' : '<button type="button" class="iconbtn" aria-label="Remove player">✕</button>')+'</div>';
     }).join('');
     rosterList.querySelectorAll('.cpick').forEach(function(lb){
       var pid = lb.closest('.rrow').dataset.id;
@@ -1908,15 +1934,14 @@
       ci.addEventListener('change', function(){
         save(); renderRoster(); renderGameDay();
       });
-      var cc = lb.querySelector('.cclear');
-      if(cc){
-        cc.addEventListener('click', function(ev){
-          ev.preventDefault(); ev.stopPropagation();
-          var p = playerById(pid);
-          if(p){ delete p.color; }
-          save(); renderRoster(); renderGameDay();
-        });
-      }
+      lb.addEventListener('click', function(ev){
+        var p = playerById(pid);
+        if(p && p.color){
+          /* colored kids get the big-button chooser instead of the raw picker */
+          ev.preventDefault();
+          openColorChooser(pid);
+        }
+      });
     });
     rosterList.querySelectorAll('.rrow').forEach(function(row){
       var id = row.dataset.id;
@@ -1927,7 +1952,8 @@
       row.querySelector('input').addEventListener('change', function(){
         renderSeriesList(); renderGameDay();
       });
-      row.querySelector('.iconbtn[aria-label="Remove player"]').addEventListener('click', function(){
+      var rmB = row.querySelector('.iconbtn[aria-label="Remove player"]');
+      if(rmB) armButton(rmB, function(){
         state.players = state.players.filter(function(p){ return p.id!==id; });
         state.series.forEach(function(s){
           Object.keys(s.slots).forEach(function(k){ if(s.slots[k]===id) delete s.slots[k]; });
@@ -1936,9 +1962,21 @@
           }
         });
         save(); renderRoster(); renderSeriesList(); renderGameDay();
-      });
+      }, '✕?');
     });
+    var lockB = document.getElementById('rosterLock');
+    if(lockB){
+      lockB.setAttribute('aria-pressed', state.rosterLock ? 'true' : 'false');
+      lockB.textContent = state.rosterLock ? '🔒' : '🔓';
+      lockB.style.color = state.rosterLock ? 'var(--whistle)' : '';
+      lockB.style.borderColor = state.rosterLock ? 'var(--whistle)' : '';
+    }
+    document.getElementById('addPlayer').hidden = !!state.rosterLock;
   }
+  document.getElementById('rosterLock').addEventListener('click', function(){
+    state.rosterLock = !state.rosterLock;
+    save(); renderRoster();
+  });
   document.getElementById('addPlayer').addEventListener('click', function(){
     state.seq++;
     state.players.push({id:'p'+state.seq, name:''});
