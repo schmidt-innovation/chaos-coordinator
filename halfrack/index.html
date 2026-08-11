@@ -3915,52 +3915,86 @@
     renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderGameDay(); updateCount(); renderSeriesList();
     return {form: f2.name, name: name};
   }
-  /* "Add a shared play": camera scan where the browser can, instructions where it can't */
-  function openScanner(){
-    var canScan = ('BarcodeDetector' in window) && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
-    if(!canScan){
-      shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
-        '<h3>Add a shared play</h3>'+
-        '<p>Point your phone\'s <b>regular camera app</b> at the other coach\'s QR — the link that pops up adds the play here automatically.</p>'+
-        '<p class="edhint">Got a play link or code in a text instead? Tap the link, or paste it in <b>Settings → Load a save link or team code</b>.</p>'+
-        '<div class="btns" style="margin:0"><button type="button" id="scClose">Close</button></div></div></div>';
-      shareModal.hidden = false;
-      document.getElementById('scClose').addEventListener('click', closeShareModal);
+  /* "Add a shared play": in-app camera scan everywhere — BarcodeDetector
+     where the browser has it, the bundled jsQR decoder where it doesn't */
+  var jsQRReady = null;
+  function loadJsQR(){
+    if(window.jsQR) return Promise.resolve();
+    if(jsQRReady) return jsQRReady;
+    jsQRReady = new Promise(function(res, rej){
+      var sc = document.createElement('script');
+      sc.src = '../jsqr.js';
+      sc.onload = function(){ if(window.jsQR){ res(); } else { rej(); } };
+      sc.onerror = function(){ jsQRReady = null; rej(); };
+      document.head.appendChild(sc);
+    });
+    return jsQRReady;
+  }
+  function scannerHelp(){
+    shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
+      '<h3>Add a shared play</h3>'+
+      '<p>Point your phone\'s <b>regular camera app</b> at the other coach\'s QR — the link that pops up adds the play here automatically.</p>'+
+      '<p class="edhint">Got a play link or code in a text instead? Tap the link, or paste it in <b>Settings → Load a save link or team code</b>.</p>'+
+      '<div class="btns" style="margin:0"><button type="button" id="scClose">Close</button></div></div></div>';
+    shareModal.hidden = false;
+    document.getElementById('scClose').addEventListener('click', closeShareModal);
+  }
+  function handleScan(raw){
+    var pm = String(raw||'').match(/#p=([^&#]+)/);
+    var shared = decodeCode(pm ? pm[1] : raw);
+    if(shared && shared.part === 'play'){
+      closeShareModal();
+      var res = mergePlay(shared);
+      if(res){ toast('Added “'+res.name+'” to your kept plays ✓'); }
       return;
     }
+    var el = document.getElementById('scMsg');
+    if(el) el.textContent = 'That QR isn\'t a play from this app — keep looking…';
+  }
+  function openScanner(){
+    if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){ scannerHelp(); return; }
     shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
       '<h3>Scan the other coach\'s QR</h3>'+
       '<video id="scVideo" playsinline autoplay muted style="width:100%;border-radius:10px;background:#000"></video>'+
-      '<p class="hintline" id="scMsg">Looking for a QR…</p>'+
+      '<p class="hintline" id="scMsg">Starting the camera…</p>'+
       '<div class="btns" style="margin:0"><button type="button" id="scClose">Cancel</button></div></div></div>';
     shareModal.hidden = false;
     document.getElementById('scClose').addEventListener('click', closeShareModal);
-    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(stream){
+    var useBD = ('BarcodeDetector' in window);
+    (useBD ? Promise.resolve() : loadJsQR()).then(function(){
+      return navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    }).then(function(stream){
       scanStream = stream;
       var vid = document.getElementById('scVideo');
       if(!vid){ closeShareModal(); return; }
       vid.srcObject = stream;
-      var det = new BarcodeDetector({formats:['qr_code']});
-      scanTimer = setInterval(function(){
-        if(!vid.videoWidth) return;
-        det.detect(vid).then(function(codes){
-          if(!codes || !codes.length) return;
-          var raw = codes[0].rawValue || '';
-          var pm = raw.match(/#p=([^&#]+)/);
-          var shared = decodeCode(pm ? pm[1] : raw);
-          if(shared && shared.part === 'play'){
-            closeShareModal();
-            var res = mergePlay(shared);
-            if(res){ toast('Added “'+res.name+'” to your kept plays ✓'); }
-          } else {
-            var el = document.getElementById('scMsg');
-            if(el) el.textContent = 'That QR isn\'t a play from this app — keep looking…';
-          }
-        }).catch(function(){});
-      }, 350);
-    }, function(){
+      var el = document.getElementById('scMsg');
+      if(el) el.textContent = 'Looking for a QR…';
+      if(useBD){
+        var det = new BarcodeDetector({formats:['qr_code']});
+        scanTimer = setInterval(function(){
+          if(!vid.videoWidth) return;
+          det.detect(vid).then(function(codes){
+            if(codes && codes.length){ handleScan(codes[0].rawValue || ''); }
+          }).catch(function(){});
+        }, 350);
+      } else {
+        var cv = document.createElement('canvas');
+        var cx = cv.getContext('2d', {willReadFrequently:true});
+        scanTimer = setInterval(function(){
+          if(!vid.videoWidth) return;
+          var k = Math.min(1, 640/vid.videoWidth);
+          cv.width = Math.round(vid.videoWidth*k);
+          cv.height = Math.round(vid.videoHeight*k);
+          cx.drawImage(vid, 0, 0, cv.width, cv.height);
+          var img = cx.getImageData(0, 0, cv.width, cv.height);
+          var q = window.jsQR(img.data, img.width, img.height, {inversionAttempts:'dontInvert'});
+          if(q && q.data){ handleScan(q.data); }
+        }, 400);
+      }
+    }).catch(function(){
       closeShareModal();
-      toast('Camera not available — point the phone\'s camera app at the QR instead.');
+      scannerHelp();
     });
   }
 

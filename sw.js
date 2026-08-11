@@ -1,6 +1,6 @@
 /* Coach Card offline cache — bump the version when files change */
-var CACHE = 'chaos-coordinator-v60';
-var FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './halfrack/', './halfrack/index.html', './halfrack/manifest.webmanifest'];
+var CACHE = 'chaos-coordinator-v61';
+var FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './jsqr.js', './halfrack/', './halfrack/index.html', './halfrack/manifest.webmanifest'];
 
 self.addEventListener('install', function(e){
   e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(FILES); }));
