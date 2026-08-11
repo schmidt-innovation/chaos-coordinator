@@ -2615,8 +2615,7 @@
       }).join('');
       var bench = benchOf(s);
       var d = sDef(s);
-      var defOpts = onFieldIds(s).map(function(id){ return playerById(id); }).filter(function(p){ return p && p.name.trim(); });
-      if(!defOpts.length) defOpts = opts;
+      var defOpts = opts; /* whole roster, same as the offense selects */
       var zoneSlotsHtml = '<div class="slots">'+defByKey('zone').slots.map(function(sl){
         var sel = d.slots[sl[0]]||'';
         return '<div class="slot"><label class="flab"><b>'+sl[0]+'</b> · '+sl[1]+'</label>'+
