@@ -837,18 +837,11 @@
     <h3>Share &amp; transfer</h3>
     <p id="saveStatus"></p>
     <div class="btns" style="margin:0">
-      <button type="button" id="shareCode" hidden>Share save link…</button>
-      <button type="button" id="copyLink">Copy save link</button>
-      <button type="button" id="showQR">Show QR</button>
+      <button type="button" id="teamQR">Show team QR</button>
+      <button type="button" id="offQR">Show playbook QR</button>
+      <button type="button" id="defQR">Show defense QR</button>
     </div>
-    <div id="qrHost" hidden></div>
-    <div class="btns">
-      <button type="button" id="copyCode">Copy team code</button>
-      <button type="button" id="copyOffCode">Copy playbook code</button>
-      <button type="button" id="copyDefCode">Copy defense code</button>
-    </div>
-    <textarea class="tin" id="codeOut" rows="3" hidden readonly
-      style="font-size:11px;word-break:break-all;margin-top:8px;resize:none" aria-label="Team code"></textarea>
+    <button type="button" class="ghostbtn" id="scanQR" style="margin-top:10px">⛶ Scan a shared QR</button>
     <p class="hintline" id="codeMsg" hidden></p>
     <label class="flab" style="margin-top:12px">Load a save link or team code</label>
     <div class="rrow" style="margin-bottom:0">
@@ -1254,12 +1247,13 @@
     return 'FFD2.'+lzPack(JSON.stringify({v:2, part:'def',
       customDefs:state.customDefs, keptDefs:state.keptDefs, defFlip:state.defFlip}));
   }
-  function shareUrl(){
+  function hashLink(h){
     if(location.protocol === 'http:' || location.protocol === 'https:'){
-      return location.origin + location.pathname + '#d=' + encodeState();
+      return location.origin + location.pathname + h;
     }
-    return '#d=' + encodeState();
+    return h;
   }
+  function shareUrl(){ return hashLink('#d=' + encodeState()); }
   function decodeCode(txt){
     txt = String(txt||'').replace(/\s+/g,'');
     if(!txt) return null;
@@ -4060,47 +4054,26 @@
   }
   function renderSaveCard(){
     document.getElementById('saveStatus').innerHTML = (canPersist
-      ? 'This device auto-saves your setup. The <b>save link</b> carries everything — text it to yourself or the other coach and they just tap it.'
-      : '<b style="color:var(--flag)">Heads up: this view can\'t auto-save between visits.</b> After you make changes, copy your save link and keep it in Notes or a text to yourself — tap it next time and everything returns.')+
-      ' The <b>playbook</b> and <b>defense</b> codes carry just that side of the ball and <b>merge</b> when loaded — so one coach can build the offense, another the defense, and paste each other\'s codes without losing their own work.';
-    if(navigator.share){ document.getElementById('shareCode').hidden = false; }
+      ? 'This device auto-saves your setup. Each QR is also a <b>tappable link</b> — Share or Copy it from the QR screen to text it instead.'
+      : '<b style="color:var(--flag)">Heads up: this view can\'t auto-save between visits.</b> After you make changes, copy your team link (Show team QR → Copy link) and keep it in Notes or a text to yourself — tap it next time and everything returns.')+
+      ' The <b>team</b> QR carries everything and replaces the other device\'s setup. The <b>playbook</b> and <b>defense</b> QRs carry just that side of the ball and <b>merge</b> — one coach builds the offense, another the defense, and they trade without losing their own work.';
   }
-  function doCopy(code, label){
+  document.getElementById('teamQR').addEventListener('click', function(){
     saveNow();
-    var out = document.getElementById('codeOut');
-    out.hidden = false; out.value = code;
-    var okMsg = label+' copied — keep it in Notes or text it to the other coach.';
-    var fallback = function(){
-      try{
-        out.focus(); out.select();
-        if(document.execCommand('copy')){ codeMsg(okMsg, true); return; }
-      }catch(e){}
-      codeMsg('Long-press the code above and copy it.', false);
-    };
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(code).then(function(){ codeMsg(okMsg, true); }, fallback);
-    } else { fallback(); }
-  }
-  document.getElementById('copyCode').addEventListener('click', function(){ doCopy(encodeState(), 'Team code'); });
-  document.getElementById('copyOffCode').addEventListener('click', function(){ doCopy(encodeOffCode(), 'Playbook code'); });
-  document.getElementById('copyDefCode').addEventListener('click', function(){ doCopy(encodeDefCode(), 'Defense code'); });
-  document.getElementById('shareCode').addEventListener('click', function(){
-    saveNow();
-    try{ navigator.share({title:'Coach Card team', url: shareUrl()}); }catch(e){}
+    openLinkShareModal('Team QR', shareUrl(),
+      'Scanning this loads your whole team — roster, series, plays — replacing theirs. Their old setup lands in History.');
   });
-  document.getElementById('copyLink').addEventListener('click', function(){ doCopy(shareUrl(), 'Save link'); });
-  document.getElementById('showQR').addEventListener('click', function(){
-    var host = document.getElementById('qrHost');
-    if(!host.hidden){ host.hidden = true; host.innerHTML = ''; return; }
+  document.getElementById('offQR').addEventListener('click', function(){
     saveNow();
-    var svgQ = qrSvgHtml(shareUrl());
-    if(!svgQ){
-      codeMsg('Too much data for one QR — use Copy save link or a team file instead.', false);
-      return;
-    }
-    host.innerHTML = svgQ + '<p class="edhint" style="text-align:center;margin:0 0 4px">Point the other phone\'s camera at this — the link opens with everything loaded.</p>';
-    host.hidden = false;
+    openLinkShareModal('Playbook QR', hashLink('#p='+encodeOffCode()),
+      'Scanning this merges your custom plays, formations, and keeps into the other coach\'s app.');
   });
+  document.getElementById('defQR').addEventListener('click', function(){
+    saveNow();
+    openLinkShareModal('Defense QR', hashLink('#p='+encodeDefCode()),
+      'Scanning this merges your custom defenses into the other coach\'s app.');
+  });
+  document.getElementById('scanQR').addEventListener('click', openScanner);
   function applyFullLoad(loaded, msg){
     takeSnapshot(true); /* pin what's here now, so the load can be undone */
     state = defaultState();
@@ -4205,30 +4178,30 @@
   }
   var shareModal = document.getElementById('shareModal');
   var scanStream = null, scanTimer = 0;
-  function closeShareModal(){
+  function stopScan(){
     clearInterval(scanTimer); scanTimer = 0;
     if(scanStream){ scanStream.getTracks().forEach(function(tr){ tr.stop(); }); scanStream = null; }
+  }
+  function closeShareModal(){
+    stopScan();
     shareModal.hidden = true; shareModal.innerHTML = '';
   }
   shareModal.addEventListener('click', function(ev){ if(ev.target === shareModal) closeShareModal(); });
-  function openShareModal(cid){
-    var c = (state.custom||[]).filter(function(x){ return x.id === cid; })[0];
-    if(!c) return;
-    var url = playShareUrl(cid);
+  function openLinkShareModal(heading, url, hint){
     var qs = url ? qrSvgHtml(url) : null;
     shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
-      '<h3>Share “'+esc(c.n)+'”</h3>'+
-      (qs ? qs + '<p class="edhint" style="text-align:center;margin:0 0 10px">The other coach points their phone camera here — the link adds the play (and its formation) to their app, already kept.</p>'
-          : '<p class="edhint">This play is too big for one QR — use the link buttons instead.</p>')+
+      '<h3>'+heading+'</h3>'+
+      (qs ? qs + '<p class="edhint" style="text-align:center;margin:0 0 10px">'+hint+'</p>'
+          : '<p class="edhint">Too much for one QR — use the link buttons instead.</p>')+
       '<div class="btns" style="margin:0">'+
       (navigator.share?'<button type="button" id="shPlayShare">Share…</button>':'')+
       '<button type="button" id="shPlayCopy">Copy link</button>'+
       '<button type="button" id="shPlayClose">Close</button></div>'+
-      '<input class="tin" id="shPlayOut" readonly hidden style="font-size:11px;margin-top:8px" aria-label="Play link">'+
+      '<input class="tin" id="shPlayOut" readonly hidden style="font-size:11px;margin-top:8px" aria-label="Share link">'+
       '</div></div>';
     shareModal.hidden = false;
     var sb = document.getElementById('shPlayShare');
-    if(sb){ sb.addEventListener('click', function(){ try{ navigator.share({title:'Play: '+c.n, url: url}); }catch(e){} }); }
+    if(sb){ sb.addEventListener('click', function(){ try{ navigator.share({title:heading, url: url}); }catch(e){} }); }
     document.getElementById('shPlayCopy').addEventListener('click', function(){
       var okB = document.getElementById('shPlayCopy');
       function fb(){
@@ -4241,6 +4214,12 @@
       } else { fb(); }
     });
     document.getElementById('shPlayClose').addEventListener('click', closeShareModal);
+  }
+  function openShareModal(cid){
+    var c = (state.custom||[]).filter(function(x){ return x.id === cid; })[0];
+    if(!c) return;
+    openLinkShareModal('Share “'+esc(c.n)+'”', playShareUrl(cid),
+      'The other coach points their phone camera here — the link adds the play (and its formation) to their app, already kept.');
   }
   /* a shared play lands in Custom (creating its formation if needed) and is kept */
   function mergePlay(o){
@@ -4296,17 +4275,57 @@
     shareModal.hidden = false;
     document.getElementById('scClose').addEventListener('click', closeShareModal);
   }
+  function mergeOffShared(shared){
+    var ro = mergeOffense(shared);
+    saveNow(); rebuildForms();
+    renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderGameDay(); renderPlays();
+    return ro;
+  }
+  function mergeDefShared(shared){
+    var rd = mergeDefense(shared);
+    saveNow();
+    renderDefList(); renderGameDay(); renderSeriesList();
+    return rd;
+  }
   function handleScan(raw){
-    var pm = String(raw||'').match(/#p=([^&#]+)/);
-    var shared = decodeCode(pm ? pm[1] : raw);
-    if(shared && shared.part === 'play'){
-      closeShareModal();
-      var res = mergePlay(shared);
-      if(res){ toast('Added “'+res.name+'” to your kept plays ✓'); }
+    var mm = String(raw||'').match(/#[pd]=([^&#]+)/);
+    var shared = decodeCode(mm ? mm[1] : raw);
+    if(shared && shared.v === 2){
+      if(shared.part === 'play'){
+        closeShareModal();
+        var res = mergePlay(shared);
+        if(res){ toast('Added “'+res.name+'” to your kept plays ✓'); }
+        return;
+      }
+      if(shared.part === 'off'){
+        closeShareModal();
+        var ro = mergeOffShared(shared);
+        toast('Playbook merged ✓ — '+ro.plays+' play'+(ro.plays===1?'':'s')+', '+ro.forms+' formation'+(ro.forms===1?'':'s'));
+        return;
+      }
+      if(shared.part === 'def'){
+        closeShareModal();
+        var rd = mergeDefShared(shared);
+        toast('Defense merged ✓ — '+rd.defs+' defense'+(rd.defs===1?'':'s')+' added');
+        return;
+      }
+      /* a full team code: confirm before replacing this device */
+      stopScan();
+      shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
+        '<h3>Load this team?</h3>'+
+        '<p>It replaces the setup on this device — roster, series, plays. The current setup is kept in <b>Settings → History</b> if you need it back.</p>'+
+        '<div class="btns" style="margin:0"><button type="button" id="scLoad" style="border-color:var(--whistle);color:var(--whistle)">Load team</button>'+
+        '<button type="button" id="scCancel">Cancel</button></div></div></div>';
+      document.getElementById('scLoad').addEventListener('click', function(){
+        closeShareModal();
+        applyFullLoad(shared, 'Team loaded ✓');
+        toast('Team loaded ✓');
+      });
+      document.getElementById('scCancel').addEventListener('click', closeShareModal);
       return;
     }
     var el = document.getElementById('scMsg');
-    if(el) el.textContent = 'That QR isn\'t a play from this app — keep looking…';
+    if(el) el.textContent = 'That QR isn\'t from this app — keep looking…';
   }
   function openScanner(){
     if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){ scannerHelp(); return; }
@@ -4422,6 +4441,14 @@
         showTab('playbook'); showPbTab('kept');
         toast('Added “'+res.name+'” to your kept plays ✓');
       }
+    } else if(shared && shared.part === 'off'){
+      var ro = mergeOffShared(shared);
+      showTab('playbook'); showPbTab('kept');
+      toast('Playbook merged ✓ — '+ro.plays+' play'+(ro.plays===1?'':'s')+', '+ro.forms+' formation'+(ro.forms===1?'':'s'));
+    } else if(shared && shared.part === 'def'){
+      mergeDefShared(shared);
+      showTab('defense');
+      toast('Defense merged ✓');
     }
     saveNow(); /* rewrites the hash back to the normal save mirror */
   })();
