@@ -1215,7 +1215,9 @@
       circle.setAttribute('fill','#FFC93C');
       circle.setAttribute('stroke','#0B211C');
       circle.setAttribute('stroke-width','1.5');
-      svgEl.appendChild(circle);
+      /* under the player markers, so it never parks on top of a name pill */
+      var firstMark = svgEl.querySelector('g.pmk');
+      if(firstMark){ svgEl.insertBefore(circle, firstMark); } else { svgEl.appendChild(circle); }
       runSeg(0);
     }, 2000);
   }
