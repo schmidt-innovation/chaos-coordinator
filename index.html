@@ -95,6 +95,29 @@
   .tswitch[aria-pressed="true"]{background:var(--whistle);border-color:var(--whistle)}
   .tswitch[aria-pressed="true"]::after{left:21px;background:var(--deeper)}
   .tswitch:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
+  /* ---- sunlight mode: high-contrast light theme for bright sidelines ---- */
+  body.sun{
+    --turf:#FBF7EA; --deep:#F2EDDD; --deeper:#E7E0CC;
+    --paper:#141F1B; --paper-dim:#3E4A45; --chalk:#000000;
+    --whistle:#A66300; --flag:#C22B30;
+    --line:rgba(11,33,28,.25);
+  }
+  body.sun .field{background:linear-gradient(180deg,#F3EEDE,#EAE4D1);border-color:rgba(11,33,28,.3)}
+  body.sun .pmodal{background:rgba(242,237,221,.95)}
+  body.sun .tin::placeholder{color:rgba(62,74,69,.55)}
+  body.sun .tswitch::after{background:#8B8674}
+  body.sun .tswitch[aria-pressed="true"]::after{background:#FBF7EA}
+  /* SVG diagram overrides: presentation attributes lose to CSS */
+  body.sun .field svg [stroke="#DCD5C4"]{stroke:#2E3833}
+  body.sun .field svg [fill="#DCD5C4"]{fill:#2E3833}
+  body.sun .field svg [stroke="#FFC93C"]{stroke:#B36F00}
+  body.sun .field svg [fill="#FFC93C"]{fill:#D48A00}
+  body.sun .field svg [stroke="#F6F1E4"]{stroke:#3E4A45}
+  body.sun .field svg [stroke="rgba(246,241,228,.35)"]{stroke:rgba(11,33,28,.45)}
+  body.sun .field svg [stroke="rgba(246,241,228,.5)"]{stroke:rgba(11,33,28,.5)}
+  body.sun .field svg [stroke="rgba(246,241,228,.7)"]{stroke:rgba(11,33,28,.6)}
+  body.sun .field svg [stroke="rgba(246,241,228,.75)"]{stroke:rgba(11,33,28,.75)}
+  body.sun .field svg [stroke="rgba(246,241,228,.4)"]{stroke:rgba(11,33,28,.45)}
 
   .fcard{background:var(--turf);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px}
   .fcard h2{font-size:22px;color:var(--whistle)}
@@ -839,6 +862,10 @@
       <button type="button" class="tswitch" id="animTog" role="switch" aria-pressed="true" aria-label="Play animation"></button>
       <p style="margin:0"><b>Play animation</b> — routes draw on, players run them, the ball travels. Turn off for still diagrams.</p>
     </div>
+    <div class="togglerow" style="margin-top:10px">
+      <button type="button" class="tswitch" id="sunTog" role="switch" aria-pressed="false" aria-label="Sunlight mode"></button>
+      <p style="margin:0"><b>Sunlight mode</b> — high-contrast light screen for bright sidelines. Also flips from the game-day play modal (☀).</p>
+    </div>
   </div>
 
   <div class="card">
@@ -906,7 +933,7 @@
     for(i=0;i<8;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, anim:true, rosterLock:false, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:9};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, anim:true, sunlight:false, rosterLock:false, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:9};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -1379,6 +1406,7 @@
     if(typeof loaded.pcolors === 'boolean') state.pcolors = loaded.pcolors;
     if(typeof loaded.anim === 'boolean') state.anim = loaded.anim;
     if(typeof loaded.rosterLock === 'boolean') state.rosterLock = loaded.rosterLock;
+    if(typeof loaded.sunlight === 'boolean') state.sunlight = loaded.sunlight;
     if(Array.isArray(loaded.custom)) state.custom = loaded.custom;
     if(Array.isArray(loaded.customForms)) state.customForms = loaded.customForms;
     if(Array.isArray(loaded.customDefs)) state.customDefs = loaded.customDefs;
@@ -1914,6 +1942,7 @@
   }
   var REDUCE = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   function animOff(){ return REDUCE || (state && state.anim === false); }
+  function applySun(){ document.body.classList.toggle('sun', !!(state && state.sunlight)); }
 
   function stopBall(el){
     if(el.__ballStop){ el.__ballStop(); el.__ballStop = null; }
@@ -2772,7 +2801,8 @@
         '<div class="phead"><h3>'+esc(displayName(cf, play))+'</h3>'+
         '<div class="tag'+(play.t==='run'?' run':'')+'">'+(play.t==='run'?'Run':'Pass')+'</div>'+
         (fl?'<div class="tag">Flipped ↔</div>':'')+
-        '<button type="button" class="tswitch" id="modalColors" role="switch" aria-pressed="'+(state.pcolors?'true':'false')+'" aria-label="Player colors" style="margin-left:auto"></button></div>'+
+        '<button type="button" class="tswitch" id="modalColors" role="switch" aria-pressed="'+(state.pcolors?'true':'false')+'" aria-label="Player colors" style="margin-left:auto"></button>'+
+        '<button type="button" id="modalSun" aria-pressed="'+(state.sunlight?'true':'false')+'" aria-label="Sunlight mode" style="flex:0 0 auto;width:34px;height:26px;border-radius:999px;border:1px solid '+(state.sunlight?'var(--whistle)':'var(--line)')+';background:transparent;color:'+(state.sunlight?'var(--whistle)':'var(--paper-dim)')+';font-size:14px;line-height:1;cursor:pointer;padding:0">☀</button></div>'+
         '<div class="field" id="modalField" style="touch-action:none">'+playFieldSvg(cf, play, names)+'</div>'+
         '<p class="edhint">Drag a player onto a teammate to swap spots — for this play only.'+(hasOv?' <b style="color:var(--whistle)">Custom spots on.</b>':'')+'</p>'+
         '<div class="btns"><button type="button" id="modalRun">Run it ▶</button>'+
@@ -2795,6 +2825,10 @@
       document.getElementById('modalColors').addEventListener('click', function(){
         state.pcolors = !state.pcolors;
         save(); renderSaveCard(); renderGameDay(); renderModal();
+      });
+      document.getElementById('modalSun').addEventListener('click', function(){
+        state.sunlight = !state.sunlight;
+        save(); applySun(); renderSaveCard(); renderModal();
       });
       var prb = document.getElementById('modalResetPm');
       if(prb){
@@ -4304,6 +4338,8 @@
     if(pcT){ pcT.setAttribute('aria-pressed', state.pcolors ? 'true' : 'false'); }
     var anT = document.getElementById('animTog');
     if(anT){ anT.setAttribute('aria-pressed', state.anim === false ? 'false' : 'true'); }
+    var suT = document.getElementById('sunTog');
+    if(suT){ suT.setAttribute('aria-pressed', state.sunlight ? 'true' : 'false'); }
   }
   document.getElementById('pcolorsTog').addEventListener('click', function(){
     state.pcolors = !state.pcolors;
@@ -4313,6 +4349,10 @@
   document.getElementById('animTog').addEventListener('click', function(){
     state.anim = (state.anim === false);
     save(); renderSaveCard();
+  });
+  document.getElementById('sunTog').addEventListener('click', function(){
+    state.sunlight = !state.sunlight;
+    save(); applySun(); renderSaveCard();
   });
   document.getElementById('teamQR').addEventListener('click', function(){
     saveNow();
@@ -4673,6 +4713,7 @@
 
   /* ================= init ================= */
   loadState();
+  applySun();
   rebuildForms();
   renderSaveCard();
   renderRoster();
