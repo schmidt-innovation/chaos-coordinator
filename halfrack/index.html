@@ -976,7 +976,7 @@
       }
     }
     return '<svg viewBox="0 0 '+dim+' '+dim+'" role="img" aria-label="QR code with your save link" '+
-      'style="display:block;width:100%;max-width:320px;margin:10px auto;background:#fff;border-radius:8px">'+
+      'style="display:block;width:100%;max-width:min(86vw, calc(100vh - 260px));margin:10px auto;background:#fff;border-radius:10px">'+
       '<g fill="#000">'+rects+'</g></svg>';
   }
 
@@ -4143,7 +4143,7 @@
   shareModal.addEventListener('click', function(ev){ if(ev.target === shareModal) closeShareModal(); });
   function openLinkShareModal(heading, url, hint){
     var qs = url ? qrSvgHtml(url) : null;
-    shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
+    shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:700px"><div class="card" style="margin:0">'+
       '<h3>'+heading+'</h3>'+
       (qs ? qs + '<p class="edhint" style="text-align:center;margin:0 0 10px">'+hint+'</p>'
           : '<p class="edhint">Too much for one QR — use the link buttons instead.</p>')+
