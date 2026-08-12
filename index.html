@@ -2819,7 +2819,7 @@
         '<div style="position:absolute;top:12px;right:12px;display:flex;gap:8px;align-items:center;z-index:5">'+
         '<button type="button" class="tswitch" id="modalColors" role="switch" aria-pressed="'+(state.pcolors?'true':'false')+'" aria-label="Player colors"></button>'+
         '<button type="button" id="modalSun" aria-pressed="'+(state.sunlight?'true':'false')+'" aria-label="Sunlight mode" style="flex:0 0 auto;width:34px;height:26px;border-radius:999px;border:1px solid '+(state.sunlight?'var(--whistle)':'var(--line)')+';background:transparent;color:'+(state.sunlight?'var(--whistle)':'var(--paper-dim)')+';font-size:14px;line-height:1;cursor:pointer;padding:0">☀</button></div>'+
-        '<div class="phead" style="padding-right:100px"><h3>'+esc(displayName(cf, play))+'</h3>'+
+        '<div class="phead" style="padding-right:100px;margin-bottom:12px"><h3>'+esc(displayName(cf, play))+'</h3>'+
         '<div class="tag'+(play.t==='run'?' run':'')+'">'+(play.t==='run'?'Run':'Pass')+'</div>'+
         (fl?'<div class="tag">Flipped ↔</div>':'')+'</div>'+
         '<div class="field" id="modalField" style="touch-action:none">'+playFieldSvg(cf, play, names)+'</div>'+
