@@ -145,7 +145,11 @@
   select.tin{appearance:auto;-webkit-appearance:auto}
   .tin:focus{outline:2px solid var(--whistle);outline-offset:1px}
   .tin::placeholder{color:rgba(220,213,196,.45)}
-  .rrow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .rrow{display:flex;gap:8px;align-items:center;margin-bottom:8px;position:relative}
+  .cpop{position:absolute;top:50px;right:-4px;z-index:40;background:var(--deeper);border:1px solid var(--whistle);
+    border-radius:12px;padding:10px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  .cpop::before{content:"";position:absolute;top:-7px;right:56px;width:12px;height:12px;background:var(--deeper);
+    border-left:1px solid var(--whistle);border-top:1px solid var(--whistle);transform:rotate(45deg)}
   .rrow .jersey{flex:0 0 34px;height:34px;border-radius:8px;background:var(--deeper);border:1px solid var(--line);
     color:var(--whistle);display:grid;place-items:center;font-family:"Archivo Black",sans-serif;font-size:14px}
   .iconbtn{flex:0 0 44px;height:44px;background:transparent;border:1px solid var(--line);color:var(--paper-dim);
@@ -2226,30 +2230,13 @@
 
   /* ================= game plan: roster ================= */
   var rosterList = document.getElementById('rosterList');
-  var pickerBypass = false;
-  function openColorChooser(pid){
-    var p = playerById(pid);
-    if(!p) return;
-    shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:360px"><div class="card" style="margin:0">'+
-      '<h3>'+esc(firstName(p.name)||('Player'))+'\u2019s color</h3>'+
-      '<div style="width:44px;height:44px;border-radius:50%;background:'+(p.color||'transparent')+';border:2px solid rgba(7,23,20,.5);margin:4px 0 12px"></div>'+
-      '<div class="btns" style="margin:0">'+
-      '<button type="button" id="ccPick" style="border-color:var(--whistle);color:var(--whistle)">Pick a new color\u2026</button>'+
-      '<button type="button" id="ccNone" style="border-color:var(--flag);color:var(--flag)">No color</button>'+
-      '<button type="button" id="ccCancel">Cancel</button></div></div></div>';
-    shareModal.hidden = false;
-    document.getElementById('ccPick').addEventListener('click', function(){
-      closeShareModal();
-      var inp = rosterList.querySelector('.rrow[data-id="'+pid+'"] .palfull');
-      if(inp){ pickerBypass = true; inp.click(); }
-    });
-    document.getElementById('ccNone').addEventListener('click', function(){
-      delete p.color;
-      closeShareModal();
-      save(); renderRoster(); renderGameDay();
-    });
-    document.getElementById('ccCancel').addEventListener('click', closeShareModal);
-  }
+  var popOpenId = null;
+  document.addEventListener('click', function(ev){
+    if(popOpenId === null) return;
+    if(ev.target && ev.target.closest && (ev.target.closest('.cpop') || ev.target.closest('.cpick'))) return;
+    popOpenId = null;
+    renderRoster();
+  });
   function renderRoster(){
     rosterList.innerHTML = state.players.map(function(p,i){
       return '<div class="rrow" data-id="'+esc(p.id)+'">'+
@@ -2260,8 +2247,34 @@
           '<input type="color" class="palfull" value="'+(p.color||'#FF5A5F')+'" aria-label="Player '+(i+1)+' color" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer">'+
           '<span class="csw" style="display:block;width:22px;height:22px;border-radius:50%;pointer-events:none;'+(p.color?'background:'+p.color+';border:2px solid rgba(7,23,20,.5)':'border:2px dashed rgba(246,241,228,.5)')+'"></span>'+
           '</label>' : '')+
-        (state.rosterLock ? '' : '<button type="button" class="iconbtn" aria-label="Remove player">✕</button>')+'</div>';
+        (state.rosterLock ? '' : '<button type="button" class="iconbtn" aria-label="Remove player">✕</button>')+
+        (state.pcolors && !state.rosterLock && popOpenId===p.id ? '<div class="cpop" data-id="'+esc(p.id)+'">'+
+          '<input type="color" class="popc" value="'+(p.color||'#FF5A5F')+'" aria-label="Pick a color" style="width:64px;height:44px;padding:2px;border:1px solid var(--line);border-radius:9px;background:var(--deeper);cursor:pointer">'+
+          '<button type="button" class="popnone" style="background:transparent;border:1px dashed var(--line);color:var(--paper-dim);font-family:inherit;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:12px 14px;border-radius:9px;cursor:pointer">✕ No color</button>'+
+          '</div>' : '')+'</div>';
     }).join('');
+    rosterList.querySelectorAll('.cpop').forEach(function(pp){
+      var pid2 = pp.dataset.id;
+      var ci2 = pp.querySelector('.popc');
+      ci2.addEventListener('input', function(){
+        var p2 = playerById(pid2);
+        if(!p2) return;
+        p2.color = ci2.value;
+        var sw2 = rosterList.querySelector('.rrow[data-id="'+pid2+'"] .csw');
+        if(sw2){ sw2.style.background = ci2.value; sw2.style.border = '2px solid rgba(7,23,20,.5)'; }
+        save();
+      });
+      ci2.addEventListener('change', function(){
+        popOpenId = null;
+        save(); renderRoster(); renderGameDay();
+      });
+      pp.querySelector('.popnone').addEventListener('click', function(){
+        var p2 = playerById(pid2);
+        if(p2){ delete p2.color; }
+        popOpenId = null;
+        save(); renderRoster(); renderGameDay();
+      });
+    });
     rosterList.querySelectorAll('.cpick').forEach(function(lb){
       var pid = lb.closest('.rrow').dataset.id;
       var ci = lb.querySelector('.palfull');
@@ -2278,12 +2291,12 @@
         save(); renderRoster(); renderGameDay();
       });
       lb.addEventListener('click', function(ev){
-        if(pickerBypass){ pickerBypass = false; return; }
         var p = playerById(pid);
         if(p && p.color){
-          /* colored kids get the big-button chooser instead of the raw picker */
+          /* colored kids get the anchored popover instead of the raw picker */
           ev.preventDefault();
-          openColorChooser(pid);
+          popOpenId = (popOpenId === pid) ? null : pid;
+          renderRoster();
         }
       });
     });
@@ -4294,6 +4307,7 @@
   }
   document.getElementById('pcolorsTog').addEventListener('click', function(){
     state.pcolors = !state.pcolors;
+    if(!state.pcolors) popOpenId = null;
     save(); renderSaveCard(); renderRoster(); renderGameDay();
   });
   document.getElementById('animTog').addEventListener('click', function(){
