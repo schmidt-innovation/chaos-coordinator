@@ -1940,6 +1940,16 @@
     if(p.__len == null){ p.__len = Math.ceil(p.getTotalLength ? p.getTotalLength() : 400); }
     return p.__len;
   }
+  /* arrowheads hide while a route is undrawn, appear when the line reaches the end */
+  function hideMarker(pt){
+    if(pt.dataset.dashed) return;
+    var m = pt.getAttribute('marker-end');
+    if(m && m !== 'none'){ pt.dataset.mk = m; }
+    if(pt.dataset.mk){ pt.setAttribute('marker-end','none'); }
+  }
+  function showMarker(pt){
+    if(pt.dataset.mk){ pt.setAttribute('marker-end', pt.dataset.mk); }
+  }
   var REDUCE = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   function animOff(){ return REDUCE || (state && state.anim === false); }
   function applySun(){ document.body.classList.toggle('sun', !!(state && state.sunlight)); }
@@ -2048,6 +2058,7 @@
     el.querySelectorAll('path.route').forEach(function(p){
       p.style.transition = 'none';
       if(p.dataset.dashed){ p.style.opacity = '0'; return; }
+      hideMarker(p);
       var len = routeLen(p);
       p.style.strokeDasharray = len + '';
       p.style.strokeDashoffset = len + '';
@@ -2064,11 +2075,17 @@
         p.style.opacity = '1';
         return;
       }
+      hideMarker(p);
       var len = routeLen(p);
       p.style.strokeDasharray = len + '';
       p.style.strokeDashoffset = len + '';
       void p.getBoundingClientRect();
-      if(animOff()){ p.style.strokeDashoffset = '0'; return; }
+      if(animOff()){ p.style.strokeDashoffset = '0'; showMarker(p); return; }
+      p.addEventListener('transitionend', function onDone(ev){
+        if(ev.propertyName !== 'stroke-dashoffset') return;
+        p.removeEventListener('transitionend', onDone);
+        showMarker(p);
+      });
       p.style.transition = 'stroke-dashoffset 1.8s cubic-bezier(.4,0,.2,1) ' + (i*0.2) + 's';
       p.style.strokeDashoffset = '0';
     });
@@ -2087,6 +2104,7 @@
     document.querySelectorAll('path.route').forEach(function(p){
       if(p.dataset.dashed){ if(p.style.opacity !== '1'){ p.style.opacity = '1'; } return; }
       if(p.style.strokeDashoffset && p.style.strokeDashoffset !== '0'){ p.style.strokeDashoffset = '0'; }
+      showMarker(p);
     });
     document.querySelectorAll('.late').forEach(function(g){ if(g.style.opacity!=='1'){ g.style.opacity='1'; } });
   }
