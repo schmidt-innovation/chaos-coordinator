@@ -229,6 +229,29 @@
   .edrow .tin{flex:1}
   .edhint{font-size:12.5px;color:var(--paper-dim);margin:10px 0 0}
   #edField{cursor:crosshair;touch-action:manipulation}
+  .ballstrip{margin-top:10px;border:1px dashed rgba(255,201,60,.5);border-radius:10px;padding:9px 11px;background:rgba(255,201,60,.05)}
+  .ballstrip .bslabel{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--whistle);font-weight:700;margin-bottom:7px}
+  .bsrow{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .bsrow .bshop{display:inline-flex;align-items:center;gap:7px;background:var(--deeper);border:1px solid var(--whistle);
+    border-radius:9px;padding:6px 9px;font-size:12.5px;font-weight:700;color:var(--paper)}
+  .bsrow .bshop .hn{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;
+    background:var(--whistle);color:var(--deeper);font-size:10.5px;font-weight:900}
+  .bsrow .bshop button{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer}
+  .bsrow .bshop button:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
+  .bsrow .bshop .via{font-weight:600;font-size:11.5px;color:var(--whistle);border:1px solid rgba(255,201,60,.55);border-radius:999px;padding:2px 8px}
+  .bsrow .bshop .hx{color:var(--flag);font-weight:900;font-size:14px;padding:0 3px}
+  .bsrow .bshop.dim{border-color:var(--line);color:var(--paper-dim)}
+  .bsrow .bshop.auto{border-style:dashed;border-color:rgba(255,201,60,.45);color:var(--paper-dim)}
+  .bsrow button.bshop{cursor:pointer;font:inherit;font-size:12.5px;font-weight:700}
+  .ballstrip .bshint{margin:7px 0 0;font-size:12px;color:var(--paper-dim)}
+  .bsrow .arr{color:var(--whistle);font-weight:900}
+  .bsrow .bsnote{font-size:12px;color:var(--paper-dim)}
+  .edjobs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .edjobs .joblabel{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-dim);font-weight:700;margin-right:2px}
+  .edjobs button{background:var(--deeper);border:1px solid var(--line);color:var(--paper);
+    border-radius:999px;padding:7px 12px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+  .edjobs button[aria-pressed="true"]{background:var(--whistle);border-color:var(--whistle);color:var(--deeper)}
+  .edjobs button:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
   .callhead{font-size:15px;color:var(--chalk);margin:16px 0 8px}
   .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px}
   .pgrid button{display:flex;align-items:center;justify-content:space-between;gap:6px;background:var(--turf);
@@ -858,6 +881,10 @@
       <button type="button" class="tswitch" id="pcolorsTog" role="switch" aria-pressed="false" aria-label="Player colors"></button>
       <p style="margin:0"><b>Player colors</b> — give each kid a color on the roster (and formation spots in the builder) and their tag wears it on every diagram. The ball stays gold.</p>
     </div>
+    <div class="togglerow" style="margin-bottom:10px">
+      <button type="button" class="tswitch" id="pnamesTog" role="switch" aria-pressed="true" aria-label="Player names"></button>
+      <p style="margin:0"><b>Player names</b> — show each kid's name on the diagrams once a lineup is set. Turn off to keep fields to position letters when names get busy.</p>
+    </div>
     <div class="togglerow">
       <button type="button" class="tswitch" id="animTog" role="switch" aria-pressed="true" aria-label="Play animation"></button>
       <p style="margin:0"><b>Play animation</b> — routes draw on, players run them, the ball travels. Turn off for still diagrams.</p>
@@ -933,7 +960,7 @@
     for(i=0;i<8;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, anim:true, sunlight:false, rosterLock:false, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:9};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, pnames:true, anim:true, sunlight:false, rosterLock:false, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:9};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -1404,6 +1431,7 @@
     if(loaded.flip) state.flip = loaded.flip;
     if(loaded.formKept) state.formKept = loaded.formKept;
     if(typeof loaded.pcolors === 'boolean') state.pcolors = loaded.pcolors;
+    if(typeof loaded.pnames === 'boolean') state.pnames = loaded.pnames;
     if(typeof loaded.anim === 'boolean') state.anim = loaded.anim;
     if(typeof loaded.rosterLock === 'boolean') state.rosterLock = loaded.rosterLock;
     if(typeof loaded.sunlight === 'boolean') state.sunlight = loaded.sunlight;
@@ -1452,6 +1480,8 @@
       (marker ? ' marker-end="'+marker+'"' : '')+
       (o.ball ? ' data-ball="1"' : '')+
       (o.mv ? ' data-mv="'+o.mv+'"' : '')+
+      (o.to ? ' data-to="'+o.to+'"' : '')+
+      (o.motion ? ' data-motion="1"' : '')+
       (o.dashed ? ' stroke-dasharray="'+(o.dash||'6 5')+'" data-dashed="1"' : '')+
       (o.op ? ' stroke-opacity="'+o.op+'"' : '')+'/>';
   }
@@ -1471,15 +1501,20 @@
   }
   /* inside-stack markers: the name lives IN the circle, position letter tucked beneath it */
   function dot(p,label,kind,name,pos,scolor){
+    if(name){
+      /* the kid's color sticks to the marker even when names are toggled off */
+      scolor = pcolorOf(name) || scolor;
+      if(state && state.pnames === false){ name = null; }
+    }
     var x=p[0], y=p[1], out='';
     if(kind==='d'){
       if(name){
         /* same lollipop as the offense markers */
         var dnm = esc(dotName(name));
-        var dw = Math.max(dnm.length*5.6+12, 26);
+        var dw = Math.max(dnm.length*4.5+10, 21);
         var dpc = pcolorOf(name);
-        return '<rect x="'+(x-dw/2)+'" y="'+(y-8)+'" width="'+dw+'" height="16" rx="8" fill="'+(dpc||'rgba(7,23,20,.95)')+'" stroke="'+(dpc||'rgba(246,241,228,.7)')+'" stroke-width="1.3"/>'+
-          '<text x="'+x+'" y="'+(y+3.6)+'" text-anchor="middle" font-size="9" font-weight="700" font-family="Archivo,sans-serif" fill="'+(dpc?'#071714':'#F6F1E4')+'">'+dnm+'</text>';
+        return '<rect x="'+(x-dw/2)+'" y="'+(y-6.4)+'" width="'+dw+'" height="12.8" rx="6.4" fill="'+(dpc||'rgba(7,23,20,.95)')+'" stroke="'+(dpc||'rgba(246,241,228,.7)')+'" stroke-width="1.3"/>'+
+          '<text x="'+x+'" y="'+(y+2.9)+'" text-anchor="middle" font-size="7.2" font-weight="700" font-family="Archivo,sans-serif" fill="'+(dpc?'#071714':'#F6F1E4')+'">'+dnm+'</text>';
       }
       return '<rect x="'+(x-9)+'" y="'+(y-9)+'" width="18" height="18" rx="4" fill="#FF5A5F"/>'+
         '<text x="'+x+'" y="'+(y+4)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="#2A0E0F">'+label+'</text>';
@@ -1489,7 +1524,7 @@
     if(name){
       /* lollipop: the name pill is the marker, position letter rides on top */
       var nm = esc(dotName(name));
-      var w = Math.max(nm.length*5.6+12, 26);
+      var w = Math.max(nm.length*4.5+10, 21);
       var pc = pcolorOf(name) || scolor || null;
       var pf = kind==='ball' ? '#FFC93C' : 'rgba(7,23,20,.95)';
       var ps = kind==='ball' ? '#FFC93C' : 'rgba(246,241,228,.7)';
@@ -1497,20 +1532,31 @@
       var chip = kind==='ball' ? '#FFC93C' : '#123B33';
       var psw = '1.3';
       if(pc){
-        /* the pill wears the kid's color; the ball keeps its gold ring and chip */
+        /* the pill wears the kid's color; the position chip stays neutral —
+           it only fills gold when they have the ball */
         pf = pc; pt = '#071714';
         ps = kind==='ball' ? '#FFC93C' : pc;
         psw = kind==='ball' ? '2' : '1.3';
-        chip = kind==='ball' ? '#FFC93C' : pc;
+        if(kind==='ball'){ chip = '#FFC93C'; }
       }
-      return '<rect x="'+(x-w/2)+'" y="'+(y-8)+'" width="'+w+'" height="16" rx="8" fill="'+pf+'" stroke="'+ps+'" stroke-width="'+psw+'"/>'+
-        '<text x="'+x+'" y="'+(y+3.6)+'" text-anchor="middle" font-size="9" font-weight="700" font-family="Archivo,sans-serif" fill="'+pt+'">'+nm+'</text>'+
-        '<circle cx="'+x+'" cy="'+(y-12)+'" r="6.5" fill="'+chip+'" stroke="#F6F1E4" stroke-width="1.3"/>'+
-        '<text x="'+x+'" y="'+(y-9.6)+'" text-anchor="middle" font-size="5.8" font-weight="700" font-family="Archivo,sans-serif" fill="'+(pc?'#071714':pt)+'">'+label+'</text>';
+      /* ball-baked markers remember their normal colors so the animation can
+         take the gold away once the ball moves on */
+      var bdR = kind==='ball' ? ' data-nf="'+(pc||'rgba(7,23,20,.95)')+'" data-ns="'+(pc||'rgba(246,241,228,.7)')+'" data-nw="1.3"' : '';
+      var bdN = kind==='ball' ? ' data-nf="'+(pc?'#071714':'#F6F1E4')+'"' : '';
+      var bdC = kind==='ball' ? ' data-nf="#123B33"' : '';
+      var bdL = kind==='ball' ? ' data-nf="#F6F1E4"' : '';
+      return '<rect x="'+(x-w/2)+'" y="'+(y-6.4)+'" width="'+w+'" height="12.8" rx="6.4" fill="'+pf+'" stroke="'+ps+'" stroke-width="'+psw+'"'+bdR+'/>'+
+        '<text x="'+x+'" y="'+(y+2.9)+'" text-anchor="middle" font-size="7.2" font-weight="700" font-family="Archivo,sans-serif" fill="'+pt+'"'+bdN+'>'+nm+'</text>'+
+        '<circle cx="'+x+'" cy="'+(y-9.6)+'" r="5.2" fill="'+chip+'" stroke="#F6F1E4" stroke-width="1.3"'+bdC+'/>'+
+        '<text x="'+x+'" y="'+(y-7.7)+'" text-anchor="middle" font-size="4.6" font-weight="700" font-family="Archivo,sans-serif" fill="'+(kind==='ball'?'#0B211C':'#F6F1E4')+'"'+bdL+'>'+label+'</text>';
     }
     if(scolor && kind!=='ball'){ fill = scolor; txt = '#071714'; }
-    out += '<circle cx="'+x+'" cy="'+y+'" r="10" fill="'+fill+'" stroke="#F6F1E4" stroke-width="1.6"/>'+
-      '<text x="'+x+'" y="'+(y+3.8)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="'+txt+'">'+label+'</text>';
+    /* colored dots carry their own definition — no white ring needed */
+    var dstroke = (scolor && kind!=='ball') ? 'none' : '#F6F1E4';
+    var bdD = kind==='ball' ? ' data-nf="'+(scolor||'#123B33')+'"'+(scolor?' data-ns="none"':'') : '';
+    var bdT = kind==='ball' ? ' data-nf="'+(scolor?'#071714':'#F6F1E4')+'"' : '';
+    out += '<circle cx="'+x+'" cy="'+y+'" r="10" fill="'+fill+'" stroke="'+dstroke+'" stroke-width="1.6"'+bdD+'/>'+
+      '<text x="'+x+'" y="'+(y+3.8)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="'+txt+'"'+bdT+'>'+label+'</text>';
     return out;
   }
 
@@ -1520,6 +1566,7 @@
       '<marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#FFC93C"/></marker>'+
       '<marker id="arw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#FF5A5F"/></marker>'+
       '<marker id="arp" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#DCD5C4"/></marker>'+
+      '<marker id="blk" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto"><line x1="5" y1="0.5" x2="5" y2="9.5" stroke="#DCD5C4" stroke-width="2.4"/></marker>'+
       '</defs>'+
       '<rect x="0" y="0" width="300" height="24" fill="rgba(255,201,60,.07)"/>'+
       '<line x1="0" y1="24" x2="300" y2="24" stroke="rgba(255,201,60,.35)" stroke-width="1"/>'+
@@ -1532,6 +1579,23 @@
   /* ================= route + run builders ================= */
   function st(p){ return p[1] > 165 ? [p[0], p[1]-10] : [p[0], 138]; }   /* where a route starts */
   function bk(p){ return p[1] > 165 ? p.slice() : [p[0], p[1]+12]; }     /* where a runner starts */
+
+  /* pitch flight between two points: leaves the passer's hands, lands just short of the catcher */
+  function tossPts(from, to){
+    var dx = to[0]-from[0], dy = to[1]-from[1];
+    var len = Math.sqrt(dx*dx+dy*dy) || 1;
+    var k1 = Math.min(10/len, .35), k2 = Math.min(14/len, .4);
+    return [[from[0]+dx*k1, from[1]+dy*k1],[to[0]-dx*k2, to[1]-dy*k2]];
+  }
+  /* a pitch lands in the backfield: aim at the carrier's first point behind the line */
+  function tossTarget(rt){
+    for(var i=0;i<rt.pts.length;i++){ if(rt.pts[i][1] >= LOS) return rt.pts[i]; }
+    return rt.pts[0];
+  }
+  function carriersOf(routes){
+    return routes.filter(function(rt){ return rt.carry; })
+      .sort(function(a,b){ return (a.ord||1)-(b.ord||1); });
+  }
 
   var go     = function(p){ return [st(p),[p[0],28]]; };
   var hook   = function(p,d){ return [st(p),[p[0],98],[p[0]-16*d,114]]; };
@@ -1741,19 +1805,53 @@
   }
   rebuildForms();
 
-  /* custom plays: stored as {id, form, n, t, d, routes:[{slot, pts, carry}]} */
+  /* custom plays: stored as {id, form, n, t, d, routes:[{slot, pts, mpts, carry, ord, via, first, fake, block}]}
+     ord/via/mpts/block are optional — a play without them is a one-hop handoff with no motion or pulls */
   function customPlays(fi){
+    var f = FORMS[fi];
+    function spotOf(slot){
+      for(var i=0;i<f.spots.length;i++){ if(f.spots[i][0]===slot) return f.spots[i][1]; }
+      return [150,182];
+    }
     return (state.custom||[]).filter(function(c){ return c.form === fi; }).map(function(c){
-      var r = [], firstRt = null, rest = [];
+      var r = [], qbRt = null, firstRt = null, rest = [];
+      var carriers = carriersOf(c.routes);
+      /* halfback pass: the last carrier throws instead of tossing it back */
+      var thrower = (c.t === 'pass' && carriers.length && carriers[carriers.length-1].throws)
+        ? carriers[carriers.length-1] : null;
       c.routes.forEach(function(rt){
-        if(rt.slot === 'QB'){ r.push({p: rt.pts, qb:true}); return; }
-        if(c.t === 'pass' && rt.first && !rt.fake && !firstRt){ firstRt = rt; return; }
+        /* pre-snap motion runs before everything, so it leads the entry list */
+        if(rt.mpts && rt.mpts.length > 1){ r.push({p: rt.mpts, motion:true, slot: rt.slot}); }
+        if(rt.slot === 'QB'){
+          /* once the ball is handed off the QB is just a player: block, route, or first look */
+          if(carriers.length && rt.block && (c.t === 'run' || thrower)){ rest.push(rt); return; }
+          if(thrower){
+            if(rt.first && !rt.fake && !rt.block && !firstRt){ firstRt = rt; return; }
+            rest.push(rt); return;
+          }
+          qbRt = rt; return;
+        }
+        if(rt.carry) return;
+        if(c.t === 'pass' && rt.first && !rt.fake && !rt.block && !firstRt){ firstRt = rt; return; }
         rest.push(rt);
       });
+      if(qbRt && qbRt.pts.length > 1){ r.push({p: qbRt.pts, qb:true}); }
+      /* the ball chain: QB (or the end of their path) to hop 1, then hop to hop */
+      var from = (qbRt && qbRt.pts.length > 1) ? qbRt.pts[qbRt.pts.length-1] : spotOf('QB');
+      var qbBack = from;
+      carriers.forEach(function(rt){
+        if(rt.via === 'pitch'){ r.push({p: tossPts(from, tossTarget(rt)), toss:true}); }
+        var ce = {p: rt.pts, carry:true, slot: rt.slot};
+        if(rt === thrower){ ce.thrower = true; }
+        r.push(ce);
+        from = rt.pts[rt.pts.length-1];
+      });
+      /* flea flicker: on a pass the give comes back to the QB — unless the carrier throws */
+      if(c.t === 'pass' && carriers.length && !thrower){ r.push({p: tossPts(from, qbBack), toss:true, to:'QB'}); }
       var ordered = firstRt ? [firstRt].concat(rest) : rest;
       ordered.forEach(function(rt){
         if(rt.fake){ r.push({p: rt.pts, dashed:true}); }
-        else if(rt.carry){ r.push({p: rt.pts, carry:true, slot: rt.slot}); }
+        else if(rt.block){ r.push({p: rt.pts, block:true, slot: rt.slot}); }
         else { r.push(rt.pts); }
       });
       return {n:c.n, t:c.t, d:c.d || 'Custom play — drawn by coach.', r:r, c:'none', custom:true, cid:c.id};
@@ -1794,8 +1892,10 @@
   /* Gold = the ball (carry, toss, or first read). White = other routes. Dashed white = fake/escort. */
   function entryKind(entry, playType, firstRouteIdx, idx){
     if(entry.qb) return 'qb';
+    if(entry.motion) return 'motion';
     if(entry.carry) return 'carry';
     if(entry.toss) return 'toss';
+    if(entry.block) return 'block';
     var isRoute = Array.isArray(entry) || !entry.dashed;
     if(entry.dashed) return 'fake';
     if(playType==='pass' && idx===firstRouteIdx) return 'primary';
@@ -1819,9 +1919,9 @@
     function FX(pts){ return flipped ? pts.map(function(q){ return [300-q[0], q[1]]; }) : pts; }
     var firstRouteIdx = -1, i, e;
     if(play && play.t==='pass'){
-      for(i=0;i<entries.length;i++){ e=entries[i]; if(Array.isArray(e) || (e.p && !e.dashed && !e.qb)){ firstRouteIdx=i; break; } }
+      for(i=0;i<entries.length;i++){ e=entries[i]; if(Array.isArray(e) || (e.p && !e.dashed && !e.qb && !e.carry && !e.toss && !e.motion && !e.block)){ firstRouteIdx=i; break; } }
     }
-    var inner = '', readN = 0, reads = '';
+    var inner = '', readN = 0, reads = '', primSlot = null;
     var routedSlots = {};
     for(i=0;i<entries.length;i++){
       e = entries[i];
@@ -1843,13 +1943,18 @@
       if(mvSlot) routedSlots[mvSlot] = 1;
       if(kind==='qb'){
         inner += pathEl(pts,{color:'#FFC93C',width:2.4,dashed:true,dash:'3 6',ball:true,mv:mvSlot});
+      } else if(kind==='motion'){
+        inner += pathEl(pts,{color:'#DCD5C4',width:1.8,dashed:true,dash:'2 5',op:.8,mv:mvSlot,motion:true,marker:'none'});
+      } else if(kind==='block'){
+        inner += pathEl(pts,{color:'#DCD5C4',width:2.6,marker:'url(#blk)',op:(play && play.t==='run')?.9:.8,mv:mvSlot});
       } else if(kind==='carry'){
         inner += pathEl(pts,{color:'#FFC93C',width:4,ball:true,mv:mvSlot});
       } else if(kind==='toss'){
-        inner += pathEl(pts,{color:'#FFC93C',width:2.4,dashed:true,dash:'4 5',ball:true});
+        inner += pathEl(pts,{color:'#FFC93C',width:2.4,dashed:true,dash:'4 5',ball:true,to:e.to||null});
       } else if(kind==='fake'){
         inner += pathEl(pts,{color:'#DCD5C4',width:2.2,dashed:true,marker:'url(#arp)',op:.65,mv:mvSlot});
       } else if(kind==='primary'){
+        primSlot = mvSlot;
         inner += pathEl(pts,{color:'#FFC93C',width:3.2,mv:mvSlot});
       } else {
         var routeOp = (play && play.t==='run') ? .45 : .8;
@@ -1875,16 +1980,21 @@
       if(qb){
         var qx = flipped ? 300-qb[0] : qb[0];
         var qy = qb[1]-12;
-        var qbEnt = null;
-        for(i=0;i<entries.length;i++){ if(entries[i].qb){ qbEnt = entries[i]; break; } }
-        if(qbEnt){
-          var qpts = FX(qbEnt.p);
+        var qbEnt = null, thrEnt = null;
+        for(i=0;i<entries.length;i++){
+          if(entries[i].qb && !qbEnt){ qbEnt = entries[i]; }
+          if(entries[i].thrower){ thrEnt = entries[i]; }
+        }
+        /* halfback pass: the throw leaves from the end of the carrier's path */
+        var passer = thrEnt || qbEnt;
+        if(passer){
+          var qpts = FX(passer.p);
           qx = clampX(qpts[qpts.length-1][0]);
           qy = clampY(qpts[qpts.length-1][1]);
         }
         var ex = clampX(pend[0]), ey = clampY(pend[1]);
         var mx = (qx+ex)/2, my = Math.min(qy,ey)-42;
-        inner += '<path d="M'+qx+','+qy+' Q'+mx+','+clampY(my)+' '+ex+','+ey+'" fill="none" stroke="none" data-ball="1"/>';
+        inner += '<path d="M'+qx+','+qy+' Q'+mx+','+clampY(my)+' '+ex+','+ey+'" fill="none" stroke="none" data-ball="1"'+(primSlot?' data-to="'+primSlot+'"':'')+'/>';
       }
     }
     inner += reads;
@@ -1954,28 +2064,102 @@
   function animOff(){ return REDUCE || (state && state.anim === false); }
   function applySun(){ document.body.classList.toggle('sun', !!(state && state.sunlight)); }
 
+  /* animation phases: DOWN lasts while every route chalks in, then a beat to SET
+     (pre-snap motion runs on SET), then the same beat again before GO — the snap */
+  function animPhases(svgEl, drawn){
+    var draw = 0;
+    if(!drawn){
+      [].slice.call(svgEl.querySelectorAll('path.route')).forEach(function(p, i){
+        draw = Math.max(draw, i*250 + (p.dataset.dashed ? 1250 : 2250));
+      });
+    }
+    var set = draw + 1000, motion = 0;
+    [].slice.call(svgEl.querySelectorAll('path.route[data-motion]')).forEach(function(p){
+      var len = p.getTotalLength ? p.getTotalLength() : 0;
+      if(len){ motion = Math.max(motion, Math.min(3750, Math.max(1250, len*15))); }
+    });
+    return {draw: draw, set: set, snap: set + motion + 1000};
+  }
   function stopBall(el){
     if(el.__ballStop){ el.__ballStop(); el.__ballStop = null; }
   }
-  function scheduleBall(el){
+  function scheduleBall(el, drawn){
     stopBall(el);
     if(animOff()) return;
     var svgEl = el.querySelector('svg');
     if(!svgEl) return;
     var paths = [].slice.call(svgEl.querySelectorAll('[data-ball]'));
     if(!paths.length) return;
-    var circle = null, raf = 0, timer = 0, cancelled = false;
+    var circle = null, held = null, raf = 0, timer = 0, cancelled = false;
+    function unsetHolder(){
+      if(!held) return;
+      held.forEach(function(h){
+        Object.keys(h.o).forEach(function(k){
+          if(h.o[k] === null){ h.el.removeAttribute(k); } else { h.el.setAttribute(k, h.o[k]); }
+        });
+      });
+      held = null;
+    }
     el.__ballStop = function(){
       cancelled = true;
       clearTimeout(timer); cancelAnimationFrame(raf);
       if(circle && circle.parentNode){ circle.parentNode.removeChild(circle); }
+      unsetHolder();
     };
+    /* whoever has the ball: gold outline on their name pill and their position
+       circle fills gold — restored to normal when the ball moves on */
+    function setHolder(slot){
+      unsetHolder();
+      /* markers drawn with the ball baked in (the QB, a run's carrier) drop
+         their gold the moment the ball is elsewhere */
+      [].slice.call(svgEl.querySelectorAll('g.pmk')).forEach(function(g2){
+        if(g2.dataset.slot === slot) return;
+        [].slice.call(g2.querySelectorAll('[data-nf]')).forEach(function(elx){
+          elx.setAttribute('fill', elx.dataset.nf);
+          if(elx.dataset.ns){ elx.setAttribute('stroke', elx.dataset.ns); }
+          if(elx.dataset.nw){ elx.setAttribute('stroke-width', elx.dataset.nw); }
+        });
+      });
+      var g = svgEl.querySelector('g.pmk[data-slot="'+slot+'"]');
+      if(!g) return;
+      held = [];
+      function paint(elx, attrs){
+        var o = {};
+        Object.keys(attrs).forEach(function(k){
+          o[k] = elx.hasAttribute(k) ? elx.getAttribute(k) : null;
+          elx.setAttribute(k, attrs[k]);
+        });
+        held.push({el: elx, o: o});
+      }
+      var pill = g.querySelector('rect');
+      var circles = g.querySelectorAll('circle');
+      var texts = g.querySelectorAll('text');
+      if(pill){
+        paint(pill, {'stroke':'#FFC93C','stroke-width':'2.2'});
+        if(circles.length){ paint(circles[circles.length-1], {'fill':'#FFC93C'}); }
+        if(texts.length > 1){ paint(texts[texts.length-1], {'fill':'#071714'}); }
+      } else if(circles.length){
+        var c0 = circles[0];
+        var base = c0.dataset.nf || c0.getAttribute('fill');
+        if(base && base !== '#123B33'){
+          /* colored letter dot: gold outline only — the kid's color stays */
+          paint(c0, {'fill': base, 'stroke':'#FFC93C', 'stroke-width':'2.4'});
+        } else {
+          /* plain letter dot: the dot is the position circle — gold fill */
+          paint(c0, {'fill':'#FFC93C'});
+          if(texts.length){ paint(texts[0], {'fill':'#0B211C'}); }
+        }
+      }
+    }
+    setHolder('QB');
     function runSeg(idx){
       if(cancelled || idx >= paths.length){ return; }
       var p = paths[idx];
+      var holder = p.dataset.to || p.dataset.mv;
+      if(holder){ setHolder(holder); }
       var len = p.getTotalLength ? p.getTotalLength() : 0;
       if(!len){ runSeg(idx+1); return; }
-      var dur = Math.min(3000, Math.max(1000, len*12));
+      var dur = Math.min(3750, Math.max(1250, len*15));
       var t0 = null;
       function frame(ts){
         if(cancelled) return;
@@ -1999,37 +2183,42 @@
       var firstMark = svgEl.querySelector('g.pmk');
       if(firstMark){ svgEl.insertBefore(circle, firstMark); } else { svgEl.appendChild(circle); }
       runSeg(0);
-    }, 2000);
+    }, animPhases(svgEl, drawn).snap);
   }
 
   function stopRunners(el){
     if(el.__runStop){ el.__runStop(); el.__runStop = null; }
   }
   /* after the routes draw, the players themselves run them */
-  function scheduleRunners(el){
+  function scheduleRunners(el, drawn){
     stopRunners(el);
     if(animOff()) return;
     var svgEl = el.querySelector('svg');
     if(!svgEl) return;
     var paths = [].slice.call(svgEl.querySelectorAll('path.route[data-mv]'));
     if(!paths.length) return;
-    var bySlot = {};
-    paths.forEach(function(p){ (bySlot[p.dataset.mv] = bySlot[p.dataset.mv] || []).push(p); });
+    var bySlot = {}, moSlot = {};
+    paths.forEach(function(p){
+      var s = p.dataset.mv;
+      if(p.dataset.motion){ (moSlot[s] = moSlot[s] || []).push(p); }
+      else { (bySlot[s] = bySlot[s] || []).push(p); }
+    });
     var marks = {};
     [].slice.call(svgEl.querySelectorAll('g.pmk')).forEach(function(g){ marks[g.dataset.slot] = g; });
-    var rafs = [], timer = 0, cancelled = false;
+    var rafs = [], timers = [], cancelled = false;
     el.__runStop = function(){
       cancelled = true;
-      clearTimeout(timer);
+      timers.forEach(function(t){ clearTimeout(t); });
       rafs.forEach(function(r){ cancelAnimationFrame(r); });
       Object.keys(marks).forEach(function(k){ marks[k].removeAttribute('transform'); });
     };
-    function runSeq(g, list, idx, ox, oy){
-      if(cancelled || idx >= list.length) return;
+    function runSeq(g, list, idx, ox, oy, done){
+      if(cancelled) return;
+      if(idx >= list.length){ if(done) done(); return; }
       var p = list[idx];
       var len = p.getTotalLength ? p.getTotalLength() : 0;
-      if(!len){ runSeq(g, list, idx+1, ox, oy); return; }
-      var dur = Math.min(3000, Math.max(1000, len*12));
+      if(!len){ runSeq(g, list, idx+1, ox, oy, done); return; }
+      var dur = Math.min(3750, Math.max(1250, len*15));
       var t0 = null;
       function fr(ts){
         if(cancelled) return;
@@ -2038,22 +2227,74 @@
         var pt = p.getPointAtLength(len*k);
         g.setAttribute('transform','translate('+(pt.x-ox).toFixed(1)+','+(pt.y-oy).toFixed(1)+')');
         if(k < 1){ rafs.push(requestAnimationFrame(fr)); }
-        else { runSeq(g, list, idx+1, ox, oy); }
+        else { runSeq(g, list, idx+1, ox, oy, done); }
       }
       rafs.push(requestAnimationFrame(fr));
     }
-    timer = setTimeout(function(){
+    /* pre-snap beat: players in motion run their dashed path first, then their
+       post-snap path waits for the snap (or starts right away if motion ran long) */
+    var ph = animPhases(svgEl, drawn);
+    var snapAt = performance.now() + ph.snap;
+    Object.keys(moSlot).forEach(function(slot){
+      var g = marks[slot];
+      if(!g) return;
+      timers.push(setTimeout(function(){
+        if(cancelled) return;
+        runSeq(g, moSlot[slot], 0, +g.dataset.ox, +g.dataset.oy, function(){
+          if(!bySlot[slot]) return;
+          timers.push(setTimeout(function(){
+            if(cancelled) return;
+            runSeq(g, bySlot[slot], 0, +g.dataset.ox, +g.dataset.oy);
+          }, Math.max(0, snapAt - performance.now())));
+        });
+      }, ph.set));
+    });
+    timers.push(setTimeout(function(){
       if(cancelled) return;
       Object.keys(bySlot).forEach(function(slot){
+        if(moSlot[slot]) return; /* their chain starts when the motion lands */
         var g = marks[slot];
         if(!g) return;
         runSeq(g, bySlot[slot], 0, +g.dataset.ox, +g.dataset.oy);
       });
-    }, 2000);
+    }, ph.snap));
+  }
+  /* the cadence call — DOWN at lineup, SET for the pre-snap beat, GO! at the snap */
+  function stopCadence(el){
+    if(el.__cadStop){ el.__cadStop(); el.__cadStop = null; }
+  }
+  function scheduleCadence(el, drawn){
+    stopCadence(el);
+    if(animOff()) return;
+    var svgEl = el.querySelector('svg');
+    if(!svgEl) return;
+    /* only actual plays get a cadence — lineups and empty fields stay quiet */
+    if(!svgEl.querySelector('g.pmk') || !svgEl.querySelector('path.route')) return;
+    var g = null, timers = [];
+    el.__cadStop = function(){
+      timers.forEach(function(t){ clearTimeout(t); });
+      if(g && g.parentNode){ g.parentNode.removeChild(g); }
+      g = null;
+    };
+    function show(word, gold){
+      if(!g){
+        g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        svgEl.appendChild(g);
+      }
+      var w = word.length*9 + 14;
+      g.innerHTML = '<rect x="'+(292-w)+'" y="205" width="'+w+'" height="17" rx="8.5" fill="'+(gold?'#FFC93C':'rgba(7,23,20,.85)')+'" stroke="'+(gold?'#FFC93C':'rgba(246,241,228,.45)')+'" stroke-width="1.2"/>'+
+        '<text x="'+(292-w/2+1)+'" y="217" text-anchor="middle" font-size="10" font-weight="800" letter-spacing="2" font-family="Archivo,sans-serif" fill="'+(gold?'#0B211C':'#DCD5C4')+'">'+word+'</text>';
+    }
+    var ph = animPhases(svgEl, drawn);
+    show('DOWN');
+    timers.push(setTimeout(function(){ show('SET'); }, ph.set));
+    timers.push(setTimeout(function(){ show('GO!', true); }, ph.snap));
+    timers.push(setTimeout(function(){ if(g && g.parentNode){ g.parentNode.removeChild(g); } g = null; }, ph.snap + 1700));
   }
   function hideRoutes(el){
     stopBall(el);
     stopRunners(el);
+    stopCadence(el);
     el.querySelectorAll('g.pmk').forEach(function(g){ g.removeAttribute('transform'); });
     el.querySelectorAll('path.route').forEach(function(p){
       p.style.transition = 'none';
@@ -2065,13 +2306,14 @@
     });
     el.querySelectorAll('.late').forEach(function(g){ g.style.transition='none'; g.style.opacity='0'; });
   }
-  function playAnim(el){
+  /* chalk the routes on without snapping the ball — the "where you'll go" stage */
+  function drawRoutes(el){
     el.querySelectorAll('path.route').forEach(function(p,i){
       p.style.transition = 'none';
       if(p.dataset.dashed){
         p.style.opacity = '0';
         void p.getBoundingClientRect();
-        if(!animOff()){ p.style.transition = 'opacity 1s ease ' + (i*0.2) + 's'; }
+        if(!animOff()){ p.style.transition = 'opacity 1.25s ease ' + (i*0.25) + 's'; }
         p.style.opacity = '1';
         return;
       }
@@ -2086,44 +2328,36 @@
         p.removeEventListener('transitionend', onDone);
         showMarker(p);
       });
-      p.style.transition = 'stroke-dashoffset 1.8s cubic-bezier(.4,0,.2,1) ' + (i*0.2) + 's';
+      p.style.transition = 'stroke-dashoffset 2.25s cubic-bezier(.4,0,.2,1) ' + (i*0.25) + 's';
       p.style.strokeDashoffset = '0';
     });
+    var lateSvg = el.querySelector('svg');
+    var lateDelay = (lateSvg && !animOff()) ? (animPhases(lateSvg).draw/1000) : 2.4;
     el.querySelectorAll('.late').forEach(function(g){
       g.style.transition='none'; g.style.opacity='0';
       void g.getBoundingClientRect();
       if(animOff()){ g.style.opacity='1'; return; }
-      g.style.transition='opacity .8s ease 1.9s';
+      g.style.transition='opacity 1s ease '+lateDelay+'s';
       g.style.opacity='1';
     });
+  }
+  function playAnim(el){
+    drawRoutes(el);
     scheduleBall(el);
     scheduleRunners(el);
+    scheduleCadence(el);
   }
-  /* safety net: nothing stays invisible, whatever happens with observers */
-  function revealAll(){
-    document.querySelectorAll('path.route').forEach(function(p){
-      if(p.dataset.dashed){ if(p.style.opacity !== '1'){ p.style.opacity = '1'; } return; }
-      if(p.style.strokeDashoffset && p.style.strokeDashoffset !== '0'){ p.style.strokeDashoffset = '0'; }
-      showMarker(p);
-    });
-    document.querySelectorAll('.late').forEach(function(g){ if(g.style.opacity!=='1'){ g.style.opacity='1'; } });
+  /* run the snap on an already-chalked field — the routes stay put */
+  function runSnap(el){
+    scheduleBall(el, true);
+    scheduleRunners(el, true);
+    scheduleCadence(el, true);
   }
 
-  /* ================= reveal on scroll ================= */
-  var seen = new WeakSet();
-  var io = ('IntersectionObserver' in window) ? new IntersectionObserver(function(es){
-    es.forEach(function(e){ if(e.isIntersecting && !seen.has(e.target)){ seen.add(e.target); playAnim(e.target); } });
-  },{threshold:.3}) : null;
-  function observeFields(){
-    if(!io) return;
-    document.querySelectorAll('.field').forEach(function(f){ io.observe(f); });
-  }
-  function drawVisible(){
-    document.querySelectorAll('.field').forEach(function(f){
-      var r = f.getBoundingClientRect();
-      if(r.top < window.innerHeight && r.bottom > 0 && !seen.has(f)){ seen.add(f); playAnim(f); }
-    });
-  }
+  /* fields render fully drawn — the animation runs only from a "Run it" button
+     or when the play modal opens */
+  function observeFields(){}
+  function drawVisible(){}
 
   /* ================= tabs ================= */
   var tabs = document.querySelectorAll('nav button');
@@ -2167,7 +2401,6 @@
       '</div></div>';
   }
   function wirePlayCards(container, afterKeep, afterRename){
-    hideRoutes(container);
     container.querySelectorAll('.replay').forEach(function(b){
       b.addEventListener('click', function(){
         playAnim(b.closest('.play').querySelector('.field'));
@@ -2245,9 +2478,6 @@
         inp.addEventListener('blur', commit);
       });
     });
-    observeFields();
-    drawVisible();
-    setTimeout(revealAll, 3200);
   }
   function keptCount(){ return Object.keys(state.kept).filter(function(k){ return state.kept[k]; }).length; }
 
@@ -2733,7 +2963,6 @@
         save(); renderSeriesList(); renderGameDay();
       });
     });
-    observeFields(); drawVisible(); setTimeout(revealAll,3200);
   }
 
   document.getElementById('addSeries').addEventListener('click', function(){
@@ -2818,6 +3047,7 @@
       playModal.innerHTML = '<div class="pmodal-inner"><div class="play" style="position:relative">'+
         '<div style="position:absolute;top:12px;right:12px;display:flex;gap:8px;align-items:center;z-index:5">'+
         '<button type="button" class="tswitch" id="modalColors" role="switch" aria-pressed="'+(state.pcolors?'true':'false')+'" aria-label="Player colors"></button>'+
+        '<button type="button" id="modalNames" aria-pressed="'+(state.pnames===false?'false':'true')+'" aria-label="Player names" style="flex:0 0 auto;width:34px;height:26px;border-radius:999px;border:1px solid '+(state.pnames===false?'var(--line)':'var(--whistle)')+';background:transparent;color:'+(state.pnames===false?'var(--paper-dim)':'var(--whistle)')+';font-size:12px;font-weight:800;line-height:1;cursor:pointer;padding:0">Aa</button>'+
         '<button type="button" id="modalSun" aria-pressed="'+(state.sunlight?'true':'false')+'" aria-label="Sunlight mode" style="flex:0 0 auto;width:34px;height:26px;border-radius:999px;border:1px solid '+(state.sunlight?'var(--whistle)':'var(--line)')+';background:transparent;color:'+(state.sunlight?'var(--whistle)':'var(--paper-dim)')+';font-size:14px;line-height:1;cursor:pointer;padding:0">☀</button></div>'+
         '<div class="phead" style="padding-right:100px;margin-bottom:12px"><h3>'+esc(displayName(cf, play))+'</h3>'+
         '<div class="tag'+(play.t==='run'?' run':'')+'">'+(play.t==='run'?'Run':'Pass')+'</div>'+
@@ -2830,9 +3060,17 @@
         '<button type="button" id="modalClose">Close</button></div>'+
         '</div></div>';
       var field = document.getElementById('modalField');
+      /* teach in stages: lineup only → chalk the routes → run the play → reset.
+         one button walks the sequence */
+      var runBtn = document.getElementById('modalRun');
+      var stage = 'lineup';
       hideRoutes(playModal);
-      playAnim(field);
-      document.getElementById('modalRun').addEventListener('click', function(){ playAnim(field); });
+      runBtn.textContent = 'Show routes ▶';
+      runBtn.addEventListener('click', function(){
+        if(stage === 'lineup'){ stage = 'routes'; runBtn.textContent = 'Run it ▶'; drawRoutes(field); }
+        else if(stage === 'routes'){ stage = 'run'; runBtn.textContent = 'Reset'; runSnap(field); }
+        else { renderModal(); }
+      });
       document.getElementById('modalClose').addEventListener('click', closePlayModal);
       document.getElementById('modalFlip').addEventListener('click', function(){
         var fid = cf.name+':'+play.n;
@@ -2843,6 +3081,10 @@
       });
       document.getElementById('modalColors').addEventListener('click', function(){
         state.pcolors = !state.pcolors;
+        save(); renderSaveCard(); renderGameDay(); renderModal();
+      });
+      document.getElementById('modalNames').addEventListener('click', function(){
+        state.pnames = (state.pnames === false);
         save(); renderSaveCard(); renderGameDay(); renderModal();
       });
       document.getElementById('modalSun').addEventListener('click', function(){
@@ -2977,9 +3219,16 @@
         '<button type="button" id="modalClose">Close</button></div>'+
         '</div></div>';
       var field = document.getElementById('modalField');
+      /* same staged flow as the play modal: lineup → routes → run → reset */
+      var runBtn = document.getElementById('modalRun');
+      var stage = 'lineup';
       hideRoutes(playModal);
-      playAnim(field);
-      document.getElementById('modalRun').addEventListener('click', function(){ playAnim(field); });
+      runBtn.textContent = 'Show routes ▶';
+      runBtn.addEventListener('click', function(){
+        if(stage === 'lineup'){ stage = 'routes'; runBtn.textContent = 'Run it ▶'; drawRoutes(field); }
+        else if(stage === 'routes'){ stage = 'run'; runBtn.textContent = 'Reset'; runSnap(field); }
+        else { renderM(); }
+      });
       document.getElementById('modalClose').addEventListener('click', closePlayModal);
       var mf = document.getElementById('modalFlip');
       if(mf){ mf.addEventListener('click', function(){
@@ -3647,7 +3896,6 @@
       (f.custom ? '<button type="button" class="mineFmEdit">Edit formation</button>'+
         '<button type="button" class="mineFmDel" style="border-color:var(--flag);color:var(--flag)">Delete formation</button>' : '')+
       '</div></div>';
-    hideRoutes(mineFcard);
     mineFcard.querySelector('.mineAdd').addEventListener('click', function(){ closeFmEditor(); openEditor(null); });
     if(f.custom){
       mineFcard.querySelector('.mineFmEdit').addEventListener('click', function(){ closeEditor(); openFmEditor(f.cfid); });
@@ -3681,7 +3929,6 @@
       '<p>'+f.why+'</p><p><b>Lining up:</b> '+f.setup+'</p>'+
       '<div class="btns"><button type="button" class="keep" id="fkeep" aria-pressed="'+fkept+'">'+
       (fkept?'★ Kept — shows in Custom':'☆ Keep formation')+'</button></div></div>';
-    hideRoutes(fcard);
     document.getElementById('fkeep').addEventListener('click', function(){
       state.formKept = state.formKept||{};
       if(state.formKept[f.name]){ delete state.formKept[f.name]; }
@@ -3725,28 +3972,78 @@
     for(var i=0;i<edState.routes.length;i++){ if(edState.routes[i].slot===slot) return edState.routes[i]; }
     return null;
   }
+  function edReindexHops(){
+    carriersOf(edState.routes).forEach(function(rt,i){ rt.ord = i+1; });
+  }
+  function edDropRoute(rt){
+    var wasCarry = !!rt.carry;
+    edState.routes = edState.routes.filter(function(x){ return x !== rt; });
+    if(wasCarry) edReindexHops();
+  }
+  function edDropMotion(rt){
+    delete rt.mpts;
+    if(rt.pts.length){ rt.pts[0] = st(edSpotPos(rt.slot)); } /* the route reconnects to the lineup spot */
+    if(rt.pts.length < 2){ edDropRoute(rt); }
+  }
+  function edCarriers(){
+    return carriersOf(edState.routes).filter(function(rt){ return rt.pts.length > 1; });
+  }
+  function edMotionSlot(){
+    for(var i=0;i<edState.routes.length;i++){
+      var rt = edState.routes[i];
+      if(rt.mpts && rt.mpts.length) return rt.slot;
+    }
+    return null;
+  }
   function edSvg(){
     var f = FORMS[edState.form];
     var inner = '';
+    /* pitch flights preview — synthesized the same way the play card renders them */
+    var qbRt = edRouteOf('QB');
+    var hops = edCarriers();
+    var thrRt = (edState.t === 'pass' && hops.length && hops[hops.length-1].throws) ? hops[hops.length-1] : null;
+    var qbMoves = !!(qbRt && !qbRt.carry && !thrRt && !(qbRt.block && hops.length));
+    var from = (qbMoves && qbRt.pts.length > 1) ? qbRt.pts[qbRt.pts.length-1] : edSpotPos('QB');
+    hops.forEach(function(rt){
+      if(rt.via === 'pitch'){ inner += pathEl(tossPts(from, tossTarget(rt)),{color:'#FFC93C',width:2.4,dashed:true,dash:'4 5',marker:'none'}); }
+      from = rt.pts[rt.pts.length-1];
+    });
+    if(edState.t === 'pass' && hops.length && !thrRt){ inner += pathEl(tossPts(from, edSpotPos('QB')),{color:'#FFC93C',width:2.4,dashed:true,dash:'4 5',marker:'none'}); }
     edState.routes.forEach(function(rt){
+      if(rt.mpts && rt.mpts.length > 1){
+        inner += pathEl(rt.mpts,{color: rt.slot===edState.active ? '#FFC93C' : '#DCD5C4',width:1.8,dashed:true,dash:'2 5',op:.85,marker:'none'});
+      }
       if(rt.pts.length > 1){
         if(rt.carry){ inner += pathEl(rt.pts,{color:'#FFC93C',width:3.6}); }
-        else if(rt.slot === 'QB'){ inner += pathEl(rt.pts,{color:'#FFC93C',width:rt.slot===edState.active?3:2.4,dashed:true,dash:'3 6'}); }
+        else if(rt.slot === 'QB' && !((rt.block || thrRt) && hops.length)){ inner += pathEl(rt.pts,{color:'#FFC93C',width:rt.slot===edState.active?3:2.4,dashed:true,dash:'3 6'}); }
+        else if(rt.block){ inner += pathEl(rt.pts,{color:'#DCD5C4',width:2.6,marker:'url(#blk)',op:rt.slot===edState.active?1:.8}); }
         else if(rt.fake){ inner += pathEl(rt.pts,{color:'#DCD5C4',width:2.2,dashed:true,marker:'url(#arp)',op:.65}); }
         else if(edState.t==='pass' && rt.first){ inner += pathEl(rt.pts,{color:'#FFC93C',width:3.2}); }
         else if(rt.slot === edState.active){ inner += pathEl(rt.pts,{color:'#FFC93C',width:2.8}); }
         else { inner += pathEl(rt.pts,{color:'#DCD5C4',width:2.2,marker:'url(#arp)',op:.8}); }
       }
       if(rt.slot === edState.active){
+        (rt.mpts||[]).forEach(function(q,i){
+          if(i>0) inner += '<circle cx="'+q[0]+'" cy="'+q[1]+'" r="4" fill="#FFC93C" stroke="#0B211C" stroke-width="1.2"/>';
+        });
         rt.pts.forEach(function(q,i){
           if(i>0) inner += '<circle cx="'+q[0]+'" cy="'+q[1]+'" r="4.5" fill="#FFC93C" stroke="#0B211C" stroke-width="1.2"/>';
         });
       }
     });
-    /* players with no route stay in to block — same bar the play card shows */
+    /* hop order badges once there's more than one give */
+    if(hops.length > 1){
+      hops.forEach(function(rt,i){
+        var q = rt.pts[0];
+        var bx = clampX(q[0]-12), by = clampY(q[1]-12);
+        inner += '<circle cx="'+bx+'" cy="'+by+'" r="8" fill="#FFC93C"/>'+
+          '<text x="'+bx+'" y="'+(by+3.6)+'" text-anchor="middle" font-size="10" font-weight="800" font-family="Archivo,sans-serif" fill="#0B211C">'+(i+1)+'</text>';
+      });
+    }
+    /* players with no path stay in to block — same bar the play card shows */
     f.spots.forEach(function(s){
       if(s[0] === 'QB') return;
-      if(edState.routes.some(function(rt){ return rt.slot === s[0] && rt.pts.length > 1; })) return;
+      if(edState.routes.some(function(rt){ return rt.slot === s[0] && (rt.pts.length > 1 || (rt.mpts && rt.mpts.length > 1)); })) return;
       inner += '<line x1="'+s[1][0]+'" y1="'+(s[1][1]-20)+'" x2="'+s[1][0]+'" y2="'+(s[1][1]-27)+'" stroke="rgba(246,241,228,.75)" stroke-width="2" stroke-linecap="round"/>'+
         '<line x1="'+(s[1][0]-6.5)+'" y1="'+(s[1][1]-27)+'" x2="'+(s[1][0]+6.5)+'" y2="'+(s[1][1]-27)+'" stroke="rgba(246,241,228,.75)" stroke-width="2" stroke-linecap="round"/>';
     });
@@ -3759,32 +4056,79 @@
   function refreshEd(){
     if(!edState) return;
     var f = FORMS[edState.form];
+    var hops = edCarriers();
     var chips = document.getElementById('edChips');
+    var supN = ['¹','²','³'];
     chips.innerHTML = slotOrder(f).map(function(l){
       var rt = edRouteOf(l);
       var ind = '';
       if(rt){
-        if(rt.carry) ind = ' 🏈';
+        if(rt.carry){ ind = ' 🏈'+(hops.length>1 ? (supN[hops.indexOf(rt)]||'') : ''); }
+        else if(rt.block) ind = ' 🛡';
         else if(rt.fake) ind = ' 🎭';
         else if(edState.t==='pass' && rt.first) ind = ' ①';
         else if(rt.pts.length > 1) ind = ' ✓';
+        if(rt.mpts && rt.mpts.length > 1) ind = ' 🏃'+ind.replace(' ','');
       } else if(l !== 'QB'){ ind = ' 🧱'; }
       return '<button type="button" data-slot="'+l+'" aria-pressed="'+(l===edState.active)+'">'+l+ind+'</button>';
     }).join('');
     document.getElementById('edField').innerHTML = edSvg();
-    var cb = document.getElementById('edCarry');
-    cb.hidden = edState.t !== 'run';
-    var carrier = null;
-    edState.routes.forEach(function(rt){ if(rt.carry) carrier = rt.slot; });
-    cb.textContent = carrier ? ('Ball carrier: '+carrier+' 🏈') : ('Make '+edState.active+' the ball carrier');
-    var fb = document.getElementById('edFirst');
-    fb.hidden = edState.t !== 'pass';
+    /* the ball path strip: QB, then each hop in order */
+    var strip = document.getElementById('edStrip');
+    var sh = '<div class="bslabel">Ball path</div><div class="bsrow"><span class="bshop dim">QB 🏈</span>';
+    if(!hops.length){
+      sh += '<span class="arr">→</span><span class="bsnote">'+
+        (edState.t==='run' ? 'draw a path, then tap 🏈 to pick the ball carrier'
+          : 'throws to the first look ① — or add a give 🏈 for a flea flicker')+'</span>';
+    } else {
+      hops.forEach(function(rt,i){
+        sh += '<span class="arr">→</span><span class="bshop"><span class="hn">'+(i+1)+'</span> '+esc(rt.slot)+
+          ' <button type="button" class="via" data-slot="'+esc(rt.slot)+'">'+(rt.via==='pitch'?'Pitch':'Handoff')+' ⇄</button>'+
+          '<button type="button" class="hx" data-slot="'+esc(rt.slot)+'" aria-label="Remove hop">×</button></span>';
+      });
+      if(edState.t==='pass'){
+        var last = hops[hops.length-1];
+        sh += '<span class="arr">→</span><button type="button" class="bshop thr'+(last.throws?'':' auto')+'">'+
+          (last.throws ? ('🏈 '+esc(last.slot)+' throws ① ⇄') : '↩ back to QB · QB throws ① ⇄')+'</button>';
+      }
+    }
+    sh += '</div>';
+    if(edState.t==='pass' && hops.length){
+      sh += '<p class="bshint">Tap ⇄ to choose the passer — the QB after a toss back, or '+esc(hops[hops.length-1].slot)+' throwing on the run.</p>';
+    }
+    strip.innerHTML = sh;
     var art = edRouteOf(edState.active);
-    fb.textContent = (art && art.first) ? ('① First look: '+edState.active) : ('Make '+edState.active+' the first look');
+    var hasPath = !!(art && art.pts.length > 1);
+    var isQB = edState.active === 'QB';
+    /* tools show only when they can act */
+    var drawing = edState.drawing || edState.motion;
+    var db = document.getElementById('edDone');
+    db.hidden = !drawing;
+    db.textContent = '✓ Done with '+edState.active;
+    document.getElementById('edUndo').hidden = !art;
+    document.getElementById('edClear').hidden = !art;
+    document.getElementById('edMore').hidden = drawing || !hasPath;
+    var mb = document.getElementById('edMotion');
+    if(edState.motion){ mb.hidden = false; mb.textContent = '🏃 Snap here — now draw the route'; }
+    else if(art && art.mpts && art.mpts.length){ mb.hidden = false; mb.textContent = '🏃 Remove motion'; }
+    else { mb.hidden = isQB || hasPath; mb.textContent = '🏃 Motion for '+edState.active; }
+    /* one job per player — the current one lights up gold */
+    document.getElementById('edJobLabel').textContent = edState.active+'’s job:';
+    /* a QB who has handed the ball off can pull, run a route, or be the target */
+    var thrOn = !!(edState.t === 'pass' && hops.length && hops[hops.length-1].throws);
+    var cb = document.getElementById('edCarry');
+    cb.hidden = isQB;
+    cb.setAttribute('aria-pressed', String(!!(art && art.carry)));
+    var fb = document.getElementById('edFirst');
+    fb.hidden = edState.t !== 'pass' || (isQB && !thrOn);
+    fb.setAttribute('aria-pressed', String(!!(art && art.first)));
+    var pb = document.getElementById('edPull');
+    pb.hidden = isQB && !(hops.length && (edState.t === 'run' || thrOn));
+    pb.setAttribute('aria-pressed', String(!!(art && art.block)));
     var kb = document.getElementById('edFake');
-    kb.textContent = (art && art.fake) ? ('🎭 '+edState.active+' is a fake — undo') : ('Mark '+edState.active+' as fake run');
-    var bb = document.getElementById('edBlock');
-    bb.textContent = (art && art.pts.length > 1) ? ('🧱 Make '+edState.active+' a blocker') : ('🧱 '+edState.active+' is blocking');
+    kb.hidden = isQB;
+    kb.setAttribute('aria-pressed', String(!!(art && art.fake)));
+    document.getElementById('edJobs').hidden = !hasPath || (cb.hidden && fb.hidden && pb.hidden && kb.hidden);
   }
   function closeEditor(){
     edState = null;
@@ -3811,6 +4155,8 @@
       t: c ? c.t : 'pass',
       routes: c ? JSON.parse(JSON.stringify(c.routes)) : [],
       active: firstSlot,
+      motion: false,
+      drawing: false,
       editing: c ? c.id : null
     };
     edHost.hidden = false;
@@ -3818,17 +4164,22 @@
       '<div class="pmodal-inner" style="max-width:1080px">'+
       '<div class="card" id="editorCard" style="border-color:var(--whistle)">'+
       '<h3>'+(c?'Edit play':'New play')+' — '+esc(f.name)+'</h3>'+
-      '<p class="edhint">Tap a player, then tap the field to draw their route point by point. On pass plays, pick the <b>first look</b> — it goes gold and gets the throw. Mark any path as a <b>fake run</b> to sell play-action. Draw a QB path for rollouts — the ball follows it before the throw or handoff. Anyone without a route <b>stays in to block</b> (🧱).</p>'+
+      '<p class="edhint">Tap a player, then tap the field to draw their path point by point — hit <b>✓ Done</b> when it\'s finished. Then pick that player\'s <b>job</b> below — ball, first look, pull block, or fake. The gold <b>ball path</b> strip shows who gets the ball and how (tap the pill to flip handoff ⇄ pitch — on a pass, a give means <b>flea flicker</b>). Anyone without a path <b>stays in to block</b> (🧱).</p>'+
       '<div class="edrow"><input class="tin" id="edName" type="text" autocomplete="off" placeholder="Play name (what the kids will yell)">'+
       '<select class="tin" id="edType" style="flex:0 0 92px"><option value="pass">Pass</option><option value="run">Run</option></select></div>'+
       '<div class="edchips" id="edChips"></div>'+
       '<div class="field" id="edField"></div>'+
-      '<div class="btns"><button type="button" id="edUndo">Undo point</button>'+
+      '<div class="ballstrip" id="edStrip"></div>'+
+      '<div class="btns"><button type="button" id="edDone" hidden style="border-color:var(--whistle);color:var(--whistle)"></button>'+
+      '<button type="button" id="edUndo">Undo point</button>'+
       '<button type="button" id="edClear">Clear route</button>'+
-      '<button type="button" id="edCarry" hidden></button>'+
-      '<button type="button" id="edFirst" hidden></button>'+
-      '<button type="button" id="edFake"></button>'+
-      '<button type="button" id="edBlock"></button></div>'+
+      '<button type="button" id="edMore" hidden>✏️ Add points</button>'+
+      '<button type="button" id="edMotion"></button></div>'+
+      '<div class="edjobs" id="edJobs" hidden><span class="joblabel" id="edJobLabel"></span>'+
+      '<button type="button" id="edCarry">🏈 Ball</button>'+
+      '<button type="button" id="edFirst" hidden>① First look</button>'+
+      '<button type="button" id="edPull">🛡 Pull block</button>'+
+      '<button type="button" id="edFake">🎭 Fake</button></div>'+
       '<input class="tin" id="edDesc" type="text" autocomplete="off" placeholder="One-line description (optional)" style="margin-top:10px">'+
       '<div class="btns"><button type="button" id="edSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(c?'Save changes':'Save play')+'</button>'+
       '<button type="button" id="edCancel">Cancel</button></div>'+
@@ -3837,12 +4188,52 @@
 
     document.getElementById('edType').addEventListener('change', function(ev){
       edState.t = ev.target.value;
-      if(edState.t === 'pass'){ edState.routes.forEach(function(rt){ delete rt.carry; }); }
+      if(edState.t === 'pass'){
+        /* a pass keeps one give at most, and the carrier throws by default */
+        edCarriers().slice(1).forEach(function(rt){ delete rt.carry; delete rt.ord; delete rt.via; });
+        var kh = edCarriers()[0];
+        if(kh){ kh.throws = true; }
+      } else {
+        edState.routes.forEach(function(rt){ delete rt.throws; });
+      }
       refreshEd();
     });
     document.getElementById('edChips').addEventListener('click', function(ev){
       var b = ev.target.closest('button[data-slot]');
-      if(b){ edState.active = b.dataset.slot; refreshEd(); }
+      if(b){
+        var prev = edRouteOf(edState.active);
+        if(prev && prev.pts.length < 2 && !(prev.mpts && prev.mpts.length > 1)){ edDropRoute(prev); }
+        edState.active = b.dataset.slot;
+        edState.motion = false;
+        edState.drawing = false;
+        refreshEd();
+      }
+    });
+    document.getElementById('edStrip').addEventListener('click', function(ev){
+      var v = ev.target.closest('button.via');
+      if(v){
+        var vrt = edRouteOf(v.dataset.slot);
+        if(vrt){ if(vrt.via === 'pitch'){ delete vrt.via; } else { vrt.via = 'pitch'; } }
+        refreshEd();
+        return;
+      }
+      var d = ev.target.closest('button.hx');
+      if(d){
+        var drt = edRouteOf(d.dataset.slot);
+        if(drt){ delete drt.carry; delete drt.ord; delete drt.via; delete drt.throws; edReindexHops(); }
+        refreshEd();
+        return;
+      }
+      var t = ev.target.closest('button.thr');
+      if(t){
+        var th = edCarriers();
+        if(th.length){
+          var lh = th[th.length-1];
+          if(lh.throws){ delete lh.throws; }
+          else if(lh.slot !== 'QB'){ lh.throws = true; }
+        }
+        refreshEd();
+      }
     });
     document.getElementById('edField').addEventListener('click', function(ev){
       var svgEl = document.getElementById('edField').querySelector('svg');
@@ -3851,50 +4242,167 @@
       var x = clampX((ev.clientX - r.left) / r.width * 300);
       var y = clampY((ev.clientY - r.top) / r.height * 230);
       var f2 = FORMS[edState.form];
-      for(var i=0;i<f2.spots.length;i++){
-        var sp = f2.spots[i][1];
-        if(Math.abs(sp[0]-x) < 17 && Math.abs(sp[1]-y) < 17){
-          edState.active = f2.spots[i][0];
-          refreshEd();
-          return;
-        }
-      }
       var rt = edRouteOf(edState.active);
+      if(edState.motion && rt && rt.mpts){
+        /* motion happens before the snap, so it stays behind the line */
+        rt.mpts.push([Math.round(x), Math.round(Math.max(y, LOS+6))]);
+        refreshEd();
+        return;
+      }
+      /* outside draw mode taps select players; while drawing they only add points,
+         so a route can pass through a teammate without grabbing them */
+      if(!edState.drawing){
+        for(var i=0;i<f2.spots.length;i++){
+          var sp = f2.spots[i][1];
+          if(Math.abs(sp[0]-x) < 17 && Math.abs(sp[1]-y) < 17){
+            edState.active = f2.spots[i][0];
+            edState.motion = false;
+            refreshEd();
+            return;
+          }
+        }
+        if(rt && rt.pts.length > 1){ return; } /* their path is finished — ✏️ Add points reopens it */
+      }
       if(!rt){
         rt = {slot: edState.active, pts:[st(edSpotPos(edState.active))]};
         edState.routes.push(rt);
       }
+      if(!rt.pts.length){ rt.pts.push(rt.mpts[rt.mpts.length-1].slice()); } /* the route continues from the motion end */
       rt.pts.push([Math.round(x), Math.round(y)]);
+      edState.drawing = true;
       refreshEd();
     });
+    document.getElementById('edDone').addEventListener('click', function(){
+      if(edState.motion){
+        var mrt = edRouteOf(edState.active);
+        if(mrt && mrt.mpts && mrt.mpts.length < 2){ edDropMotion(mrt); }
+        edState.motion = false;
+      }
+      edState.drawing = false;
+      var drt = edRouteOf(edState.active);
+      if(drt && drt.pts.length < 2 && !(drt.mpts && drt.mpts.length > 1)){ edDropRoute(drt); }
+      refreshEd();
+    });
+    document.getElementById('edMore').addEventListener('click', function(){
+      edState.drawing = true;
+      refreshEd();
+    });
+    /* picking a job is the natural "I'm finished drawing" signal */
+    document.getElementById('edJobs').addEventListener('click', function(){
+      edState.drawing = false;
+    }, true);
     document.getElementById('edUndo').addEventListener('click', function(){
       var rt = edRouteOf(edState.active);
       if(!rt) return;
+      if(edState.motion && rt.mpts){
+        rt.mpts.pop();
+        if(rt.mpts.length <= 1){ edDropMotion(rt); edState.motion = false; }
+        refreshEd();
+        return;
+      }
       rt.pts.pop();
-      if(rt.pts.length <= 1){ edState.routes = edState.routes.filter(function(x){ return x !== rt; }); }
+      if(rt.pts.length <= 1){
+        if(rt.mpts && rt.mpts.length > 1){
+          /* the route is gone — undo keeps eating into the motion */
+          rt.mpts.pop();
+          if(rt.mpts.length <= 1){ edDropRoute(rt); }
+          else { rt.pts = [rt.mpts[rt.mpts.length-1].slice()]; }
+        } else {
+          edDropRoute(rt);
+        }
+      }
       refreshEd();
     });
     document.getElementById('edClear').addEventListener('click', function(){
-      edState.routes = edState.routes.filter(function(x){ return x.slot !== edState.active; });
+      var rt = edRouteOf(edState.active);
+      if(rt) edDropRoute(rt);
+      edState.motion = false;
+      edState.drawing = false;
+      refreshEd();
+    });
+    document.getElementById('edMotion').addEventListener('click', function(){
+      if(edState.motion){
+        /* snap — done drawing motion, the next taps draw the route */
+        var mrt = edRouteOf(edState.active);
+        if(mrt && mrt.mpts && mrt.mpts.length < 2){ edDropMotion(mrt); }
+        edState.motion = false;
+        edState.drawing = true;
+        refreshEd();
+        return;
+      }
+      if(edState.active === 'QB'){ edMsg('The quarterback takes the snap — motion is for everyone else.'); return; }
+      var rt = edRouteOf(edState.active);
+      if(rt && rt.mpts && rt.mpts.length){
+        edDropMotion(rt);
+        refreshEd();
+        return;
+      }
+      var mo = edMotionSlot();
+      if(mo && mo !== edState.active){ edMsg('Only one player can be in motion — remove '+mo+'\'s motion first.'); return; }
+      if(rt && rt.pts.length > 1){ edMsg('Motion comes first — clear '+edState.active+'\'s route, draw the motion, then the route.'); return; }
+      if(!rt){ rt = {slot: edState.active, pts:[]}; edState.routes.push(rt); }
+      else { rt.pts = []; }
+      rt.mpts = [bk(edSpotPos(edState.active))];
+      edState.motion = true;
       refreshEd();
     });
     document.getElementById('edCarry').addEventListener('click', function(){
       if(edState.active === 'QB'){ edMsg('The quarterback can\'t carry the ball — handoffs and pitches only.'); return; }
       var rt = edRouteOf(edState.active);
-      if(!rt){ edMsg('Draw '+edState.active+'\'s path first, then mark them as the carrier.'); return; }
-      edState.routes.forEach(function(x){ delete x.carry; });
-      delete rt.fake;
+      if(!rt || rt.pts.length < 2){ edMsg('Draw '+edState.active+'\'s path first, then give them the ball.'); return; }
+      if(rt.carry){
+        delete rt.carry; delete rt.ord; delete rt.via;
+        edReindexHops();
+        refreshEd();
+        return;
+      }
+      var hops = edCarriers();
+      var max = edState.t === 'run' ? 2 : 1;
+      if(hops.length >= max){
+        edMsg(edState.t === 'run'
+          ? 'Two carriers max — a third lateral is a fumble drill, not a play. Remove a hop first (×).'
+          : 'A pass play takes one give — that\'s the flea flicker. Remove the other hop first (×).');
+        return;
+      }
+      delete rt.fake; delete rt.first; delete rt.block;
       rt.carry = true;
+      if(edState.t === 'pass'){ rt.throws = true; } /* default: the carrier throws, not a toss back */
+      edReindexHops();
       refreshEd();
     });
     document.getElementById('edFirst').addEventListener('click', function(){
       if(edState.t !== 'pass') return;
-      if(edState.active === 'QB'){ edMsg('The QB throws it — pick a receiver for the first look.'); return; }
+      if(edState.active === 'QB'){
+        var fh = edCarriers();
+        if(!(fh.length && fh[fh.length-1].throws)){
+          edMsg('The QB can be a target only when someone else throws — hand it off, then tap ⇄ on the ball path.'); return;
+        }
+      }
       var rt = edRouteOf(edState.active);
       if(!rt){ edMsg('Draw '+edState.active+'\'s route first, then make it the first look.'); return; }
+      if(rt.first){ delete rt.first; refreshEd(); return; }
       if(rt.fake){ edMsg('A fake can\'t be the first look — undo the fake first.'); return; }
+      if(rt.carry){ edMsg('The ball carrier can\'t be the first look — the throw goes to a route.'); return; }
+      if(rt.block){ edMsg('A blocker can\'t be the first look — undo the pull first.'); return; }
       edState.routes.forEach(function(x){ delete x.first; });
       rt.first = true;
+      refreshEd();
+    });
+    document.getElementById('edPull').addEventListener('click', function(){
+      if(edState.active === 'QB'){
+        var ph = edCarriers();
+        if(!(ph.length && (edState.t === 'run' || ph[ph.length-1].throws))){
+          edMsg('Hand the ball off first — then the QB can pull and block.'); return;
+        }
+      }
+      var rt = edRouteOf(edState.active);
+      if(!rt || rt.pts.length < 2){ edMsg('Draw the path '+edState.active+' pulls along first, then mark the block.'); return; }
+      if(rt.block){ delete rt.block; refreshEd(); return; }
+      var wasCarry = !!rt.carry;
+      delete rt.carry; delete rt.ord; delete rt.via;
+      delete rt.first; delete rt.fake;
+      rt.block = true;
+      if(wasCarry) edReindexHops();
       refreshEd();
     });
     document.getElementById('edFake').addEventListener('click', function(){
@@ -3903,33 +4411,34 @@
       if(!rt){ edMsg('Draw '+edState.active+'\'s path first, then mark it as a fake.'); return; }
       if(rt.fake){ delete rt.fake; }
       else {
-        delete rt.carry;
+        var wasCarry = !!rt.carry;
+        delete rt.carry; delete rt.ord; delete rt.via;
         delete rt.first;
+        delete rt.block;
         rt.fake = true;
+        if(wasCarry) edReindexHops();
       }
-      refreshEd();
-    });
-    document.getElementById('edBlock').addEventListener('click', function(){
-      if(edState.active === 'QB'){ edMsg('The quarterback takes the snap — pick another player to block.'); return; }
-      var rt = edRouteOf(edState.active);
-      if(!rt){ edMsg(edState.active+' is already blocking — players without a route stay in to block.'); return; }
-      edState.routes = edState.routes.filter(function(x){ return x.slot !== edState.active; });
       refreshEd();
     });
     document.getElementById('edCancel').addEventListener('click', closeEditor);
     document.getElementById('edSave').addEventListener('click', function(){
+      var mstub = edState.routes.filter(function(rt){ return rt.mpts && rt.mpts.length > 1 && rt.pts.length < 2; })[0];
+      if(mstub){ edMsg(mstub.slot+'\'s motion needs a path after the snap — tap 🏃 "Snap here", then draw where they go.'); return; }
       var routes = edState.routes.filter(function(rt){ return rt.pts.length >= 2; });
+      routes.forEach(function(rt){ if(rt.mpts && rt.mpts.length < 2){ delete rt.mpts; } });
       if(!routes.length){ edMsg('Draw at least one route first.'); return; }
       if(edState.t === 'run' && !routes.some(function(rt){ return rt.carry; })){
-        edMsg('Run plays need a ball carrier — tap a player with a route, then "Make … the ball carrier".');
+        edMsg('Run plays need a ball carrier — tap a player with a route, then "🏈 Give … the ball".');
         return;
       }
-      if(edState.t === 'pass' && !routes.some(function(rt){ return rt.slot !== 'QB' && !rt.fake; })){
-        edMsg('A pass play needs at least one real route to throw to — everything is a fake right now.');
+      var thrSave = edState.t === 'pass' && routes.some(function(rt){ return rt.carry && rt.throws; });
+      if(edState.t === 'pass' && !routes.some(function(rt){ return (rt.slot !== 'QB' || thrSave) && !rt.fake && !rt.carry && !rt.block; })){
+        edMsg('A pass play needs at least one real route to throw to — draw one that isn\'t a fake, a block, or the carrier.');
         return;
       }
-      if(edState.t === 'pass'){ routes.forEach(function(rt){ delete rt.carry; }); }
-      else { routes.forEach(function(rt){ delete rt.first; }); }
+      if(edState.t === 'run'){ routes.forEach(function(rt){ delete rt.first; delete rt.throws; }); }
+      else { routes.forEach(function(rt){ if(rt.throws && !rt.carry){ delete rt.throws; } }); }
+      carriersOf(routes).forEach(function(rt,i){ rt.ord = i+1; });
       var f3 = FORMS[edState.form];
       var name = (document.getElementById('edName').value || '').trim() || 'Custom';
       var taken = playsOf(f3).filter(function(p){ return !(p.custom && p.cid === edState.editing); })
@@ -4131,7 +4640,6 @@
         '<button type="button" class="ddel" style="color:var(--flag);border-color:var(--flag)">Delete</button>'+
         '</div></div>';
     }).join('') : '<div class="empty">No custom defenses yet. Tap <b>⊕ New defense</b> to build your first look.</div>';
-    hideRoutes(host);
     host.querySelectorAll('.dreplay').forEach(function(b){
       b.addEventListener('click', function(){
         playAnim(b.closest('.play').querySelector('.field'));
@@ -4335,7 +4843,6 @@
   ];
   document.querySelectorAll('[data-def] .field').forEach(function(n,i){
     n.innerHTML = svg(defs[i]||'');
-    hideRoutes(n);
   });
   document.querySelectorAll('[data-def] .replay').forEach(function(b){
     b.addEventListener('click', function(){ playAnim(b.closest('.play').querySelector('.field')); });
@@ -4355,6 +4862,8 @@
       ' <b>Share all</b> carries everything — roster, series, plays — and replaces the other device\'s setup (their old one lands in History). <b>Share playbook</b> and <b>Share defense</b> carry just that side of the ball and <b>merge</b>, so one coach can build the offense, another the defense, and they can trade without losing their own work.';
     var pcT = document.getElementById('pcolorsTog');
     if(pcT){ pcT.setAttribute('aria-pressed', state.pcolors ? 'true' : 'false'); }
+    var pnT = document.getElementById('pnamesTog');
+    if(pnT){ pnT.setAttribute('aria-pressed', state.pnames === false ? 'false' : 'true'); }
     var anT = document.getElementById('animTog');
     if(anT){ anT.setAttribute('aria-pressed', state.anim === false ? 'false' : 'true'); }
     var suT = document.getElementById('sunTog');
@@ -4364,6 +4873,10 @@
     state.pcolors = !state.pcolors;
     if(!state.pcolors) popOpenId = null;
     save(); renderSaveCard(); renderRoster(); renderGameDay();
+  });
+  document.getElementById('pnamesTog').addEventListener('click', function(){
+    state.pnames = (state.pnames === false);
+    save(); renderSaveCard(); renderGameDay();
   });
   document.getElementById('animTog').addEventListener('click', function(){
     state.anim = (state.anim === false);
