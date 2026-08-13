@@ -1500,11 +1500,12 @@
     return n.length > 9 ? n.slice(0,8)+'…' : n;
   }
   /* inside-stack markers: the name lives IN the circle, position letter tucked beneath it */
+  var namesLocked = false; /* the on-the-field pane is about names — it ignores the toggle */
   function dot(p,label,kind,name,pos,scolor){
     if(name){
       /* the kid's color sticks to the marker even when names are toggled off */
       scolor = pcolorOf(name) || scolor;
-      if(state && state.pnames === false){ name = null; }
+      if(state && state.pnames === false && !namesLocked){ name = null; }
     }
     var x=p[0], y=p[1], out='';
     if(kind==='d'){
@@ -3396,7 +3397,9 @@
       dCur.scheme = gameDayDefList()[0].key;
       dMeta = defByKey(dCur.scheme);
     }
+    namesLocked = true;
     var defField = '<div class="field" id="gdDef" style="touch-action:none">'+defFieldSvg(cs)+'</div>';
+    namesLocked = false;
     var dSlotsUi = '';
     if(customsGd.length && dMeta.slots.length){
       var defOptsGd = onFieldIds(cs).map(function(id){ return playerById(id); }).filter(function(p){ return p && p.name.trim(); });
@@ -3435,9 +3438,12 @@
       '<button type="button" data-fs="def" aria-pressed="'+(gdFieldSide==='def')+'">🛡 Defense</button></div>';
     var fieldPane;
     if(gdFieldSide === 'off'){
+      namesLocked = true;
+      var gdLineupSvg = formationSvg(lf, namesForForm(cs, cs.form));
+      namesLocked = false;
       fieldPane = fieldToggle+
         '<h3 class="callhead">'+esc(cs.label||'Series')+' — on the field'+(liveDiffers(cs)?' · subbed':'')+'</h3>'+
-        '<div class="field" id="gdLineup" style="touch-action:none">'+formationSvg(lf, namesForForm(cs, cs.form))+'</div>'+
+        '<div class="field" id="gdLineup" style="touch-action:none">'+gdLineupSvg+'</div>'+
         '<p class="edhint">Drag a player onto a teammate to swap their spots.</p>'+
         lineup+benchHtml+subHtml;
     } else {
