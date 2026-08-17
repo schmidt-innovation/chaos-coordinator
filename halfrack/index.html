@@ -1103,7 +1103,7 @@
       var taken = playsOf(f).map(function(p){ return p.n.toLowerCase(); });
       while(taken.indexOf(pn.toLowerCase()) > -1){ pn = base+' '+j; j++; }
       state.seq++;
-      state.custom.push({id:'c'+state.seq, form:fi, n:pn, t:cp.t, d:cp.d, routes:cp.routes});
+      state.custom.push({id:'c'+state.seq, form:fi, n:pn, t:cp.t, d:cp.d, routes:cp.routes, by:cp.by});
       plays++;
       var oldFName = (cp.form >= stockN && o.customForms && o.customForms[cp.form-stockN])
         ? o.customForms[cp.form-stockN].name
@@ -1548,7 +1548,7 @@
         else if(rt.block){ r.push({p: rt.pts, block:true, slot: rt.slot}); }
         else { r.push({p: rt.pts, slot: rt.slot}); }
       });
-      return {n:c.n, t:c.t, d:c.d || 'Custom play — drawn by coach.', r:r, c:'none', custom:true, cid:c.id};
+      return {n:c.n, t:c.t, d:c.d || 'Custom play — drawn by coach.', r:r, c:'none', by:c.by, custom:true, cid:c.id};
     });
   }
   function playsOf(f){ return f.plays.concat(customPlays(f.idx)); }
@@ -2080,6 +2080,7 @@
       '<div class="phead"><h3>'+(on?'<span class="keptstar">★</span> ':'')+esc(dn)+'</h3>'+
       '<div class="tag'+(p.t==='run'?' run':'')+'">'+(p.t==='run'?'Run':'Pass')+'</div>'+
       (p.custom?'<div class="tag" style="border-color:var(--whistle);color:var(--whistle)">Custom</div>':'')+
+      (p.custom && p.by && opts && opts.by ? '<span class="aka">\u270e '+esc(p.by)+'</span>' : '')+
       (fl?'<div class="tag">Flipped ↔</div>':'')+
       (dn!==p.n?'<span class="aka">aka '+esc(p.n)+'</span>':'')+
       '<button type="button" class="rname" aria-label="Rename play" title="Rename play">✎</button></div>'+
@@ -3520,7 +3521,7 @@
       if(!items.length) return;
       total += items.length;
       html += '<h3 class="callhead">'+f.name+' · '+esc(f.sub)+'</h3>'+
-        items.map(function(p){ return playCardHtml(f, p, null); }).join('');
+        items.map(function(p){ return playCardHtml(f, p, null, {by:true}); }).join('');
     });
     if(total){
       host.innerHTML = '<div class="benchline" style="margin:0 0 4px">'+total+' play'+(total===1?'':'s')+' in the game plan.</div>'+html+
@@ -3545,7 +3546,7 @@
     var items = customPlays(f.idx);
     host.innerHTML = items.length
       ? '<h3 class="callhead">Your plays in '+esc(f.name)+'</h3>'+
-        items.map(function(p){ return playCardHtml(f, p, null); }).join('')
+        items.map(function(p){ return playCardHtml(f, p, null, {by:true}); }).join('')
       : '<div class="empty">No custom plays in '+esc(f.name)+' yet. Tap <b>✏ Add play</b> to draw one — it\'ll work everywhere the stock plays do.</div>';
     wirePlayCards(host,
       function(){ renderMine(); updateCount(); renderGameDay(); },
@@ -3648,7 +3649,7 @@
       if(filter==='all') return true;
       return p.t===filter;
     });
-    list.innerHTML = items.map(function(p){ return playCardHtml(f,p,null); }).join('');
+    list.innerHTML = items.map(function(p){ return playCardHtml(f,p,null,{by:true}); }).join('');
     wirePlayCards(list, function(){ updateCount(); renderGameDay(); }, function(){ renderPlays(); renderGameDay(); });
     updateCount();
   }
@@ -4176,12 +4177,13 @@
             state.series.forEach(function(s){ if(s.callPlay === cur.n) s.callPlay = name; });
           }
           cur.n = name; cur.t = edState.t; cur.d = desc; cur.routes = routes;
+          if(coachByName()){ cur.by = coachByName(); }
         }
       } else {
         state.seq++;
         state.custom.push({
           id:'c'+state.seq, form:edState.form, n:name, t:edState.t,
-          d:desc, routes:routes
+          d:desc, routes:routes, by: coachByName() || undefined
         });
       }
       save();
@@ -4559,6 +4561,7 @@
   var SYNC_APP = 'halfrack';
   var SYNC_PARTS = ['off','def','roster'];
   function syncOn(){ return !!(state.sync && state.sync.teamId && state.sync.secret); }
+  function coachByName(){ return (state.sync && state.sync.label) ? state.sync.label : ''; }
   function partPayload(part){
     if(part === 'off') return {v:2, part:'off', kept:state.kept, alias:state.alias, flip:state.flip, custom:state.custom, customForms:state.customForms};
     if(part === 'def') return {v:2, part:'def', customDefs:state.customDefs, keptDefs:state.keptDefs, defFlip:state.defFlip};
@@ -4626,7 +4629,7 @@
       var taken = playsOf(f).map(function(p){ return p.n.toLowerCase(); });
       while(taken.indexOf(pn.toLowerCase()) > -1){ pn = base2+' '+j2; j2++; }
       state.seq++;
-      state.custom.push({id:'c'+state.seq, form:fi, n:pn, t:cp.t, d:cp.d, routes:cp.routes});
+      state.custom.push({id:'c'+state.seq, form:fi, n:pn, t:cp.t, d:cp.d, routes:cp.routes, by:cp.by});
     });
     ['kept','alias','flip'].forEach(function(key){
       Object.keys(o[key]||{}).forEach(function(k){
