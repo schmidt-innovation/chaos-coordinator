@@ -4765,17 +4765,17 @@
       syncMsg(manual ? 'Offline — try again with a connection.' : 'Offline');
     });
   }
-  function createTeam(name){
+  function createTeam(name, who){
     syncMsg('Creating team…');
     syncCall('create', {app: SYNC_APP, name: name}).then(function(res){
       if(!(res.teamId && res.secret)){ syncMsg('Couldn\'t create the team — try again.', true); return; }
-      state.sync = {teamId: res.teamId, secret: res.secret, app: SYNC_APP, name: res.name || name, label:'', revs:{}, shadow:{}, lastSync: 0};
+      state.sync = {teamId: res.teamId, secret: res.secret, app: SYNC_APP, name: res.name || name, label: (who||'').trim().slice(0,40), revs:{}, shadow:{}, lastSync: 0};
       saveNow(); renderSyncCard();
       syncMsg('Team created ✓ — sending this device\'s setup up now.');
       syncPush();
     }).catch(function(){ syncMsg('Offline — try again with a connection.', true); });
   }
-  function joinTeam(info){
+  function joinTeam(info, who){
     syncCall('pull', {teamId: info.teamId, secret: info.secret, revs: {}}).then(function(res){
       if(res.error){ codeMsg('That invite didn\'t work — ask for a fresh one.', false); return; }
       if(res.app !== SYNC_APP){ codeMsg('That invite is for the other coach app — open it there instead.', false); return; }
@@ -4787,7 +4787,7 @@
       state.pcolors = prefs.pcolors; state.pnames = prefs.pnames; state.anim = prefs.anim;
       state.sunlight = prefs.sunlight; state.rosterLock = prefs.rosterLock;
       rebuildForms();
-      state.sync = {teamId: info.teamId, secret: info.secret, app: SYNC_APP, name: res.name || info.name || 'Team', label:'', revs:{}, shadow:{}, lastSync: Date.now()};
+      state.sync = {teamId: info.teamId, secret: info.secret, app: SYNC_APP, name: res.name || info.name || 'Team', label: (who||'').trim().slice(0,40), revs:{}, shadow:{}, lastSync: Date.now()};
       SYNC_PARTS.forEach(function(part){
         var inc = res.parts && res.parts[part];
         if(inc){ applyIncomingPart(part, inc.blob, false); state.sync.revs[part] = inc.rev; }
@@ -4811,10 +4811,16 @@
     shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
       '<h3>Join “'+esc(info.name||'this team')+'”?</h3>'+
       '<p>This device becomes the team: its setup replaces everything here. The current setup is kept in <b>Settings → History</b>.</p>'+
-      '<div class="btns" style="margin:0"><button type="button" id="stJoin" style="border-color:var(--whistle);color:var(--whistle)">Join team</button>'+
+      '<label class="flab">Your name (shows on the team\'s sync history)</label>'+
+      '<input class="tin" id="stWho" type="text" autocomplete="off" placeholder="Coach" value="'+esc(((document.getElementById('syncWho')||{}).value) || (state.sync && state.sync.label) || '')+'">'+
+      '<div class="btns"><button type="button" id="stJoin" style="border-color:var(--whistle);color:var(--whistle)">Join team</button>'+
       '<button type="button" id="stCancel">Cancel</button></div></div></div>';
     shareModal.hidden = false;
-    document.getElementById('stJoin').addEventListener('click', function(){ closeShareModal(); joinTeam(info); });
+    document.getElementById('stJoin').addEventListener('click', function(){
+      var who = (document.getElementById('stWho')||{value:''}).value;
+      closeShareModal();
+      joinTeam(info, who);
+    });
     document.getElementById('stCancel').addEventListener('click', closeShareModal);
   }
   function renderSyncCard(){
@@ -4823,7 +4829,9 @@
     if(!syncOn()){
       host.innerHTML =
         '<p>Keep every coach\'s app in step automatically — one builds the offense, another the defense, and everyone opens the same playbook on Saturday.</p>'+
-        '<label class="flab">Start a team</label>'+
+        '<label class="flab">Your name (shows on the team\'s sync history)</label>'+
+        '<input class="tin" id="syncWho" type="text" autocomplete="off" placeholder="Coach">'+
+        '<label class="flab" style="margin-top:12px">Start a team</label>'+
         '<div class="rrow" style="margin-bottom:0"><input class="tin" id="syncName" type="text" autocomplete="off" placeholder="Team name">'+
         '<button type="button" class="iconbtn" id="syncCreate" aria-label="Create team sync" style="width:auto;padding:0 14px">Create</button></div>'+
         '<label class="flab" style="margin-top:12px">Join a team</label>'+
@@ -4862,7 +4870,8 @@
     if(!t || !t.id) return;
     if(t.id === 'syncCreate'){
       var nm = (document.getElementById('syncName').value||'').trim() || 'My team';
-      createTeam(nm);
+      var who = (document.getElementById('syncWho')||{value:''}).value;
+      createTeam(nm, who);
     } else if(t.id === 'syncInvite'){
       var invUrl = teamInviteLink();
       var invHint = 'Scanning this joins “'+esc(state.sync.name||'the team')+'” — their app starts syncing with yours. Only share it with your coaches.';
