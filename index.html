@@ -896,6 +896,12 @@
   </div>
 
   <div class="card">
+    <h3>Team sync</h3>
+    <div id="syncCard"></div>
+    <p class="hintline" id="syncStatus" hidden></p>
+  </div>
+
+  <div class="card">
     <h3>Share &amp; transfer</h3>
     <p id="saveStatus"></p>
     <div class="btns" style="margin:0">
@@ -910,12 +916,6 @@
       <input class="tin" id="codeIn" type="text" autocomplete="off" placeholder="Paste any share link or code">
       <button type="button" class="iconbtn" id="codeGo" aria-label="Load shared link or code">→</button>
     </div>
-  </div>
-
-  <div class="card">
-    <h3>Team sync</h3>
-    <div id="syncCard"></div>
-    <p class="hintline" id="syncStatus" hidden></p>
   </div>
 
   <div class="card">
@@ -5110,7 +5110,14 @@
     syncCall('pull', {teamId: info.teamId, secret: info.secret, revs: {}}).then(function(res){
       if(res.error){ codeMsg('That invite didn\'t work — ask for a fresh one.', false); return; }
       if(res.app !== SYNC_APP){ codeMsg('That invite is for the other coach app — open it there instead.', false); return; }
-      takeSnapshot(true); /* pin what's here, the team's setup is about to land */
+      takeSnapshot(true); /* pin what's here — joining replaces it, History keeps it */
+      /* clean slate: joining means becoming the team, so nothing local can leak
+         up into it. Device display preferences stay — they're not team data. */
+      var prefs = {pcolors:state.pcolors, pnames:state.pnames, anim:state.anim, sunlight:state.sunlight, rosterLock:state.rosterLock};
+      state = defaultState();
+      state.pcolors = prefs.pcolors; state.pnames = prefs.pnames; state.anim = prefs.anim;
+      state.sunlight = prefs.sunlight; state.rosterLock = prefs.rosterLock;
+      rebuildForms();
       state.sync = {teamId: info.teamId, secret: info.secret, app: SYNC_APP, name: res.name || info.name || 'Team', label:'', revs:{}, shadow:{}, lastSync: Date.now()};
       SYNC_PARTS.forEach(function(part){
         var inc = res.parts && res.parts[part];
@@ -5119,7 +5126,7 @@
       saveNow(); syncRerender();
       showTab('settings');
       codeMsg('Joined “'+state.sync.name+'” ✓ — this device now syncs with the team.', true);
-      syncPush(); /* offer up anything local the team didn't have yet */
+      syncPush(); /* fill in empty docs for any part the team hasn't pushed yet */
     }).catch(function(){ codeMsg('Offline — try the invite again with a connection.', false); });
   }
   function teamInviteLink(){
@@ -5134,7 +5141,7 @@
     }
     shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
       '<h3>Join “'+esc(info.name||'this team')+'”?</h3>'+
-      '<p>This device starts syncing with the team. If the team already has a setup, it replaces what\'s here — the current setup is kept in <b>Settings → History</b>.</p>'+
+      '<p>This device becomes the team: its setup replaces everything here. The current setup is kept in <b>Settings → History</b>.</p>'+
       '<div class="btns" style="margin:0"><button type="button" id="stJoin" style="border-color:var(--whistle);color:var(--whistle)">Join team</button>'+
       '<button type="button" id="stCancel">Cancel</button></div></div></div>';
     shareModal.hidden = false;
@@ -5147,9 +5154,13 @@
     if(!syncOn()){
       host.innerHTML =
         '<p>Keep every coach\'s app in step automatically — one builds the offense, another the defense, and everyone opens the same playbook on Saturday.</p>'+
+        '<label class="flab">Start a team</label>'+
         '<div class="rrow" style="margin-bottom:0"><input class="tin" id="syncName" type="text" autocomplete="off" placeholder="Team name">'+
         '<button type="button" class="iconbtn" id="syncCreate" aria-label="Create team sync" style="width:auto;padding:0 14px">Create</button></div>'+
-        '<p class="edhint">Joining a team instead? Scan the other coach\'s <b>invite QR</b> (⛶ above) or paste their invite link into "Load a shared link or code".</p>';
+        '<label class="flab" style="margin-top:12px">Join a team</label>'+
+        '<div class="rrow" style="margin-bottom:0"><input class="tin" id="syncJoinIn" type="text" autocomplete="off" placeholder="Invite code or link">'+
+        '<button type="button" class="iconbtn" id="syncJoinGo" aria-label="Join team" style="width:auto;padding:0 14px">Join</button></div>'+
+        '<p class="edhint">Codes and links come from a teammate\'s <b>Invite a coach</b> — their invite QR works too (⛶ in Share &amp; transfer).</p>';
       return;
     }
     var s = state.sync;
@@ -5170,8 +5181,40 @@
       var nm = (document.getElementById('syncName').value||'').trim() || 'My team';
       createTeam(nm);
     } else if(t.id === 'syncInvite'){
-      openLinkShareModal('Invite a coach', teamInviteLink(),
-        'Scanning this joins “'+esc(state.sync.name||'the team')+'” — their app starts syncing with yours. Only share it with your coaches.');
+      var invUrl = teamInviteLink();
+      var invHint = 'Scanning this joins “'+esc(state.sync.name||'the team')+'” — their app starts syncing with yours. Only share it with your coaches.';
+      syncCall('invite', {teamId: state.sync.teamId, secret: state.sync.secret}).then(function(res){
+        var hint = invHint + (res.code
+          ? '<br><span style="display:inline-block;margin-top:8px;font-weight:800;font-size:20px;letter-spacing:3px;color:var(--whistle)">'+esc(res.code.slice(0,4)+'-'+res.code.slice(4))+'</span><br>Or they can type this code into <b>Team sync → Join a team</b> — good for 24 hours.'
+          : '');
+        openLinkShareModal('Invite a coach', invUrl, hint);
+      }).catch(function(){ openLinkShareModal('Invite a coach', invUrl, invHint); });
+    } else if(t.id === 'syncJoinGo'){
+      var rawIn = (document.getElementById('syncJoinIn').value||'').trim();
+      if(!rawIn) return;
+      var codeIn = rawIn.toUpperCase().replace(/[^A-Z0-9]/g,'');
+      if(/^[A-Z0-9]{8}$/.test(codeIn) && rawIn.indexOf('#') === -1){
+        syncMsg('Checking code…');
+        syncCall('join', {code: codeIn}).then(function(res){
+          if(res.teamId && res.secret){
+            if(res.app && res.app !== SYNC_APP){ syncMsg('That invite is for the other coach app — open it there instead.', true); return; }
+            syncMsg('');
+            document.getElementById('syncJoinIn').value = '';
+            promptJoinTeam(res);
+          } else {
+            syncMsg(res.error || 'That code didn\'t work — codes last 24 hours.', true);
+          }
+        }).catch(function(){ syncMsg('Offline — try again with a connection.', true); });
+        return;
+      }
+      var lm = rawIn.match(/#p=([^&#\s]+)/);
+      var linked = decodeCode(lm ? lm[1] : rawIn);
+      if(linked && linked.part === 'team'){
+        document.getElementById('syncJoinIn').value = '';
+        promptJoinTeam(linked);
+      } else {
+        syncMsg('That didn\'t look like an invite — paste the whole link or the 8-character code.', true);
+      }
     } else if(t.id === 'syncNow'){
       syncPull(true);
     } else if(t.id === 'syncLeave'){
