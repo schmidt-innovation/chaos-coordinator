@@ -346,7 +346,10 @@
   <div class="card">
     <h3>Series</h3>
     <p>A series is one trip on offense. Set the eight on the field and their spots. When the ball turns over, the next series group goes in.</p>
-    <button type="button" class="ghostbtn solid gold" id="autoRotate">⟳ Auto-rotate roster into fair series</button>
+    <div style="display:flex;gap:8px;align-items:stretch">
+      <button type="button" class="ghostbtn solid gold" id="autoRotate" style="flex:1">⟳ Auto-rotate roster into fair series</button>
+      <button type="button" class="iconbtn" id="seriesLock" aria-label="Lock series" aria-pressed="false" style="flex:0 0 44px">🔓</button>
+    </div>
     <div class="hintline" id="autoHint" hidden>Name at least 8 players first.</div>
   </div>
 
@@ -682,7 +685,7 @@
     for(i=0;i<10;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, pnames:true, anim:true, sunlight:false, rosterLock:false, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, sync:null, seq:11};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, pnames:true, anim:true, sunlight:false, rosterLock:false, seriesLock:false, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, sync:null, seq:11};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -1161,6 +1164,7 @@
     if(typeof loaded.pnames === 'boolean') state.pnames = loaded.pnames;
     if(typeof loaded.anim === 'boolean') state.anim = loaded.anim;
     if(typeof loaded.rosterLock === 'boolean') state.rosterLock = loaded.rosterLock;
+    if(typeof loaded.seriesLock === 'boolean') state.seriesLock = loaded.seriesLock;
     if(typeof loaded.sunlight === 'boolean') state.sunlight = loaded.sunlight;
     if(Array.isArray(loaded.custom)) state.custom = loaded.custom;
     if(Array.isArray(loaded.customForms)) state.customForms = loaded.customForms;
@@ -1194,6 +1198,7 @@
     /* every boot starts locked once a roster exists — unlocking is a deliberate
        act each session, not a sticky state. A fresh setup stays unlocked. */
     if(namedPlayers().length){ state.rosterLock = true; }
+    if(state.series.some(function(s){ return s.slots && Object.keys(s.slots).length; })){ state.seriesLock = true; }
   }
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
@@ -2309,6 +2314,24 @@
     state.rosterLock = !state.rosterLock;
     save(); renderRoster();
   });
+  var seriesOpen = {}; /* which locked series are peeked open — session-only */
+  function renderSeriesLockUi(){
+    var lb = document.getElementById('seriesLock');
+    if(lb){
+      lb.setAttribute('aria-pressed', state.seriesLock ? 'true' : 'false');
+      lb.textContent = state.seriesLock ? '🔒' : '🔓';
+      lb.style.color = state.seriesLock ? 'var(--whistle)' : '';
+      lb.style.borderColor = state.seriesLock ? 'var(--whistle)' : '';
+    }
+    var ar = document.getElementById('autoRotate');
+    if(ar){ ar.hidden = !!state.seriesLock; }
+    var ad = document.getElementById('addSeries');
+    if(ad){ ad.hidden = !!state.seriesLock; }
+  }
+  document.getElementById('seriesLock').addEventListener('click', function(){
+    state.seriesLock = !state.seriesLock;
+    save(); renderSeriesList();
+  });
   document.getElementById('addPlayer').addEventListener('click', function(){
     state.seq++;
     state.players.push({id:'p'+state.seq, name:''});
@@ -2596,6 +2619,7 @@
   }
 
   function renderSeriesList(){
+    renderSeriesLockUi();
     seriesList.innerHTML = state.series.map(function(s,si){
       var f = FORMS[s.form]||FORMS[0];
       var order = slotOrder(f);
@@ -2619,6 +2643,22 @@
           defOpts.map(function(p){ return '<option value="'+esc(p.id)+'"'+(p.id===sel?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('')+
           '</select></div>';
       }).join('')+'</div>';
+      if(state.seriesLock){
+        /* locked: each series collapses to a summary row — tap to peek, read-only */
+        var open = !!seriesOpen[si];
+        var filled = order.filter(function(sl){ return s.slots[sl]; }).length;
+        return '<div class="scard" data-i="'+si+'">'+
+          '<div class="shead"'+(open?'':' style="margin-bottom:0"')+'><button type="button" class="sexp" aria-expanded="'+open+'" style="flex:1;display:flex;align-items:center;gap:8px;background:none;border:none;color:var(--paper);font:inherit;font-weight:700;padding:6px 2px;cursor:pointer;text-align:left">'+
+          '<span style="color:var(--whistle)">'+(open?'▾':'▸')+'</span><span>'+esc(s.label||('Series '+(si+1)))+'</span>'+
+          '<span style="margin-left:auto;font-weight:600;font-size:12px;color:var(--paper-dim)">'+esc(f.name)+' · '+filled+'/'+order.length+'</span></button></div>'+
+          (open
+            ? '<div class="slots">'+slotsHtml.replace(/<select /g,'<select disabled ')+'</div>'+
+              '<label class="flab">Defense zones &middot; when they have the ball</label>'+
+              zoneSlotsHtml.replace(/<select /g,'<select disabled ')+
+              '<div class="benchline" style="margin-bottom:0">Sitting out: <b>'+(bench.length?bench.map(function(p){return esc(firstName(p.name));}).join(', '):'—')+'</b></div>'
+            : '')+
+          '</div>';
+      }
       return '<div class="scard" data-i="'+si+'">'+
         '<div class="shead"><input class="tin slabel" type="text" value="'+esc(s.label)+'" aria-label="Series name">'+
         '<button type="button" class="iconbtn sdel" aria-label="Delete series">✕</button></div>'+
@@ -2631,6 +2671,11 @@
 
     seriesList.querySelectorAll('.scard').forEach(function(card){
       var si = +card.dataset.i, s = state.series[si];
+      var exp = card.querySelector('.sexp');
+      if(exp){
+        exp.addEventListener('click', function(){ seriesOpen[si] = !seriesOpen[si]; renderSeriesList(); });
+        return;
+      }
       card.querySelector('.slabel').addEventListener('input', function(ev){ s.label = ev.target.value; save(); });
       card.querySelector('.slabel').addEventListener('change', function(){ renderGameDay(); });
       card.querySelectorAll('.psel').forEach(function(sel){
@@ -4788,10 +4833,10 @@
       takeSnapshot(true); /* pin what's here — joining replaces it, History keeps it */
       /* clean slate: joining means becoming the team, so nothing local can leak
          up into it. Device display preferences stay — they're not team data. */
-      var prefs = {pcolors:state.pcolors, pnames:state.pnames, anim:state.anim, sunlight:state.sunlight, rosterLock:state.rosterLock};
+      var prefs = {pcolors:state.pcolors, pnames:state.pnames, anim:state.anim, sunlight:state.sunlight, rosterLock:state.rosterLock, seriesLock:state.seriesLock};
       state = defaultState();
       state.pcolors = prefs.pcolors; state.pnames = prefs.pnames; state.anim = prefs.anim;
-      state.sunlight = prefs.sunlight; state.rosterLock = prefs.rosterLock;
+      state.sunlight = prefs.sunlight; state.rosterLock = prefs.rosterLock; state.seriesLock = prefs.seriesLock;
       rebuildForms();
       state.sync = {teamId: info.teamId, secret: info.secret, app: SYNC_APP, name: res.name || info.name || 'Team', label: (who||'').trim().slice(0,40), revs:{}, shadow:{}, lastSync: Date.now()};
       SYNC_PARTS.forEach(function(part){
