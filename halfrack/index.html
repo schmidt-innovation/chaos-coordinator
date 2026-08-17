@@ -1514,10 +1514,12 @@
       /* flea flicker: on a pass the give comes back to the QB — unless the carrier throws */
       if(c.t === 'pass' && carriers.length && !thrower){ r.push({p: tossPts(from, qbBack), toss:true, to:'QB'}); }
       var ordered = firstRt ? [firstRt].concat(rest) : rest;
+      /* every entry carries its slot — a motion player's route starts at the motion
+         end, so the nearest-spot fallback would hand it to the wrong player */
       ordered.forEach(function(rt){
-        if(rt.fake){ r.push({p: rt.pts, dashed:true}); }
+        if(rt.fake){ r.push({p: rt.pts, dashed:true, slot: rt.slot}); }
         else if(rt.block){ r.push({p: rt.pts, block:true, slot: rt.slot}); }
-        else { r.push(rt.pts); }
+        else { r.push({p: rt.pts, slot: rt.slot}); }
       });
       return {n:c.n, t:c.t, d:c.d || 'Custom play — drawn by coach.', r:r, c:'none', custom:true, cid:c.id};
     });
