@@ -1173,8 +1173,15 @@
       if(!loaded){ try{ loaded = JSON.parse(decodeURIComponent(m[1])); }catch(e){} }
       if(loaded && loaded.part){ loaded = null; } /* partial codes can't boot a device */
     }
-    if(!loaded){ try{ loaded = JSON.parse(localStorage.getItem(KEY)||''); }catch(e){} }
+    var stored = null;
+    try{ stored = JSON.parse(localStorage.getItem(KEY)||''); }catch(e){}
+    if(!loaded){ loaded = stored; }
     mergeLoaded(loaded);
+    /* the hash mirror strips the team secret on purpose, so a boot from the
+       hash must recover team membership from this device's own storage */
+    if(!state.sync && stored && stored.sync && stored.sync.teamId && stored.sync.secret){
+      state.sync = stored.sync;
+    }
     if(state.current >= state.series.length) state.current = 0;
   }
 
