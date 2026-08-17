@@ -621,6 +621,12 @@
   </div>
 
   <div class="card">
+    <h3>Team sync</h3>
+    <div id="syncCard"></div>
+    <p class="hintline" id="syncStatus" hidden></p>
+  </div>
+
+  <div class="card">
     <h3>Team file</h3>
     <p>A small file with the whole setup — stash it in Drive, iCloud, or email. Importing one replaces this device's setup, with a backup saved to History first.</p>
     <div class="btns" style="margin:0">
@@ -668,7 +674,7 @@
     for(i=0;i<10;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, pnames:true, anim:true, sunlight:false, rosterLock:false, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, seq:11};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, pnames:true, anim:true, sunlight:false, rosterLock:false, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, sync:null, seq:11};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -685,6 +691,7 @@
     try{ localStorage.setItem(KEY, json); }catch(e){}
     try{ history.replaceState(null,'','#d='+encodeState()); }catch(e){}
     takeSnapshot();
+    scheduleSyncPush();
   }
   var saveT = null;
   function save(){ clearTimeout(saveT); saveT = setTimeout(saveNow, 300); }
@@ -1016,7 +1023,11 @@
     while(txt.length%4){ txt += '='; }
     return JSON.parse(decodeURIComponent(escape(atob(txt))));
   }
-  function encodeState(){ return 'HR2.'+lzPack(JSON.stringify(state)); }
+  function encodeState(){
+    var o = Object.assign({}, state);
+    delete o.sync; /* the team-sync secret never rides a share link or snapshot */
+    return 'HR2.'+lzPack(JSON.stringify(o));
+  }
   function encodeOffCode(){
     return 'HRO2.'+lzPack(JSON.stringify({v:2, part:'off',
       kept:state.kept, alias:state.alias, flip:state.flip,
@@ -1044,7 +1055,7 @@
     }
     /* v2 codes: LZW-compressed */
     var lz = null;
-    if(txt.indexOf('HRO2.')===0 || txt.indexOf('HRD2.')===0 || txt.indexOf('HRP2.')===0){ lz = txt.slice(5); }
+    if(txt.indexOf('HRO2.')===0 || txt.indexOf('HRD2.')===0 || txt.indexOf('HRP2.')===0 || txt.indexOf('HRT2.')===0){ lz = txt.slice(5); }
     else if(txt.indexOf('HR2.')===0){ lz = txt.slice(4); }
     if(lz !== null){
       try{ return JSON.parse(lzUnpack(lz)); }catch(e){ return null; }
@@ -1148,6 +1159,7 @@
     if(Array.isArray(loaded.customDefs)) state.customDefs = loaded.customDefs;
     if(loaded.keptDefs) state.keptDefs = loaded.keptDefs;
     if(loaded.defFlip) state.defFlip = loaded.defFlip;
+    if(loaded.sync && loaded.sync.teamId && loaded.sync.secret) state.sync = loaded.sync;
     if(loaded.seq) state.seq = loaded.seq;
     if(state.current >= state.series.length) state.current = 0;
     return true;
@@ -2032,7 +2044,7 @@
   function showTab(id){
     tabs.forEach(function(x){ x.setAttribute('aria-selected', x.dataset.target===id ? 'true':'false'); });
     panels.forEach(function(p){ p.classList.toggle('on', p.id === id); });
-    if(id === 'settings') renderSnaps();
+    if(id === 'settings'){ renderSnaps(); renderSyncCard(); }
     window.scrollTo({top:0,behavior:'smooth'});
     setTimeout(drawVisible,140);
   }
@@ -4519,6 +4531,326 @@
     codeMsgEl.textContent = txt||'';
     codeMsgEl.style.color = ok ? 'var(--whistle)' : '';
   }
+  /* ================= team sync (multi-coach, via conestogayouthsports.org) =================
+     The server is a per-team mailbox of three revisioned blobs — off / def / roster —
+     stored as this app's own lz-packed payloads. Phones stay the source of truth and
+     work offline; sync is opportunistic: push (debounced) after saves, pull on open,
+     on returning to the app, and from the Sync button. Conflicts come back to the
+     client, which merges (identical things skipped, true collisions become renamed
+     copies) and pushes again. */
+  var SYNC_API = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? 'http://localhost:3001/api/coach-sync'
+    : 'https://www.conestogayouthsports.org/api/coach-sync';
+  var SYNC_APP = 'halfrack';
+  var SYNC_PARTS = ['off','def','roster'];
+  function syncOn(){ return !!(state.sync && state.sync.teamId && state.sync.secret); }
+  function partPayload(part){
+    if(part === 'off') return {v:2, part:'off', kept:state.kept, alias:state.alias, flip:state.flip, custom:state.custom, customForms:state.customForms};
+    if(part === 'def') return {v:2, part:'def', customDefs:state.customDefs, keptDefs:state.keptDefs, defFlip:state.defFlip};
+    return {v:2, part:'roster', players:state.players, series:state.series, formKept:state.formKept};
+  }
+  function partJson(part){ return JSON.stringify(partPayload(part)); }
+  /* ids arrive from teammates with their own counters — keep ours ahead of every id we hold */
+  function bumpSeqFor(list){
+    (list||[]).forEach(function(x){
+      var m = String((x && x.id) || '').match(/^[a-z](\d+)$/);
+      if(m && +m[1] >= state.seq){ state.seq = +m[1] + 1; }
+    });
+  }
+  function clampSeriesForms(){
+    var maxF = FORMS.length - 1;
+    state.series.forEach(function(s){
+      if(s.form > maxF){ s.form = 0; s.callPlay = null; }
+      if(s.callForm != null && s.callForm > maxF){ s.callForm = s.form; s.callPlay = null; }
+    });
+  }
+  function applyOffReplace(o){
+    state.kept = o.kept||{}; state.alias = o.alias||{}; state.flip = o.flip||{};
+    state.custom = o.custom||[]; state.customForms = o.customForms||[];
+    bumpSeqFor(state.custom); bumpSeqFor(state.customForms);
+    rebuildForms(); clampSeriesForms();
+  }
+  function applyDefReplace(o){
+    state.customDefs = o.customDefs||[]; state.keptDefs = o.keptDefs||{}; state.defFlip = o.defFlip||{};
+    bumpSeqFor(state.customDefs);
+  }
+  function applyRosterReplace(o){
+    if(Array.isArray(o.players) && o.players.length) state.players = o.players;
+    if(Array.isArray(o.series) && o.series.length) state.series = o.series;
+    state.formKept = o.formKept||{};
+    bumpSeqFor(state.players); bumpSeqFor(state.series);
+    if(state.current >= state.series.length) state.current = 0;
+    clampSeriesForms();
+  }
+  /* merge for pulls that land on top of local edits: identical things are skipped,
+     a name collision with different content becomes a renamed copy — nothing is lost */
+  function syncMergeOffense(o){
+    var stockN = STOCK_FORMS.length;
+    var idxMap = {};
+    (o.customForms||[]).forEach(function(cf, k){
+      var hit = -1;
+      state.customForms.forEach(function(lf, li){ if(hit < 0 && lf.name.toLowerCase() === cf.name.toLowerCase()) hit = li; });
+      if(hit > -1 && JSON.stringify(state.customForms[hit].spots) === JSON.stringify(cf.spots)){ idxMap[stockN+k] = stockN + hit; return; }
+      var nm = cf.name, base = nm, j = 2;
+      var names = FORMS.map(function(f){ return f.name.toLowerCase(); });
+      while(names.indexOf(nm.toLowerCase()) > -1){ nm = base+' '+j; j++; }
+      state.seq++;
+      state.customForms.push({id:'f'+state.seq, name:nm, spots:cf.spots});
+      idxMap[stockN+k] = stockN + state.customForms.length - 1;
+      rebuildForms();
+    });
+    rebuildForms();
+    (o.custom||[]).forEach(function(cp){
+      var fi = cp.form;
+      if(fi >= stockN){ fi = idxMap[fi]; if(fi == null) return; }
+      var f = FORMS[fi];
+      if(!f) return;
+      var dup = state.custom.filter(function(c){ return c.form === fi && c.n.toLowerCase() === cp.n.toLowerCase(); })[0];
+      if(dup && dup.t === cp.t && JSON.stringify(dup.routes) === JSON.stringify(cp.routes)) return;
+      var pn = cp.n, base2 = pn, j2 = 2;
+      var taken = playsOf(f).map(function(p){ return p.n.toLowerCase(); });
+      while(taken.indexOf(pn.toLowerCase()) > -1){ pn = base2+' '+j2; j2++; }
+      state.seq++;
+      state.custom.push({id:'c'+state.seq, form:fi, n:pn, t:cp.t, d:cp.d, routes:cp.routes});
+    });
+    ['kept','alias','flip'].forEach(function(key){
+      Object.keys(o[key]||{}).forEach(function(k){
+        if(o[key][k] && state[key][k] === undefined){ state[key][k] = o[key][k]; }
+      });
+    });
+    clampSeriesForms();
+  }
+  function syncMergeDefense(o){
+    (o.customDefs||[]).forEach(function(cd){
+      var dup = (state.customDefs||[]).filter(function(d){ return d.name.toLowerCase() === cd.name.toLowerCase(); })[0];
+      if(dup && JSON.stringify([dup.pos,dup.roles,dup.sizes,dup.moves]) === JSON.stringify([cd.pos,cd.roles,cd.sizes,cd.moves])) return;
+      var nm = cd.name, base = nm, j = 2;
+      var names = allDefs().map(function(d){ return d.name.toLowerCase(); });
+      while(names.indexOf(nm.toLowerCase()) > -1){ nm = base+' '+j; j++; }
+      state.seq++;
+      var nid = 'd'+state.seq;
+      state.customDefs.push({id:nid, name:nm, pos:cd.pos, roles:cd.roles, sizes:cd.sizes, moves:cd.moves});
+      if(o.keptDefs && o.keptDefs[cd.id]){ state.keptDefs = state.keptDefs||{}; state.keptDefs[nid] = true; }
+    });
+  }
+  var syncT = null, syncBusy = false;
+  function fmtSyncTime(t){
+    try{ return new Date(t).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); }catch(e){ return ''; }
+  }
+  function syncMsg(txt, bad){
+    var el = document.getElementById('syncStatus');
+    if(el){ el.hidden = !txt; el.textContent = txt||''; el.style.color = bad ? 'var(--flag)' : ''; }
+  }
+  function syncCall(ep, body){
+    return fetch(SYNC_API+'/'+ep, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
+      .then(function(r){ return r.json().then(function(j){ j.__status = r.status; return j; }); });
+  }
+  function syncShadow(){
+    if(!state.sync.shadow) state.sync.shadow = {};
+    return state.sync.shadow;
+  }
+  function syncDirtyParts(){
+    if(!syncOn()) return [];
+    var sh = syncShadow();
+    return SYNC_PARTS.filter(function(p){ return partJson(p) !== sh[p]; });
+  }
+  function scheduleSyncPush(){
+    if(!syncOn()) return;
+    clearTimeout(syncT);
+    syncT = setTimeout(syncPush, 3000);
+  }
+  function applyIncomingPart(part, blob, viaMerge){
+    var o = null;
+    try{ o = JSON.parse(lzUnpack(blob)); }catch(e){}
+    if(!o) return;
+    if(part === 'off'){
+      if(viaMerge){ syncMergeOffense(o); }
+      else { applyOffReplace(o); syncShadow().off = partJson('off'); }
+    } else if(part === 'def'){
+      if(viaMerge){ syncMergeDefense(o); }
+      else { applyDefReplace(o); syncShadow().def = partJson('def'); }
+    } else {
+      /* roster with local edits pending: mine wins — the push (with the fresh
+         baseRev) sends it up, and the server history keeps theirs */
+      if(!viaMerge){ applyRosterReplace(o); syncShadow().roster = partJson('roster'); }
+    }
+  }
+  function pushPart(part, depth){
+    var s = state.sync;
+    var payloadJson = partJson(part);
+    return syncCall('push', {
+      teamId: s.teamId, secret: s.secret, part: part,
+      baseRev: (s.revs && s.revs[part]) || 0,
+      blob: lzPack(payloadJson),
+      updatedBy: s.label || 'Coach'
+    }).then(function(res){
+      if(res.conflict){
+        applyIncomingPart(part, res.blob, true);
+        s.revs[part] = res.rev;
+        if((depth||0) < 2){ return pushPart(part, (depth||0)+1); }
+        return;
+      }
+      if(res.rev){ s.revs[part] = res.rev; syncShadow()[part] = payloadJson; }
+      else if(res.error){ syncMsg('Sync error: '+res.error, true); }
+    });
+  }
+  function syncPush(){
+    if(!syncOn()) return;
+    if(syncBusy){ scheduleSyncPush(); return; }
+    var parts = syncDirtyParts();
+    if(!parts.length){ return; }
+    syncBusy = true;
+    var chain = Promise.resolve();
+    parts.forEach(function(part){ chain = chain.then(function(){ return pushPart(part, 0); }); });
+    chain.then(function(){
+      syncBusy = false;
+      state.sync.lastSync = Date.now();
+      saveNow();
+      syncMsg('Synced ✓ '+fmtSyncTime(state.sync.lastSync));
+      renderSyncCard();
+    }).catch(function(){
+      syncBusy = false;
+      syncMsg('Offline — changes will sync when you\'re back.');
+    });
+  }
+  function syncRerender(){
+    rebuildForms();
+    renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderStockPicker();
+    renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderDefList(); renderPlays();
+    renderSaveCard(); renderSyncCard();
+  }
+  function syncPull(manual){
+    if(!syncOn() || syncBusy) return;
+    syncBusy = true;
+    var s = state.sync;
+    if(manual) syncMsg('Syncing…');
+    syncCall('pull', {teamId: s.teamId, secret: s.secret, revs: s.revs || {}}).then(function(res){
+      syncBusy = false;
+      if(res.error){
+        syncMsg(res.__status === 401 ? 'This team link no longer works — ask a teammate for a fresh invite.' : 'Sync error: '+res.error, true);
+        return;
+      }
+      if(res.name && res.name !== s.name){ s.name = res.name; }
+      var dirty = syncDirtyParts(), got = 0;
+      SYNC_PARTS.forEach(function(part){
+        var inc = res.parts && res.parts[part];
+        if(!inc) return;
+        applyIncomingPart(part, inc.blob, dirty.indexOf(part) > -1);
+        s.revs[part] = inc.rev;
+        got++;
+      });
+      s.lastSync = Date.now();
+      saveNow();
+      if(got){ syncRerender(); }
+      syncMsg('Synced ✓ '+fmtSyncTime(s.lastSync));
+      renderSyncCard();
+      syncPush(); /* drain anything local the pull didn't cover */
+    }).catch(function(){
+      syncBusy = false;
+      syncMsg(manual ? 'Offline — try again with a connection.' : 'Offline');
+    });
+  }
+  function createTeam(name){
+    syncMsg('Creating team…');
+    syncCall('create', {app: SYNC_APP, name: name}).then(function(res){
+      if(!(res.teamId && res.secret)){ syncMsg('Couldn\'t create the team — try again.', true); return; }
+      state.sync = {teamId: res.teamId, secret: res.secret, app: SYNC_APP, name: res.name || name, label:'', revs:{}, shadow:{}, lastSync: 0};
+      saveNow(); renderSyncCard();
+      syncMsg('Team created ✓ — sending this device\'s setup up now.');
+      syncPush();
+    }).catch(function(){ syncMsg('Offline — try again with a connection.', true); });
+  }
+  function joinTeam(info){
+    syncCall('pull', {teamId: info.teamId, secret: info.secret, revs: {}}).then(function(res){
+      if(res.error){ codeMsg('That invite didn\'t work — ask for a fresh one.', false); return; }
+      if(res.app !== SYNC_APP){ codeMsg('That invite is for the other coach app — open it there instead.', false); return; }
+      takeSnapshot(true); /* pin what's here, the team's setup is about to land */
+      state.sync = {teamId: info.teamId, secret: info.secret, app: SYNC_APP, name: res.name || info.name || 'Team', label:'', revs:{}, shadow:{}, lastSync: Date.now()};
+      SYNC_PARTS.forEach(function(part){
+        var inc = res.parts && res.parts[part];
+        if(inc){ applyIncomingPart(part, inc.blob, false); state.sync.revs[part] = inc.rev; }
+      });
+      saveNow(); syncRerender();
+      showTab('settings');
+      codeMsg('Joined “'+state.sync.name+'” ✓ — this device now syncs with the team.', true);
+      syncPush(); /* offer up anything local the team didn't have yet */
+    }).catch(function(){ codeMsg('Offline — try the invite again with a connection.', false); });
+  }
+  function teamInviteLink(){
+    var s = state.sync;
+    return hashLink('#p=HRT2.'+lzPack(JSON.stringify({v:2, part:'team', app:s.app, teamId:s.teamId, secret:s.secret, name:s.name})));
+  }
+  function promptJoinTeam(info){
+    if(!(info && info.teamId && info.secret)){ codeMsg('That invite didn\'t work — ask for a fresh one.', false); return; }
+    if(state.sync && String(state.sync.teamId) === String(info.teamId)){
+      codeMsg('Already syncing with “'+state.sync.name+'” ✓', true);
+      return;
+    }
+    shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
+      '<h3>Join “'+esc(info.name||'this team')+'”?</h3>'+
+      '<p>This device starts syncing with the team. If the team already has a setup, it replaces what\'s here — the current setup is kept in <b>Settings → History</b>.</p>'+
+      '<div class="btns" style="margin:0"><button type="button" id="stJoin" style="border-color:var(--whistle);color:var(--whistle)">Join team</button>'+
+      '<button type="button" id="stCancel">Cancel</button></div></div></div>';
+    shareModal.hidden = false;
+    document.getElementById('stJoin').addEventListener('click', function(){ closeShareModal(); joinTeam(info); });
+    document.getElementById('stCancel').addEventListener('click', closeShareModal);
+  }
+  function renderSyncCard(){
+    var host = document.getElementById('syncCard');
+    if(!host) return;
+    if(!syncOn()){
+      host.innerHTML =
+        '<p>Keep every coach\'s app in step automatically — one builds the offense, another the defense, and everyone opens the same playbook on Saturday.</p>'+
+        '<div class="rrow" style="margin-bottom:0"><input class="tin" id="syncName" type="text" autocomplete="off" placeholder="Team name">'+
+        '<button type="button" class="iconbtn" id="syncCreate" aria-label="Create team sync" style="width:auto;padding:0 14px">Create</button></div>'+
+        '<p class="edhint">Joining a team instead? Scan the other coach\'s <b>invite QR</b> (⛶ above) or paste their invite link into "Load a shared link or code".</p>';
+      return;
+    }
+    var s = state.sync;
+    host.innerHTML =
+      '<p style="margin-top:0">Syncing with <b>'+esc(s.name||'your team')+'</b>'+
+      (s.lastSync ? ' · last synced '+fmtSyncTime(s.lastSync) : '')+'.</p>'+
+      '<div class="btns" style="margin:0">'+
+      '<button type="button" id="syncInvite">Invite a coach</button>'+
+      '<button type="button" id="syncNow">Sync now</button>'+
+      '<button type="button" id="syncLeave">Leave team</button></div>'+
+      '<label class="flab" style="margin-top:10px">Your name (shows on the team\'s sync history)</label>'+
+      '<input class="tin" id="syncLabel" type="text" autocomplete="off" placeholder="Coach" value="'+esc(s.label||'')+'">';
+  }
+  document.addEventListener('click', function(ev){
+    var t = ev.target;
+    if(!t || !t.id) return;
+    if(t.id === 'syncCreate'){
+      var nm = (document.getElementById('syncName').value||'').trim() || 'My team';
+      createTeam(nm);
+    } else if(t.id === 'syncInvite'){
+      openLinkShareModal('Invite a coach', teamInviteLink(),
+        'Scanning this joins “'+esc(state.sync.name||'the team')+'” — their app starts syncing with yours. Only share it with your coaches.');
+    } else if(t.id === 'syncNow'){
+      syncPull(true);
+    } else if(t.id === 'syncLeave'){
+      if(t.dataset.arm){
+        state.sync = null;
+        saveNow(); renderSyncCard();
+        syncMsg('Left the team — this device keeps its setup but no longer syncs.');
+      } else {
+        t.dataset.arm = '1'; t.textContent = 'Really leave?';
+        setTimeout(function(){ delete t.dataset.arm; t.textContent = 'Leave team'; }, 2500);
+      }
+    }
+  });
+  document.addEventListener('change', function(ev){
+    if(ev.target && ev.target.id === 'syncLabel' && syncOn()){
+      state.sync.label = (ev.target.value||'').trim().slice(0,40);
+      saveNow();
+    }
+  });
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible' && syncOn() && Date.now() - (state.sync.lastSync||0) > 30000){
+      syncPull();
+    }
+  });
+
   function renderSaveCard(){
     document.getElementById('saveStatus').innerHTML = (canPersist
       ? 'This device auto-saves your setup. Each Share button opens a QR the other coach can scan with their camera — and every QR is also a <b>tappable link</b> you can Share or Copy into a text instead.'
@@ -4568,8 +4900,10 @@
   document.getElementById('scanQR').addEventListener('click', openScanner);
   function applyFullLoad(loaded, msg){
     takeSnapshot(true); /* pin what's here now, so the load can be undone */
+    var keepSync = state.sync;
     state = defaultState();
     mergeLoaded(loaded);
+    if(!state.sync && keepSync){ state.sync = keepSync; } /* a shared setup doesn't knock you off your team */
     saveNow();
     rebuildForms();
     renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderStockPicker(); renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderDefList(); renderSaveCard(); renderSnaps();
@@ -4583,6 +4917,7 @@
       return;
     }
     document.getElementById('codeIn').value = '';
+    if(loaded.part === 'team'){ promptJoinTeam(loaded); return; }
     if(loaded.part === 'off'){
       var ro = mergeOffense(loaded);
       saveNow(); rebuildForms();
@@ -4783,6 +5118,11 @@
     var mm = String(raw||'').match(/#[pd]=([^&#]+)/);
     var shared = decodeCode(mm ? mm[1] : raw);
     if(shared && shared.v === 2){
+      if(shared.part === 'team'){
+        stopScan();
+        promptJoinTeam(shared);
+        return;
+      }
       if(shared.part === 'play'){
         closeShareModal();
         var res = mergePlay(shared);
@@ -4922,6 +5262,8 @@
   renderMineFcard();
   renderMine();
   renderDefList();
+  renderSyncCard();
+  if(syncOn()){ setTimeout(function(){ syncPull(); }, 800); }
   if(!lineupReady()){ showTab('gameplan'); } else { setTimeout(drawVisible,140); }
   /* a scanned/tapped play link: add the play, land on Kept */
   (function(){
@@ -4942,6 +5284,9 @@
       mergeDefShared(shared);
       showTab('defense');
       toast('Defense merged ✓');
+    } else if(shared && shared.part === 'team'){
+      showTab('settings');
+      promptJoinTeam(shared);
     }
     saveNow(); /* rewrites the hash back to the normal save mirror */
   })();
