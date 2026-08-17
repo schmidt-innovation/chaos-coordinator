@@ -1259,12 +1259,14 @@
         '<circle cx="'+x+'" cy="'+(y-9.6)+'" r="5.2" fill="'+chip+'" stroke="#F6F1E4" stroke-width="1.3"'+bdC+'/>'+
         '<text x="'+x+'" y="'+(y-7.7)+'" text-anchor="middle" font-size="4.6" font-weight="700" font-family="Archivo,sans-serif" fill="'+(kind==='ball'?'#0B211C':'#F6F1E4')+'"'+bdL+'>'+label+'</text>';
     }
-    if(scolor && kind!=='ball'){ fill = scolor; txt = '#071714'; }
-    /* colored dots carry their own definition — no white ring needed */
-    var dstroke = (scolor && kind!=='ball') ? 'none' : '#F6F1E4';
-    var bdD = kind==='ball' ? ' data-nf="'+(scolor||'#123B33')+'"'+(scolor?' data-ns="none"':'') : '';
+    /* the kid's color always wins the fill — carrying the ball shows as a gold outline;
+       the gold fill is only for markers with no color to protect */
+    if(scolor){ fill = scolor; txt = '#071714'; }
+    var dstroke = scolor ? (kind==='ball' ? '#FFC93C' : 'none') : '#F6F1E4';
+    var dsw = (scolor && kind==='ball') ? '2.4' : '1.6';
+    var bdD = kind==='ball' ? ' data-nf="'+(scolor||'#123B33')+'"'+(scolor?' data-ns="none" data-nw="1.6"':'') : '';
     var bdT = kind==='ball' ? ' data-nf="'+(scolor?'#071714':'#F6F1E4')+'"' : '';
-    out += '<circle cx="'+x+'" cy="'+y+'" r="10" fill="'+fill+'" stroke="'+dstroke+'" stroke-width="1.6"'+bdD+'/>'+
+    out += '<circle cx="'+x+'" cy="'+y+'" r="10" fill="'+fill+'" stroke="'+dstroke+'" stroke-width="'+dsw+'"'+bdD+'/>'+
       '<text x="'+x+'" y="'+(y+3.8)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="'+txt+'"'+bdT+'>'+label+'</text>';
     return out;
   }
