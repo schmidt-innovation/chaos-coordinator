@@ -252,6 +252,14 @@
     border-radius:999px;padding:7px 12px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
   .edjobs button[aria-pressed="true"]{background:var(--whistle);border-color:var(--whistle);color:var(--deeper)}
   .edjobs button:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
+  .tplate{background:var(--deeper);border:1px solid var(--line);border-left:4px solid var(--whistle);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  .tplate.plain{border-left-color:var(--line)}
+  .tplate .tname{display:flex;align-items:baseline;gap:6px}
+  .tplate .tname b{font-family:"Archivo Black","Archivo",sans-serif;text-transform:uppercase;font-size:19px;letter-spacing:.02em;color:var(--chalk)}
+  .tplate .tmeta{font-size:12px;color:var(--paper-dim);margin-top:2px}
+  .tplate .tpencil{background:none;border:none;color:var(--paper-dim);font-size:14px;padding:2px 6px;cursor:pointer}
+  .tplate .tpencil:focus-visible,.tplate .youbtn:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
+  .tplate .youbtn{background:none;border:none;color:var(--whistle);font-weight:700;font-size:12px;padding:0;cursor:pointer;font-family:inherit}
   .callhead{font-size:15px;color:var(--chalk);margin:16px 0 8px}
   .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px}
   .pgrid button{display:flex;align-items:center;justify-content:space-between;gap:6px;background:var(--turf);
@@ -4986,7 +4994,7 @@
       if(o.keptDefs && o.keptDefs[cd.id]){ state.keptDefs = state.keptDefs||{}; state.keptDefs[nid] = true; }
     });
   }
-  var syncT = null, syncBusy = false;
+  var syncT = null, syncBusy = false, syncEditName = false, syncEditLabel = false;
   function fmtSyncTime(t){
     try{ return new Date(t).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); }catch(e){ return ''; }
   }
@@ -5171,15 +5179,29 @@
       return;
     }
     var s = state.sync;
-    host.innerHTML =
-      '<p style="margin-top:0">Syncing with <b>'+esc(s.name||'your team')+'</b>'+
-      (s.lastSync ? ' · last synced '+fmtSyncTime(s.lastSync) : '')+'.</p>'+
+    var plate;
+    if(syncEditName){
+      plate = '<div class="tplate plain">'+
+        '<div class="rrow" style="margin-bottom:0"><input class="tin" id="syncNameEdit" type="text" autocomplete="off" value="'+esc(s.name||'')+'" style="font-family:\'Archivo Black\',sans-serif;text-transform:uppercase">'+
+        '<button type="button" class="iconbtn" id="syncRenameGo" aria-label="Save team name" style="width:auto;padding:0 14px">Save</button></div>'+
+        '<div class="tmeta">Renames the team for the whole staff — their apps update on the next sync.</div></div>';
+    } else if(syncEditLabel){
+      plate = '<div class="tplate plain">'+
+        '<div class="rrow" style="margin-bottom:0"><input class="tin" id="syncLabelEdit" type="text" autocomplete="off" placeholder="Coach" value="'+esc(s.label||'')+'">'+
+        '<button type="button" class="iconbtn" id="syncLabelGo" aria-label="Save your name" style="width:auto;padding:0 14px">Save</button></div>'+
+        '<div class="tmeta">Your name tags this device\'s changes in the team\'s sync history.</div></div>';
+    } else {
+      plate = '<div class="tplate">'+
+        '<div class="tname"><b>'+esc(s.name||'Your team')+'</b>'+
+        '<button type="button" class="tpencil" id="syncRename" aria-label="Rename team" title="Rename team">✎</button></div>'+
+        '<div class="tmeta">'+(s.lastSync ? 'Synced ✓ '+fmtSyncTime(s.lastSync) : 'Not synced yet')+
+        ' · you\'re <button type="button" class="youbtn" id="syncRelabel">'+esc(s.label||'Coach')+' ✎</button></div></div>';
+    }
+    host.innerHTML = plate +
       '<div class="btns" style="margin:0">'+
       '<button type="button" id="syncInvite">Invite a coach</button>'+
       '<button type="button" id="syncNow">Sync now</button>'+
-      '<button type="button" id="syncLeave">Leave team</button></div>'+
-      '<label class="flab" style="margin-top:10px">Your name (shows on the team\'s sync history)</label>'+
-      '<input class="tin" id="syncLabel" type="text" autocomplete="off" placeholder="Coach" value="'+esc(s.label||'')+'">';
+      '<button type="button" id="syncLeave">Leave team</button></div>';
   }
   document.addEventListener('click', function(ev){
     var t = ev.target;
@@ -5222,11 +5244,38 @@
       } else {
         syncMsg('That didn\'t look like an invite — paste the whole link or the 8-character code.', true);
       }
+    } else if(t.id === 'syncRename'){
+      syncEditName = true; syncEditLabel = false;
+      renderSyncCard();
+      var ne = document.getElementById('syncNameEdit');
+      if(ne){ ne.focus(); ne.select(); }
+    } else if(t.id === 'syncRenameGo'){
+      var newName = (document.getElementById('syncNameEdit').value||'').trim().slice(0,60);
+      if(!newName || newName === state.sync.name){ syncEditName = false; renderSyncCard(); return; }
+      syncMsg('Renaming…');
+      syncCall('rename', {teamId: state.sync.teamId, secret: state.sync.secret, name: newName}).then(function(res){
+        if(res.name){ state.sync.name = res.name; saveNow(); syncMsg('Team renamed ✓ — every coach sees it on their next sync.'); }
+        else { syncMsg(res.error || 'Couldn\'t rename — try again.', true); }
+        syncEditName = false; renderSyncCard();
+      }).catch(function(){
+        syncEditName = false; renderSyncCard();
+        syncMsg('Offline — try renaming with a connection.', true);
+      });
+    } else if(t.id === 'syncRelabel'){
+      syncEditLabel = true; syncEditName = false;
+      renderSyncCard();
+      var le = document.getElementById('syncLabelEdit');
+      if(le){ le.focus(); le.select(); }
+    } else if(t.id === 'syncLabelGo'){
+      state.sync.label = (document.getElementById('syncLabelEdit').value||'').trim().slice(0,40);
+      saveNow();
+      syncEditLabel = false; renderSyncCard();
     } else if(t.id === 'syncNow'){
       syncPull(true);
     } else if(t.id === 'syncLeave'){
       if(t.dataset.arm){
         state.sync = null;
+        syncEditName = false; syncEditLabel = false;
         saveNow(); renderSyncCard();
         syncMsg('Left the team — this device keeps its setup but no longer syncs.');
       } else {
@@ -5235,11 +5284,10 @@
       }
     }
   });
-  document.addEventListener('change', function(ev){
-    if(ev.target && ev.target.id === 'syncLabel' && syncOn()){
-      state.sync.label = (ev.target.value||'').trim().slice(0,40);
-      saveNow();
-    }
+  document.addEventListener('keydown', function(ev){
+    if(ev.key !== 'Enter' || !ev.target) return;
+    var go = {syncNameEdit:'syncRenameGo', syncLabelEdit:'syncLabelGo', syncJoinIn:'syncJoinGo', syncName:'syncCreate'}[ev.target.id];
+    if(go){ var gb = document.getElementById(go); if(gb) gb.click(); }
   });
   document.addEventListener('visibilitychange', function(){
     if(document.visibilityState === 'visible' && syncOn() && Date.now() - (state.sync.lastSync||0) > 30000){
