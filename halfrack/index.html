@@ -1191,6 +1191,9 @@
       state.sync = stored.sync;
     }
     if(state.current >= state.series.length) state.current = 0;
+    /* every boot starts locked once a roster exists — unlocking is a deliberate
+       act each session, not a sticky state. A fresh setup stays unlocked. */
+    if(namedPlayers().length){ state.rosterLock = true; }
   }
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
