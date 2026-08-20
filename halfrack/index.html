@@ -1979,13 +1979,29 @@
       g = null;
     };
     function show(word, gold){
+      /* built with DOM calls, not innerHTML — old WebKit (early iPads) has no
+         innerHTML setter on SVG elements and throws mid-run */
       if(!g){
         g = document.createElementNS('http://www.w3.org/2000/svg','g');
         svgEl.appendChild(g);
       }
+      while(g.firstChild){ g.removeChild(g.firstChild); }
       var w = word.length*9 + 14;
-      g.innerHTML = '<rect x="'+(292-w)+'" y="205" width="'+w+'" height="17" rx="8.5" fill="'+(gold?'#FFC93C':'rgba(7,23,20,.85)')+'" stroke="'+(gold?'#FFC93C':'rgba(246,241,228,.45)')+'" stroke-width="1.2"/>'+
-        '<text x="'+(292-w/2+1)+'" y="217" text-anchor="middle" font-size="10" font-weight="800" letter-spacing="2" font-family="Archivo,sans-serif" fill="'+(gold?'#0B211C':'#DCD5C4')+'">'+word+'</text>';
+      var r = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      r.setAttribute('x', String(292-w)); r.setAttribute('y', '205');
+      r.setAttribute('width', String(w)); r.setAttribute('height', '17'); r.setAttribute('rx', '8.5');
+      r.setAttribute('fill', gold ? '#FFC93C' : 'rgba(7,23,20,.85)');
+      r.setAttribute('stroke', gold ? '#FFC93C' : 'rgba(246,241,228,.45)');
+      r.setAttribute('stroke-width', '1.2');
+      var t = document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x', String(292-w/2+1)); t.setAttribute('y', '217');
+      t.setAttribute('text-anchor', 'middle'); t.setAttribute('font-size', '10');
+      t.setAttribute('font-weight', '800'); t.setAttribute('letter-spacing', '2');
+      t.setAttribute('font-family', 'Archivo,sans-serif');
+      t.setAttribute('fill', gold ? '#0B211C' : '#DCD5C4');
+      t.textContent = word;
+      g.appendChild(r);
+      g.appendChild(t);
     }
     var ph = animPhases(svgEl, drawn);
     show('DOWN');
@@ -2043,17 +2059,19 @@
       g.style.opacity='1';
     });
   }
+  /* the ball, runners, and cadence are best-effort layers on top of the chalk
+     render — on an odd browser one failing must not kill the play */
   function playAnim(el){
     drawRoutes(el);
-    scheduleBall(el);
-    scheduleRunners(el);
-    scheduleCadence(el);
+    try{ scheduleBall(el); }catch(e){}
+    try{ scheduleRunners(el); }catch(e){}
+    try{ scheduleCadence(el); }catch(e){}
   }
   /* run the snap on an already-chalked field — the routes stay put */
   function runSnap(el){
-    scheduleBall(el, true);
-    scheduleRunners(el, true);
-    scheduleCadence(el, true);
+    try{ scheduleBall(el, true); }catch(e){}
+    try{ scheduleRunners(el, true); }catch(e){}
+    try{ scheduleCadence(el, true); }catch(e){}
   }
 
   /* fields render fully drawn — the animation runs only from a "Run it" button
@@ -4708,6 +4726,7 @@
     if(el){ el.hidden = !txt; el.textContent = txt||''; el.style.color = bad ? 'var(--flag)' : ''; }
   }
   function syncCall(ep, body){
+    if(typeof fetch !== 'function'){ return Promise.reject(new Error('no-fetch')); } /* very old WebKit: sync is unavailable, app still works */
     return fetch(SYNC_API+'/'+ep, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})
       .then(function(r){ return r.json().then(function(j){ j.__status = r.status; return j; }); });
   }
