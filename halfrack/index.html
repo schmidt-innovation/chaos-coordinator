@@ -676,6 +676,35 @@
 
 <script>
 (function(){
+  /* Pointer Events shim for old WebKit (iPads on iOS ≤12): when PointerEvent
+     doesn't exist, mirror pointer listeners onto touch events with a
+     pointer-shaped pseudo-event, so every drag surface works unchanged.
+     touchmove prevents default (scroll) to match touch-action:none; touchstart
+     does not, so taps still become clicks. */
+  if(!window.PointerEvent && window.Element && Element.prototype.addEventListener){
+    (function(){
+      var MAP = {pointerdown:'touchstart', pointermove:'touchmove', pointerup:'touchend', pointercancel:'touchcancel'};
+      var origAdd = Element.prototype.addEventListener;
+      Element.prototype.addEventListener = function(type, fn, opts){
+        if(MAP[type] && typeof fn === 'function'){
+          var self = this;
+          origAdd.call(this, MAP[type], function(tev){
+            var t = (tev.changedTouches && tev.changedTouches[0]) || (tev.touches && tev.touches[0]);
+            if(!t) return;
+            if(MAP[type] === 'touchmove' && tev.cancelable){ tev.preventDefault(); }
+            fn.call(self, {
+              clientX: t.clientX, clientY: t.clientY,
+              pointerId: t.identifier == null ? 1 : t.identifier,
+              target: tev.target,
+              preventDefault: function(){ if(tev.cancelable){ tev.preventDefault(); } },
+              stopPropagation: function(){ tev.stopPropagation(); }
+            });
+          }, {passive:false});
+        }
+        return origAdd.call(this, type, fn, opts);
+      };
+    })();
+  }
   /* ================= state + storage ================= */
   var KEY = 'hr-state-v1';
   var state = null;
@@ -1763,7 +1792,10 @@
     if(pt.dataset.mk){ pt.setAttribute('marker-end', pt.dataset.mk); }
   }
   var REDUCE = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  function animOff(){ return REDUCE || (state && state.anim === false); }
+  /* every animation is user-requested now (Run it buttons), so an explicit run
+     overrides the stills preference and OS reduce-motion — tapping Run it means run it */
+  var animForce = false;
+  function animOff(){ return !animForce && (REDUCE || (state && state.anim === false)); }
   function applySun(){ document.body.classList.toggle('sun', !!(state && state.sunlight)); }
 
   /* animation phases: DOWN lasts while every route chalks in, then a beat to SET
@@ -2062,16 +2094,27 @@
   /* the ball, runners, and cadence are best-effort layers on top of the chalk
      render — on an odd browser one failing must not kill the play */
   function playAnim(el){
-    drawRoutes(el);
-    try{ scheduleBall(el); }catch(e){}
-    try{ scheduleRunners(el); }catch(e){}
-    try{ scheduleCadence(el); }catch(e){}
+    animForce = true;
+    try{
+      drawRoutes(el);
+      try{ scheduleBall(el); }catch(e){}
+      try{ scheduleRunners(el); }catch(e){}
+      try{ scheduleCadence(el); }catch(e){}
+    } finally { animForce = false; }
+  }
+  /* chalk only, animation forced — the modal's Show routes stage */
+  function chalkRoutes(el){
+    animForce = true;
+    try{ drawRoutes(el); } finally { animForce = false; }
   }
   /* run the snap on an already-chalked field — the routes stay put */
   function runSnap(el){
-    try{ scheduleBall(el, true); }catch(e){}
-    try{ scheduleRunners(el, true); }catch(e){}
-    try{ scheduleCadence(el, true); }catch(e){}
+    animForce = true;
+    try{
+      try{ scheduleBall(el, true); }catch(e){}
+      try{ scheduleRunners(el, true); }catch(e){}
+      try{ scheduleCadence(el, true); }catch(e){}
+    } finally { animForce = false; }
   }
 
   /* fields render fully drawn — the animation runs only from a "Run it" button
@@ -2833,7 +2876,7 @@
       hideRoutes(playModal);
       runBtn.textContent = 'Show routes ▶';
       runBtn.addEventListener('click', function(){
-        if(stage === 'lineup'){ stage = 'routes'; runBtn.textContent = 'Run it ▶'; drawRoutes(field); }
+        if(stage === 'lineup'){ stage = 'routes'; runBtn.textContent = 'Run it ▶'; chalkRoutes(field); }
         else if(stage === 'routes'){ stage = 'run'; runBtn.textContent = 'Reset'; runSnap(field); }
         else { renderModal(); }
       });
@@ -2991,7 +3034,7 @@
       hideRoutes(playModal);
       runBtn.textContent = 'Show routes ▶';
       runBtn.addEventListener('click', function(){
-        if(stage === 'lineup'){ stage = 'routes'; runBtn.textContent = 'Run it ▶'; drawRoutes(field); }
+        if(stage === 'lineup'){ stage = 'routes'; runBtn.textContent = 'Run it ▶'; chalkRoutes(field); }
         else if(stage === 'routes'){ stage = 'run'; runBtn.textContent = 'Reset'; runSnap(field); }
         else { renderM(); }
       });
