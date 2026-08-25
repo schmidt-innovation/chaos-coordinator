@@ -5898,7 +5898,13 @@
           if(!nw || !navigator.serviceWorker.controller) return;
           nw.addEventListener('statechange', function(){
             if(nw.state === 'activated'){
-              showBanner('A new version is ready — tap here to reload into it', function(){ location.reload(); });
+              /* the fresh deploy carries its own release note */
+              fetch('./version.json?b='+Date.now()).then(function(r){ return r.json(); }).then(function(vj){
+                var note = vj && vj.note ? String(vj.note).slice(0, 120) : '';
+                showBanner(note ? 'New version — '+note+'. Tap to reload.' : 'A new version is ready — tap here to reload into it', function(){ location.reload(); });
+              }).catch(function(){
+                showBanner('A new version is ready — tap here to reload into it', function(){ location.reload(); });
+              });
             }
           });
         });
