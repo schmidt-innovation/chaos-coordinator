@@ -2187,7 +2187,7 @@
         '<button type="button" class="keep" aria-pressed="'+on+'">'+(on?'Kept ✓':'Keep')+'</button>'+
         (p.custom && !(opts&&opts.noShare)?'<button type="button" class="pshare">Share</button>':'')+
         (p.custom && !(opts&&opts.noEdit)?'<button type="button" class="pedit">Edit</button>':'')+
-        (p.custom && !(opts&&opts.noDelete)?'<button type="button" class="pdel" style="color:var(--flag);border-color:var(--flag)">Delete</button>':'')+
+        (p.custom && !(opts&&opts.noDelete)?'<button type="button" class="pdel"'+(on?' hidden':'')+' style="color:var(--flag);border-color:var(--flag)">Delete</button>':'')+
       '</div></div>';
   }
   function wirePlayCards(container, afterKeep, afterRename){
@@ -2203,6 +2203,8 @@
         b.setAttribute('aria-pressed', state.kept[id]);
         b.textContent = state.kept[id] ? 'Kept ✓' : 'Keep';
         card.classList.toggle('kept', !!state.kept[id]);
+        var pd = card.querySelector('.pdel');
+        if(pd){ pd.hidden = !!state.kept[id]; } /* kept plays can't be deleted — un-keep first */
         save();
         if(afterKeep) afterKeep();
       });
@@ -3734,12 +3736,14 @@
       '<p>'+f.why+'</p><p><b>Lining up:</b> '+f.setup+'</p>'+
       '<div class="btns"><button type="button" class="mineAdd" style="border-color:var(--whistle);color:var(--whistle)">✏ Add play</button>'+
       (f.custom ? '<button type="button" class="mineFmEdit">Edit formation</button>'+
-        '<button type="button" class="mineFmDel" style="border-color:var(--flag);color:var(--flag)">Delete formation</button>' : '')+
+        ((state.custom||[]).some(function(c){ return c.form === mineActive; }) ? ''
+          : '<button type="button" class="mineFmDel" style="border-color:var(--flag);color:var(--flag)">Delete formation</button>') : '')+
       '</div></div>';
     mineFcard.querySelector('.mineAdd').addEventListener('click', function(){ closeFmEditor(); openEditor(null); });
     if(f.custom){
       mineFcard.querySelector('.mineFmEdit').addEventListener('click', function(){ closeEditor(); openFmEditor(f.cfid); });
-      armButton(mineFcard.querySelector('.mineFmDel'), function(){ deleteFormation(f.cfid); }, 'Tap again to delete');
+      var fmDelB = mineFcard.querySelector('.mineFmDel');
+      if(fmDelB){ armButton(fmDelB, function(){ deleteFormation(f.cfid); }, 'Tap again to delete'); }
     }
   }
 
