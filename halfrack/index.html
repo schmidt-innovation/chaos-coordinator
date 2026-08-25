@@ -1355,6 +1355,18 @@
   function st(p){ return p[1] > 165 ? [p[0], p[1]-10] : [p[0], 138]; }   /* where a route starts */
   function bk(p){ return p[1] > 165 ? p.slice() : [p[0], p[1]+12]; }     /* where a runner starts */
 
+  /* on the line of scrimmage: an explicit flag on the spot when the coach set
+     one (formation builder, tap a player), otherwise the classic read — line
+     row players except the QB. Rendered as a chalk stance dash under the marker. */
+  function spotOnLine(s){
+    if(s[5] === 1) return true;
+    if(s[5] === 0) return false;
+    return s[0] !== 'QB' && s[1][1] < 165;
+  }
+  function lineTick(x, y){
+    return '<line x1="'+(x-6)+'" y1="'+(y+13)+'" x2="'+(x+6)+'" y2="'+(y+13)+'" stroke="rgba(246,241,228,.55)" stroke-width="2" stroke-linecap="round"/>';
+  }
+
   /* pitch flight between two points: leaves the passer's hands, lands just short of the catcher */
   function tossPts(from, to){
     var dx = to[0]-from[0], dy = to[1]-from[1];
@@ -1761,6 +1773,7 @@
     }
     inner += f.spots.map(function(s){
       var sp = flipped ? [300-s[1][0], s[1][1]] : s[1];
+      var tick = spotOnLine(s) ? lineTick(sp[0], sp[1]) : '';
       var lp = s[3];
       if(flipped){ if(lp==='l') lp='r'; else if(lp==='r') lp='l'; }
       if(!lp && s[0]==='C') lp = 't';
@@ -1769,7 +1782,7 @@
         var gs = (flipped && goldSlot) ? goldSlot : goldSlot;
         kd = (s[0] === gs) ? 'ball' : null;
       }
-      return '<g class="pmk" data-slot="'+s[0]+'" data-ox="'+sp[0]+'" data-oy="'+sp[1]+'">'+dot(sp, s[0], kd, names ? names[s[0]] : null, lp, (state.pcolors && s[4]) || null)+'</g>';
+      return tick + '<g class="pmk" data-slot="'+s[0]+'" data-ox="'+sp[0]+'" data-oy="'+sp[1]+'">'+dot(sp, s[0], kd, names ? names[s[0]] : null, lp, (state.pcolors && s[4]) || null)+'</g>';
     }).join('');
     return svg(inner);
   }
@@ -3864,7 +3877,7 @@
     });
     inner += f.spots.map(function(s){
       var ring = s[0]===edState.active ? '<circle cx="'+s[1][0]+'" cy="'+s[1][1]+'" r="15" fill="none" stroke="#FFC93C" stroke-width="2" stroke-dasharray="4 3"/>' : '';
-      return ring + dot(s[1], s[0], s[2], null, s[3], (state.pcolors && s[4]) || null);
+      return (spotOnLine(s) ? lineTick(s[1][0], s[1][1]) : '') + ring + dot(s[1], s[0], s[2], null, s[3], (state.pcolors && s[4]) || null);
     }).join('');
     return svg(inner);
   }
@@ -4357,7 +4370,7 @@
       '<div class="pmodal-inner" style="max-width:1080px">'+
       '<div class="card" style="border-color:var(--whistle)">'+
       '<h3>'+(cf?'Edit formation':'New formation')+'</h3>'+
-      '<p class="edhint">Drag the eight players where you want them. Keep guard–center–guard tight and at least four on the line. Editing spots doesn\'t move routes already drawn in this formation.</p>'+
+      '<p class="edhint">Drag the eight players where you want them. <b>Tap a player</b> to put them on or off the line of scrimmage — the chalk dash under a player means they\'re on it. Keep guard–center–guard tight and at least four on the line. Editing spots doesn\'t move routes already drawn in this formation.</p>'+
       '<input class="tin" id="fmName" type="text" autocomplete="off" placeholder="Formation name" style="margin:10px 0 12px">'+
       '<div class="field" id="fmField" style="touch-action:none"></div>'+
       '<div class="btns"><button type="button" id="fmSave" style="background:var(--whistle);color:var(--deeper);border-color:var(--whistle)">'+(cf?'Save changes':'Save formation')+'</button>'+
@@ -4366,9 +4379,11 @@
     if(cf){ document.getElementById('fmName').value = cf.name; }
     var field = document.getElementById('fmField');
     function draw(){
-      field.innerHTML = svg(fmState.spots.map(function(s){ return dot(s[1], s[0], s[2], null, s[3], state.pcolors ? s[4] : null); }).join(''));
+      field.innerHTML = svg(fmState.spots.map(function(s){
+        return (spotOnLine(s) ? lineTick(s[1][0], s[1][1]) : '') + dot(s[1], s[0], s[2], null, s[3], state.pcolors ? s[4] : null);
+      }).join(''));
     }
-    var dragIdx = -1, raf = 0;
+    var dragIdx = -1, raf = 0, downAt = null, dragMoved = false;
     function evPos(ev){
       var svgEl = field.querySelector('svg');
       var r = svgEl.getBoundingClientRect();
@@ -4380,11 +4395,13 @@
         var d = Math.sqrt(Math.pow(s[1][0]-p[0],2)+Math.pow(s[1][1]-p[1],2));
         if(d < bd){ bd = d; dragIdx = i; }
       });
-      if(dragIdx > -1){ try{ field.setPointerCapture(ev.pointerId); }catch(e){} ev.preventDefault(); }
+      if(dragIdx > -1){ downAt = p; dragMoved = false; try{ field.setPointerCapture(ev.pointerId); }catch(e){} ev.preventDefault(); }
     });
     field.addEventListener('pointermove', function(ev){
       if(dragIdx < 0) return;
       var p = evPos(ev);
+      if(!dragMoved && downAt && Math.abs(p[0]-downAt[0]) < 5 && Math.abs(p[1]-downAt[1]) < 5){ return; }
+      dragMoved = true;
       fmState.spots[dragIdx][1] = [
         Math.round(Math.max(16, Math.min(284, p[0]))),
         Math.round(Math.max(34, Math.min(208, p[1])))
@@ -4392,7 +4409,18 @@
       cancelAnimationFrame(raf); raf = requestAnimationFrame(draw);
       ev.preventDefault();
     });
-    field.addEventListener('pointerup', function(){ dragIdx = -1; });
+    field.addEventListener('pointerup', function(){
+      /* a tap (no drag) toggles on/off the line — C always snaps, QB is never on it */
+      if(dragIdx > -1 && !dragMoved){
+        var ts = fmState.spots[dragIdx];
+        if(ts[0] !== 'QB' && ts[0] !== 'C'){
+          while(ts.length < 5){ ts.push(undefined); }
+          ts[5] = spotOnLine(ts) ? 0 : 1;
+          draw();
+        }
+      }
+      dragIdx = -1;
+    });
     field.addEventListener('pointercancel', function(){ dragIdx = -1; });
     document.getElementById('fmCancel').addEventListener('click', closeFmEditor);
     document.getElementById('fmSave').addEventListener('click', function(){
