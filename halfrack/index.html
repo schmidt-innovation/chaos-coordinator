@@ -2185,8 +2185,8 @@
         '<button type="button" class="replay">Run it again</button>'+
         '<button type="button" class="flip">Flip ↔</button>'+
         '<button type="button" class="keep" aria-pressed="'+on+'">'+(on?'Kept ✓':'Keep')+'</button>'+
-        (p.custom?'<button type="button" class="pshare">Share</button>':'')+
-        (p.custom?'<button type="button" class="pedit">Edit</button>':'')+
+        (p.custom && !(opts&&opts.noShare)?'<button type="button" class="pshare">Share</button>':'')+
+        (p.custom && !(opts&&opts.noEdit)?'<button type="button" class="pedit">Edit</button>':'')+
         (p.custom && !(opts&&opts.noDelete)?'<button type="button" class="pdel" style="color:var(--flag);border-color:var(--flag)">Delete</button>':'')+
       '</div></div>';
   }
@@ -3340,7 +3340,7 @@
     }
 
     var playHtml = play
-      ? playCardHtml(cf, play, playNamesFor(cs, cf, play), {noDelete:true})
+      ? playCardHtml(cf, play, playNamesFor(cs, cf, play), {noDelete:true, noShare:true, noEdit:true})
       : (pool.length ? '<div class="empty">Tap a play above to put it on the board.</div>' : '');
 
     gd.innerHTML = chips + sideTabs + (gdTab==='def'
