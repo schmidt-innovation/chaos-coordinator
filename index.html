@@ -896,6 +896,11 @@
       <button type="button" class="tswitch" id="pnamesTog" role="switch" aria-pressed="true" aria-label="Player names"></button>
       <p style="margin:0"><b>Player names</b> — show each kid's name on the diagrams once a lineup is set. Turn off to keep fields to position letters when names get busy.</p>
     </div>
+    <div class="togglerow" style="margin-bottom:10px">
+      <button type="button" class="tswitch" id="losTog" role="switch" aria-pressed="false" aria-label="Line of scrimmage highlight"></button>
+      <p style="margin:0"><b>Line highlight</b> — players on the line of scrimmage wear this color: the marker fills with it, or just the outline when player colors are on. Off = the small chalk dash only.
+      <input type="color" id="losColorIn" value="#4CC9F0" aria-label="Line highlight color" style="width:44px;height:30px;vertical-align:middle;margin-left:6px;border:1px solid var(--line);border-radius:8px;background:var(--deeper);padding:2px"></p>
+    </div>
     <div class="togglerow">
       <button type="button" class="tswitch" id="animTog" role="switch" aria-pressed="true" aria-label="Play animation"></button>
       <p style="margin:0"><b>Play animation</b> — routes draw on, players run them, the ball travels. Turn off for still diagrams.</p>
@@ -1006,7 +1011,7 @@
     for(i=0;i<8;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, pnames:true, anim:true, sunlight:false, rosterLock:false, seriesLock:false, custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, sync:null, seq:9};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, pnames:true, anim:true, sunlight:false, rosterLock:false, seriesLock:false, losOn:false, losColor:'#4CC9F0', custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, sync:null, seq:9};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -1486,6 +1491,8 @@
     if(typeof loaded.anim === 'boolean') state.anim = loaded.anim;
     if(typeof loaded.rosterLock === 'boolean') state.rosterLock = loaded.rosterLock;
     if(typeof loaded.seriesLock === 'boolean') state.seriesLock = loaded.seriesLock;
+    if(typeof loaded.losOn === 'boolean') state.losOn = loaded.losOn;
+    if(typeof loaded.losColor === 'string' && loaded.losColor) state.losColor = loaded.losColor;
     if(typeof loaded.sunlight === 'boolean') state.sunlight = loaded.sunlight;
     if(Array.isArray(loaded.custom)) state.custom = loaded.custom;
     if(Array.isArray(loaded.customForms)) state.customForms = loaded.customForms;
@@ -1565,12 +1572,15 @@
   }
   /* inside-stack markers: the name lives IN the circle, position letter tucked beneath it */
   var namesLocked = false; /* the on-the-field pane is about names — it ignores the toggle */
-  function dot(p,label,kind,name,pos,scolor){
+  function dot(p,label,kind,name,pos,scolor,onLine){
     if(name){
       /* the kid's color sticks to the marker even when names are toggled off */
       scolor = pcolorOf(name) || scolor;
       if(state && state.pnames === false && !namesLocked){ name = null; }
     }
+    /* the on-the-line highlight: fills a plain marker, outlines a colored one.
+       The possession gold always wins while they hold the ball. */
+    var hl = (onLine && state && state.losOn && state.losColor) ? state.losColor : null;
     var x=p[0], y=p[1], out='';
     if(kind==='d'){
       if(name){
@@ -1604,9 +1614,10 @@
         psw = kind==='ball' ? '2' : '1.3';
         if(kind==='ball'){ chip = '#FFC93C'; }
       }
+      if(hl && kind!=='ball'){ ps = hl; psw = '2.2'; }
       /* ball-baked markers remember their normal colors so the animation can
          take the gold away once the ball moves on */
-      var bdR = kind==='ball' ? ' data-nf="'+(pc||'rgba(7,23,20,.95)')+'" data-ns="'+(pc||'rgba(246,241,228,.7)')+'" data-nw="1.3"' : '';
+      var bdR = kind==='ball' ? ' data-nf="'+(pc||'rgba(7,23,20,.95)')+'" data-ns="'+(hl||pc||'rgba(246,241,228,.7)')+'" data-nw="'+(hl?'2.2':'1.3')+'"' : '';
       var bdN = kind==='ball' ? ' data-nf="'+(pc?'#071714':'#F6F1E4')+'"' : '';
       var bdC = kind==='ball' ? ' data-nf="#123B33"' : '';
       var bdL = kind==='ball' ? ' data-nf="#F6F1E4"' : '';
@@ -1618,10 +1629,11 @@
     /* the kid's color always wins the fill — carrying the ball shows as a gold outline;
        the gold fill is only for markers with no color to protect */
     if(scolor){ fill = scolor; txt = '#071714'; }
-    var dstroke = scolor ? (kind==='ball' ? '#FFC93C' : 'none') : '#F6F1E4';
-    var dsw = (scolor && kind==='ball') ? '2.4' : '1.6';
-    var bdD = kind==='ball' ? ' data-nf="'+(scolor||'#123B33')+'"'+(scolor?' data-ns="none" data-nw="1.6"':'') : '';
-    var bdT = kind==='ball' ? ' data-nf="'+(scolor?'#071714':'#F6F1E4')+'"' : '';
+    else if(hl && kind!=='ball'){ fill = hl; txt = '#071714'; }
+    var dstroke = scolor ? (kind==='ball' ? '#FFC93C' : (hl || 'none')) : '#F6F1E4';
+    var dsw = (kind==='ball' && scolor) ? '2.4' : ((scolor && hl) ? '2.4' : '1.6');
+    var bdD = kind==='ball' ? ' data-nf="'+(scolor||hl||'#123B33')+'"'+(scolor?' data-ns="'+(hl||'none')+'" data-nw="'+(hl?'2.4':'1.6')+'"':'') : '';
+    var bdT = kind==='ball' ? ' data-nf="'+((scolor||hl)?'#071714':'#F6F1E4')+'"' : '';
     out += '<circle cx="'+x+'" cy="'+y+'" r="10" fill="'+fill+'" stroke="'+dstroke+'" stroke-width="'+dsw+'"'+bdD+'/>'+
       '<text x="'+x+'" y="'+(y+3.8)+'" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="'+txt+'"'+bdT+'>'+label+'</text>';
     return out;
@@ -1656,7 +1668,8 @@
     return s[0] !== 'QB' && s[1][1] < 165;
   }
   function lineTick(x, y){
-    return '<line x1="'+(x-6)+'" y1="'+(y+13)+'" x2="'+(x+6)+'" y2="'+(y+13)+'" stroke="rgba(246,241,228,.55)" stroke-width="2" stroke-linecap="round"/>';
+    var c = (state && state.losOn && state.losColor) ? state.losColor : null;
+    return '<line x1="'+(x-6)+'" y1="'+(y+13)+'" x2="'+(x+6)+'" y2="'+(y+13)+'" stroke="'+(c||'rgba(246,241,228,.55)')+'" stroke-width="'+(c?'2.4':'2')+'" stroke-linecap="round"'+(c?'':' stroke-opacity=".9"')+'/>';
   }
 
   /* pitch flight between two points: leaves the passer's hands, lands just short of the catcher */
@@ -2120,7 +2133,7 @@
         var gs = (flipped && goldSlot) ? goldSlot : goldSlot;
         kd = (s[0] === gs) ? 'ball' : null;
       }
-      return tick + '<g class="pmk" data-slot="'+s[0]+'" data-ox="'+sp[0]+'" data-oy="'+sp[1]+'">'+dot(sp, s[0], kd, names ? names[s[0]] : null, lp, (state.pcolors && s[4]) || null)+'</g>';
+      return tick + '<g class="pmk" data-slot="'+s[0]+'" data-ox="'+sp[0]+'" data-oy="'+sp[1]+'">'+dot(sp, s[0], kd, names ? names[s[0]] : null, lp, (state.pcolors && s[4]) || null, spotOnLine(s))+'</g>';
     }).join('');
     return svg(inner);
   }
@@ -4209,7 +4222,7 @@
     });
     inner += f.spots.map(function(s){
       var ring = s[0]===edState.active ? '<circle cx="'+s[1][0]+'" cy="'+s[1][1]+'" r="15" fill="none" stroke="#FFC93C" stroke-width="2" stroke-dasharray="4 3"/>' : '';
-      return (spotOnLine(s) ? lineTick(s[1][0], s[1][1]) : '') + ring + dot(s[1], s[0], s[2], null, s[3], (state.pcolors && s[4]) || null);
+      return (spotOnLine(s) ? lineTick(s[1][0], s[1][1]) : '') + ring + dot(s[1], s[0], s[2], null, s[3], (state.pcolors && s[4]) || null, spotOnLine(s));
     }).join('');
     return svg(inner);
   }
@@ -4701,7 +4714,7 @@
     var field = document.getElementById('fmField');
     function draw(){
       field.innerHTML = svg(fmState.spots.map(function(s){
-        return (spotOnLine(s) ? lineTick(s[1][0], s[1][1]) : '') + dot(s[1], s[0], s[2], null, s[3], state.pcolors ? s[4] : null);
+        return (spotOnLine(s) ? lineTick(s[1][0], s[1][1]) : '') + dot(s[1], s[0], s[2], null, s[3], state.pcolors ? s[4] : null, spotOnLine(s));
       }).join(''));
     }
     var dragIdx = -1, raf = 0, downAt = null, dragMoved = false;
@@ -5269,10 +5282,11 @@
       takeSnapshot(true); /* pin what's here — joining replaces it, History keeps it */
       /* clean slate: joining means becoming the team, so nothing local can leak
          up into it. Device display preferences stay — they're not team data. */
-      var prefs = {pcolors:state.pcolors, pnames:state.pnames, anim:state.anim, sunlight:state.sunlight, rosterLock:state.rosterLock, seriesLock:state.seriesLock};
+      var prefs = {pcolors:state.pcolors, pnames:state.pnames, anim:state.anim, sunlight:state.sunlight, rosterLock:state.rosterLock, seriesLock:state.seriesLock, losOn:state.losOn, losColor:state.losColor};
       state = defaultState();
       state.pcolors = prefs.pcolors; state.pnames = prefs.pnames; state.anim = prefs.anim;
       state.sunlight = prefs.sunlight; state.rosterLock = prefs.rosterLock; state.seriesLock = prefs.seriesLock;
+      state.losOn = prefs.losOn; if(prefs.losColor){ state.losColor = prefs.losColor; }
       rebuildForms();
       state.sync = {teamId: info.teamId, secret: info.secret, app: SYNC_APP, name: res.name || info.name || 'Team', label: (who||'').trim().slice(0,40), revs:{}, shadow:{}, lastSync: Date.now()};
       SYNC_PARTS.forEach(function(part){
@@ -5454,6 +5468,10 @@
     if(pcT){ pcT.setAttribute('aria-pressed', state.pcolors ? 'true' : 'false'); }
     var pnT = document.getElementById('pnamesTog');
     if(pnT){ pnT.setAttribute('aria-pressed', state.pnames === false ? 'false' : 'true'); }
+    var loT = document.getElementById('losTog');
+    if(loT){ loT.setAttribute('aria-pressed', state.losOn ? 'true' : 'false'); }
+    var loC = document.getElementById('losColorIn');
+    if(loC && state.losColor){ loC.value = state.losColor; }
     var anT = document.getElementById('animTog');
     if(anT){ anT.setAttribute('aria-pressed', state.anim === false ? 'false' : 'true'); }
     var suT = document.getElementById('sunTog');
@@ -5466,6 +5484,15 @@
   });
   document.getElementById('pnamesTog').addEventListener('click', function(){
     state.pnames = (state.pnames === false);
+    save(); renderSaveCard(); renderGameDay();
+  });
+  document.getElementById('losTog').addEventListener('click', function(){
+    state.losOn = !state.losOn;
+    save(); renderSaveCard(); renderGameDay();
+  });
+  document.getElementById('losColorIn').addEventListener('change', function(ev){
+    state.losColor = ev.target.value || '#4CC9F0';
+    state.losOn = true; /* picking a color means you want it on */
     save(); renderSaveCard(); renderGameDay();
   });
   document.getElementById('animTog').addEventListener('click', function(){
