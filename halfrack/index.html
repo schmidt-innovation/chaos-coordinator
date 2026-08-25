@@ -247,9 +247,13 @@
   .bsrow .arr{color:var(--whistle);font-weight:900}
   .bsrow .bsnote{font-size:12px;color:var(--paper-dim)}
   #topBanner{position:fixed;top:0;left:0;right:0;z-index:40;background:var(--turf);color:var(--paper);
-    border-bottom:2px solid var(--whistle);padding:11px 14px;font-size:13.5px;font-weight:600;text-align:center;
+    border-bottom:2px solid var(--whistle);padding:9px 12px;font-size:13.5px;font-weight:600;
+    display:flex;align-items:center;gap:10px;
     transform:translateY(-100%);transition:transform .35s ease;box-shadow:0 4px 14px rgba(0,0,0,.4)}
   #topBanner.on{transform:none}
+  #topBanner .bmsg{flex:1;text-align:center}
+  #topBanner .bx{flex:0 0 auto;background:none;border:1px solid var(--line);color:var(--paper-dim);
+    border-radius:8px;width:28px;height:28px;font-size:13px;line-height:1;cursor:pointer;padding:0}
   .edjobs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
   .edjobs .joblabel{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-dim);font-weight:700;margin-right:2px}
   .edjobs button{background:var(--deeper);border:1px solid var(--line);color:var(--paper);
@@ -4719,22 +4723,60 @@
     : 'https://www.conestogayouthsports.org/api/coach-sync';
   var SYNC_APP = 'halfrack';
   var SYNC_PARTS = ['off','def','roster'];
-  /* top banner: slides in for team-sync arrivals and app updates, gone in 10s */
+  /* top banner: slides in for team-sync arrivals and app updates — dismissable,
+     gone on its own in 10s */
   var bannerT = null;
+  function hideBanner(){
+    var el = document.getElementById('topBanner');
+    if(!el) return;
+    clearTimeout(bannerT);
+    el.classList.remove('on');
+    setTimeout(function(){ el.hidden = true; }, 400);
+  }
   function showBanner(msg, onTap){
     var el = document.getElementById('topBanner');
     if(!el) return;
-    el.textContent = msg;
+    el.innerHTML = '<span class="bmsg"></span><button type="button" class="bx" aria-label="Dismiss">✕</button>';
+    el.querySelector('.bmsg').textContent = msg;
     el.hidden = false;
-    el.onclick = onTap || null;
     el.style.cursor = onTap ? 'pointer' : '';
+    el.onclick = function(ev){
+      if(ev.target && ev.target.className === 'bx'){ hideBanner(); return; }
+      if(onTap){ onTap(); }
+    };
     /* let the hidden->shown frame land before sliding in */
     setTimeout(function(){ el.classList.add('on'); }, 30);
     clearTimeout(bannerT);
-    bannerT = setTimeout(function(){
-      el.classList.remove('on');
-      setTimeout(function(){ el.hidden = true; }, 400);
-    }, 10000);
+    bannerT = setTimeout(hideBanner, 10000);
+  }
+  function syncIdSet(list){
+    var m = {};
+    (list||[]).forEach(function(x){ if(x && x.id){ m[x.id] = 1; } });
+    return m;
+  }
+  /* human summary of what a pull changed: id-diff plays and defenses, generic
+     wording when content changed in place */
+  function syncChangeSummary(gotParts, beforePlays, beforeDefs){
+    function diff(before, list, word){
+      var added = 0, removed = 0, now = {};
+      (list||[]).forEach(function(x){ if(x && x.id){ now[x.id] = 1; if(!before[x.id]){ added++; } } });
+      Object.keys(before).forEach(function(id){ if(!now[id]){ removed++; } });
+      var bits = [];
+      if(added){ bits.push(added+' '+word+(added===1?'':'s')+' added'); }
+      if(removed){ bits.push(removed+' '+word+(removed===1?'':'s')+' removed'); }
+      return bits;
+    }
+    var out = [];
+    if(gotParts.off){
+      var pb = diff(beforePlays, state.custom, 'play');
+      out = out.concat(pb.length ? pb : ['playbook updated']);
+    }
+    if(gotParts.def){
+      var db = diff(beforeDefs, state.customDefs, 'defense');
+      out = out.concat(db.length ? db : ['defense updated']);
+    }
+    if(gotParts.roster){ out.push('roster & series updated'); }
+    return out.length ? out.join(' · ') : 'up to date';
   }
   function syncOn(){ return !!(state.sync && state.sync.teamId && state.sync.secret); }
   function coachByName(){ return (state.sync && state.sync.label) ? state.sync.label : ''; }
@@ -4926,19 +4968,20 @@
         return;
       }
       if(res.name && res.name !== s.name){ s.name = res.name; }
-      var dirty = syncDirtyParts(), got = 0;
+      var dirty = syncDirtyParts(), got = 0, gotParts = {};
+      var beforePlays = syncIdSet(state.custom), beforeDefs = syncIdSet(state.customDefs);
       SYNC_PARTS.forEach(function(part){
         var inc = res.parts && res.parts[part];
         if(!inc) return;
         applyIncomingPart(part, inc.blob, dirty.indexOf(part) > -1);
         s.revs[part] = inc.rev;
-        got++;
+        got++; gotParts[part] = 1;
       });
       s.lastSync = Date.now();
       saveNow();
       if(got){
         syncRerender();
-        showBanner('Synced ✓ — updates from “'+(s.name||'your team')+'” just landed');
+        showBanner('Synced from “'+(s.name||'your team')+'” ✓ — '+syncChangeSummary(gotParts, beforePlays, beforeDefs));
       }
       syncMsg('Synced ✓ '+fmtSyncTime(s.lastSync));
       renderSyncCard();

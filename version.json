@@ -1,4 +1,4 @@
 {
-  "v": 126,
-  "note": "the update banner now tells you what changed"
+  "v": 127,
+  "note": "the sync banner lists what changed and both banners can be dismissed"
 }
