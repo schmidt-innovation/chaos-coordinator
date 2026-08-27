@@ -258,6 +258,10 @@
   .gdchip{display:inline-block;background:var(--deeper);border:1px solid var(--line);color:var(--paper);
     border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;cursor:grab;
     touch-action:none;user-select:none;-webkit-user-select:none}
+  .kepthead{display:flex;align-items:center;gap:8px}
+  .kepthead .grip{flex:0 0 auto;background:none;border:1px solid var(--line);border-radius:7px;
+    color:var(--paper-dim);padding:2px 9px;font-size:14px;line-height:1.4;cursor:grab;
+    touch-action:none;user-select:none;-webkit-user-select:none}
   .edjobs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
   .edjobs .joblabel{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-dim);font-weight:700;margin-right:2px}
   .edjobs button{background:var(--deeper);border:1px solid var(--line);color:var(--paper);
@@ -671,7 +675,7 @@
     <div id="snapList"></div>
   </div>
 
-  <p class="hintline" style="opacity:.85;text-align:center">Half Rack v131 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
+  <p class="hintline" style="opacity:.85;text-align:center">Half Rack v132 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
 
   <div class="card">
     <h3>Reset</h3>
@@ -770,7 +774,7 @@
     for(i=0;i<10;i++){ players.push({id:'p'+(i+1), name:''}); }
     var series = [], s;
     for(s=0;s<4;s++){ series.push({id:'s'+(s+1), label:'Series '+(s+1), form:0, slots:{}}); }
-    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, pcolors:false, pnames:true, anim:true, sunlight:false, rosterLock:false, seriesLock:false, losOn:false, losColor:'#4CC9F0', custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, sync:null, seq:11};
+    return {v:2, players:players, series:series, current:0, kept:{}, alias:{}, flip:{}, formKept:{}, formOrder:[], pcolors:false, pnames:true, anim:true, sunlight:false, rosterLock:false, seriesLock:false, losOn:false, losColor:'#4CC9F0', custom:[], customForms:[], customDefs:[], keptDefs:{}, defFlip:{}, sync:null, seq:11};
   }
 
   /* does storage on this device actually stick? (sandboxed viewers and some
@@ -1127,7 +1131,7 @@
   function encodeOffCode(){
     return 'HRO2.'+lzPack(JSON.stringify({v:2, part:'off',
       kept:state.kept, alias:state.alias, flip:state.flip,
-      custom:state.custom, customForms:state.customForms}));
+      formOrder:state.formOrder, custom:state.custom, customForms:state.customForms}));
   }
   function encodeDefCode(){
     return 'HRD2.'+lzPack(JSON.stringify({v:2, part:'def',
@@ -1210,6 +1214,10 @@
         state[key][nk] = o[key][k];
       });
     });
+    (o.formOrder||[]).forEach(function(n){
+      state.formOrder = state.formOrder||[];
+      if(state.formOrder.indexOf(n) < 0) state.formOrder.push(n);
+    });
     return {forms:(o.customForms||[]).length, plays:plays, kept:Object.keys(o.kept||{}).length};
   }
   /* merge a defense code from another coach into this device */
@@ -1245,6 +1253,7 @@
     if(loaded.alias) state.alias = loaded.alias;
     if(loaded.flip) state.flip = loaded.flip;
     if(loaded.formKept) state.formKept = loaded.formKept;
+    if(Array.isArray(loaded.formOrder)) state.formOrder = loaded.formOrder;
     if(typeof loaded.pcolors === 'boolean') state.pcolors = loaded.pcolors;
     if(typeof loaded.pnames === 'boolean') state.pnames = loaded.pnames;
     if(typeof loaded.anim === 'boolean') state.anim = loaded.anim;
@@ -3789,14 +3798,84 @@
     b.addEventListener('click', function(){ showPbTab(b.dataset.pt); });
   });
 
+  /* kept-tab formation ordering: names in preferred order first, everything
+     else in stock order. formOrder is playbook data and syncs with it. */
+  function keptFormOrder(){
+    var names = FORMS.map(function(f){ return f.name; });
+    var out = [];
+    (state.formOrder||[]).forEach(function(n){ if(names.indexOf(n) > -1 && out.indexOf(n) < 0) out.push(n); });
+    names.forEach(function(n){ if(out.indexOf(n) < 0) out.push(n); });
+    return out;
+  }
+  var kdragName = null, kGhostEl = null;
+  function keptHeads(){ return [].slice.call(document.querySelectorAll('#pbKept .kepthead')); }
+  function keptDropIndex(clientY){
+    var hs = keptHeads();
+    for(var i = 0; i < hs.length; i++){
+      var r = hs[i].getBoundingClientRect();
+      if(clientY < r.top + r.height/2) return i;
+    }
+    return hs.length;
+  }
+  function keptDragPaint(clientY){
+    var hs = keptHeads(), idx = keptDropIndex(clientY);
+    hs.forEach(function(h, i){
+      h.style.borderTop = (i === idx) ? '3px solid var(--whistle)' : '';
+      h.style.borderBottom = (idx === hs.length && i === hs.length - 1) ? '3px solid var(--whistle)' : '';
+    });
+    return idx;
+  }
+  function keptDragClean(){
+    keptHeads().forEach(function(h){ h.style.borderTop = ''; h.style.borderBottom = ''; });
+    if(kGhostEl && kGhostEl.parentNode) kGhostEl.parentNode.removeChild(kGhostEl);
+    kdragName = null; kGhostEl = null;
+  }
+  function startKeptDrag(ev){
+    var head = ev.target && ev.target.closest ? ev.target.closest('.kepthead') : null;
+    if(!head) return;
+    kdragName = head.dataset.fname;
+    try{ ev.target.setPointerCapture(ev.pointerId); }catch(e){}
+    kGhostEl = document.createElement('div');
+    kGhostEl.textContent = '≡ ' + kdragName;
+    kGhostEl.style.cssText = 'position:fixed;left:0;top:0;z-index:80;pointer-events:none;background:var(--whistle);color:var(--deeper);font-weight:800;font-size:13px;padding:8px 14px;border-radius:9px;transform:translate('+(ev.clientX+10)+'px,'+(ev.clientY-32)+'px)';
+    document.body.appendChild(kGhostEl);
+    var grip = ev.target;
+    grip.addEventListener('pointermove', function(mv){
+      if(!kdragName || !kGhostEl) return;
+      kGhostEl.style.transform = 'translate('+(mv.clientX+10)+'px,'+(mv.clientY-32)+'px)';
+      keptDragPaint(mv.clientY);
+      mv.preventDefault();
+    });
+    grip.addEventListener('pointerup', function(up){
+      if(!kdragName){ keptDragClean(); return; }
+      var moving = kdragName;
+      var idx = keptDropIndex(up.clientY);
+      var shown = keptHeads().map(function(h){ return h.dataset.fname; });
+      keptDragClean();
+      var from = shown.indexOf(moving);
+      if(from > -1){
+        shown.splice(from, 1);
+        if(idx > from) idx--;
+        shown.splice(idx, 0, moving);
+        state.formOrder = shown.concat(keptFormOrder().filter(function(n){ return shown.indexOf(n) < 0; }));
+        save(); renderKept(); renderGameDay();
+      }
+    });
+    grip.addEventListener('pointercancel', keptDragClean);
+    ev.preventDefault();
+  }
   function renderKept(){
     var host = document.getElementById('pbKept');
     var html = '', total = 0;
-    FORMS.forEach(function(f){
+    var byName = {};
+    FORMS.forEach(function(f){ byName[f.name] = f; });
+    keptFormOrder().forEach(function(nm){
+      var f = byName[nm];
+      if(!f) return;
       var items = playsOf(f).filter(function(p){ return state.kept[f.name+':'+p.n]; });
       if(!items.length) return;
       total += items.length;
-      html += '<h3 class="callhead">'+f.name+' · '+esc(f.sub)+'</h3>'+
+      html += '<h3 class="callhead kepthead" data-fname="'+esc(f.name)+'"><button type="button" class="grip" aria-label="Reorder '+esc(f.name)+'">≡</button><span>'+f.name+' · '+esc(f.sub)+'</span></h3>'+
         items.map(function(p){ return playCardHtml(f, p, null, {by:true}); }).join('');
     });
     if(total){
@@ -3813,6 +3892,9 @@
     wirePlayCards(host,
       function(){ renderKept(); updateCount(); renderGameDay(); },
       function(){ renderKept(); renderGameDay(); });
+    host.querySelectorAll('.kepthead .grip').forEach(function(g){
+      g.addEventListener('pointerdown', startKeptDrag);
+    });
   }
 
   function renderMine(){
@@ -4911,7 +4993,7 @@
   function syncOn(){ return !!(state.sync && state.sync.teamId && state.sync.secret); }
   function coachByName(){ return (state.sync && state.sync.label) ? state.sync.label : ''; }
   function partPayload(part){
-    if(part === 'off') return {v:2, part:'off', kept:state.kept, alias:state.alias, flip:state.flip, custom:state.custom, customForms:state.customForms};
+    if(part === 'off') return {v:2, part:'off', kept:state.kept, alias:state.alias, flip:state.flip, formOrder:state.formOrder, custom:state.custom, customForms:state.customForms};
     if(part === 'def') return {v:2, part:'def', customDefs:state.customDefs, keptDefs:state.keptDefs, defFlip:state.defFlip};
     return {v:2, part:'roster', players:state.players, series:state.series, formKept:state.formKept};
   }
@@ -4933,6 +5015,7 @@
   function applyOffReplace(o){
     state.kept = o.kept||{}; state.alias = o.alias||{}; state.flip = o.flip||{};
     state.custom = o.custom||[]; state.customForms = o.customForms||[];
+    state.formOrder = o.formOrder||[];
     bumpSeqFor(state.custom); bumpSeqFor(state.customForms);
     rebuildForms(); clampSeriesForms();
   }
@@ -4983,6 +5066,10 @@
       Object.keys(o[key]||{}).forEach(function(k){
         if(o[key][k] && state[key][k] === undefined){ state[key][k] = o[key][k]; }
       });
+    });
+    (o.formOrder||[]).forEach(function(n){
+      state.formOrder = state.formOrder||[];
+      if(state.formOrder.indexOf(n) < 0) state.formOrder.push(n);
     });
     clampSeriesForms();
   }
