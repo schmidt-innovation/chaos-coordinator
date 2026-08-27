@@ -695,14 +695,20 @@
      pointer-shaped pseudo-event, so every drag surface works unchanged.
      touchmove prevents default (scroll) to match touch-action:none; touchstart
      does not, so taps still become clicks. */
-  if(!window.PointerEvent && window.Element && Element.prototype.addEventListener){
+  if(window.Element && Element.prototype.addEventListener){
     (function(){
+      /* touch mirror for pointer listeners — unconditional, because some old
+         WebKit builds EXPOSE PointerEvent without ever firing it for touches.
+         The first genuine pointer event on an element silences its mirror, so
+         modern devices never double-handle. */
       var MAP = {pointerdown:'touchstart', pointermove:'touchmove', pointerup:'touchend', pointercancel:'touchcancel'};
       var origAdd = Element.prototype.addEventListener;
       Element.prototype.addEventListener = function(type, fn, opts){
         if(MAP[type] && typeof fn === 'function'){
           var self = this;
-          origAdd.call(this, MAP[type], function(tev){
+          origAdd.call(self, type, function(){ self.__peLive = true; }, false);
+          origAdd.call(self, MAP[type], function(tev){
+            if(self.__peLive) return;
             var t = (tev.changedTouches && tev.changedTouches[0]) || (tev.touches && tev.touches[0]);
             if(!t) return;
             if(MAP[type] === 'touchmove' && tev.cancelable){ tev.preventDefault(); }
@@ -719,6 +725,14 @@
       };
     })();
   }
+  /* first uncaught error shows in the banner — old sideline devices can't open
+     a console, so let the app say what actually broke */
+  var errShown = false;
+  window.onerror = function(msg, srcUrl, line){
+    if(errShown) return;
+    errShown = true;
+    try{ showBanner('App hiccup: '+String(msg).slice(0, 90)+' (line '+line+')'); }catch(e){}
+  };
   /* ================= state + storage ================= */
   var KEY = 'hr-state-v1';
   var state = null;

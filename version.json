@@ -1,4 +1,4 @@
 {
-  "v": 127,
-  "note": "the sync banner lists what changed and both banners can be dismissed"
+  "v": 128,
+  "note": "drag and modals work on older iPads again, and app errors show in the banner"
 }
