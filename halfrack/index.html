@@ -676,7 +676,7 @@
     <div id="snapList"></div>
   </div>
 
-  <p class="hintline" style="opacity:.85;text-align:center">Half Rack v134 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
+  <p class="hintline" style="opacity:.85;text-align:center">Half Rack v135 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
 
   <div class="card">
     <h3>Reset</h3>
@@ -3253,7 +3253,14 @@
 
     /* game day shows only formations with kept plays (plus the series' planned one) */
     var keptFormIdx = [];
-    FORMS.forEach(function(ff,fi){
+    /* chips follow the coach's Kept-tab ordering, so the first chip — and the
+       default formation called — is the one they sorted to the top */
+    var gdIdxByName = {};
+    FORMS.forEach(function(ff, fi){ gdIdxByName[ff.name] = fi; });
+    keptFormOrder().forEach(function(nm){
+      var fi = gdIdxByName[nm];
+      if(fi == null) return;
+      var ff = FORMS[fi];
       if(playsOf(ff).some(function(p){ return state.kept[ff.name+':'+p.n]; })) keptFormIdx.push(fi);
     });
     var anyKept = keptFormIdx.length > 0;
