@@ -1,4 +1,4 @@
 {
-  "v": 128,
-  "note": "drag and modals work on older iPads again, and app errors show in the banner"
+  "v": 129,
+  "note": "modals finally position correctly on older iPads"
 }

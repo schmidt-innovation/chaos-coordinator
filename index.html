@@ -282,7 +282,7 @@
   .pgrid button[aria-pressed="true"] .mini{border-color:rgba(11,33,28,.45);color:var(--deeper)}
   .play{scroll-margin-top:118px}
 
-  .pmodal{position:fixed;inset:0;z-index:60;background:rgba(7,23,20,.94);overflow:auto;padding:14px;display:flex}
+  .pmodal{position:fixed;top:0;left:0;right:0;bottom:0;z-index:60;background:rgba(7,23,20,.94);overflow:auto;padding:14px;display:flex}
   .pmodal[hidden]{display:none}
   .pmodal-inner{margin:auto;width:100%}
   .pmodal .play,.pmodal .card{margin:0}
@@ -959,6 +959,8 @@
     <div id="snapList"></div>
   </div>
 
+  <p class="hintline" style="opacity:.65;text-align:center">Coach Card v129 · stuck on an old version? open the app with ?fresh added to the address</p>
+
   <div class="card">
     <h3>Reset</h3>
     <p>Every reset saves a backup to History first, so it can be undone.</p>
@@ -1016,6 +1018,19 @@
         return origAdd.call(this, type, fn, opts);
       };
     })();
+  }
+  /* recovery hatch: opening the app as ?fresh wipes the service worker and
+     every cache, then reloads clean — for devices stuck on an old version */
+  if(location.search.indexOf('fresh') > -1){
+    try{
+      if('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations){
+        navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); });
+      }
+      if(window.caches && caches.keys){
+        caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); });
+      }
+      setTimeout(function(){ location.replace(location.pathname); }, 900);
+    }catch(e){}
   }
   /* first uncaught error shows in the banner — old sideline devices can't open
      a console, so let the app say what actually broke */
@@ -2674,7 +2689,7 @@
         '<input class="tin" type="text" '+(state.rosterLock?'readonly ':'')+'autocomplete="off" placeholder="Player '+(i+1)+'" value="'+esc(p.name)+'" aria-label="Player '+(i+1)+' name">'+
         (state.pcolors && state.rosterLock ? '<div class="iconbtn cpick" aria-hidden="true" style="display:grid;place-items:center;padding:0;pointer-events:none"><span class="csw" style="display:block;width:22px;height:22px;border-radius:50%;'+(p.color?'background:'+p.color+';border:2px solid rgba(7,23,20,.5)':'border:2px dashed rgba(246,241,228,.5)')+'"></span></div>' : '')+
         (state.pcolors && !state.rosterLock ? '<label class="iconbtn cpick" style="position:relative;display:grid;place-items:center;cursor:pointer;padding:0;overflow:visible">'+
-          '<input type="color" class="palfull" value="'+(p.color||'#FF5A5F')+'" aria-label="Player '+(i+1)+' color" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer">'+
+          '<input type="color" class="palfull" value="'+(p.color||'#FF5A5F')+'" aria-label="Player '+(i+1)+' color" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer">'+
           '<span class="csw" style="display:block;width:22px;height:22px;border-radius:50%;pointer-events:none;'+(p.color?'background:'+p.color+';border:2px solid rgba(7,23,20,.5)':'border:2px dashed rgba(246,241,228,.5)')+'"></span>'+
           '</label>' : '')+
         (state.rosterLock ? '' : '<button type="button" class="iconbtn" aria-label="Remove player">✕</button>')+
