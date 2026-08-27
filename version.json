@@ -1,4 +1,4 @@
 {
-  "v": 129,
-  "note": "modals finally position correctly on older iPads"
+  "v": 130,
+  "note": "reset to series lineup also resets any per-play player swaps"
 }

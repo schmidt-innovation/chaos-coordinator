@@ -959,7 +959,7 @@
     <div id="snapList"></div>
   </div>
 
-  <p class="hintline" style="opacity:.65;text-align:center">Coach Card v129 · stuck on an old version? open the app with ?fresh added to the address</p>
+  <p class="hintline" style="opacity:.65;text-align:center">Coach Card v130 · stuck on an old version? open the app with ?fresh added to the address</p>
 
   <div class="card">
     <h3>Reset</h3>
@@ -3574,7 +3574,7 @@
         allRoster.map(function(p){ return '<option value="'+esc(p.id)+'"'+(p.id===sel?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('')+
         '</select></div>';
     }).join('')+'</div>'+
-    (liveDiffers(cs) ? '<button type="button" class="ghostbtn solid" id="gdResetLineup" style="border-color:var(--whistle);color:var(--whistle);margin:2px 0 8px">↺ Reset to series lineup</button>' : '');
+    ((liveDiffers(cs) || (cs.pmap && Object.keys(cs.pmap).length)) ? '<button type="button" class="ghostbtn solid" id="gdResetLineup" style="border-color:var(--whistle);color:var(--whistle);margin:2px 0 8px">↺ Reset to series lineup</button>' : '');
 
     var benchHtml = '<div class="benchrow"><span class="blab">Sitting:</span>'+
       (bench.length ? bench.map(function(p){ return '<span class="bchip">'+esc(firstName(p.name))+'</span>'; }).join('') : '<span class="bchip" style="border-color:var(--line)">nobody</span>')+'</div>';
@@ -3775,6 +3775,7 @@
     if(rlb){
       rlb.addEventListener('click', function(){
         delete cs.live;
+        delete cs.pmap; /* per-play swaps go back to the series lineup too */
         save(); renderGameDay(); renderSeriesList();
       });
     }
