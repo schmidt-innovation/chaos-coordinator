@@ -258,10 +258,11 @@
   .gdchip{display:inline-block;background:var(--deeper);border:1px solid var(--line);color:var(--paper);
     border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;cursor:grab;
     touch-action:none;user-select:none;-webkit-user-select:none}
-  .kepthead{display:flex;align-items:center;gap:8px}
-  .kepthead .grip{flex:0 0 auto;background:none;border:1px solid var(--line);border-radius:7px;
-    color:var(--paper-dim);padding:2px 9px;font-size:14px;line-height:1.4;cursor:grab;
+  .kobar{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 14px}
+  .kopill{display:inline-block;background:var(--deeper);border:1px solid var(--line);color:var(--paper);
+    border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;cursor:grab;
     touch-action:none;user-select:none;-webkit-user-select:none}
+  .kopill.dragging{opacity:.35}
   .edjobs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
   .edjobs .joblabel{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-dim);font-weight:700;margin-right:2px}
   .edjobs button{background:var(--deeper);border:1px solid var(--line);color:var(--paper);
@@ -967,7 +968,7 @@
     <div id="snapList"></div>
   </div>
 
-  <p class="hintline" style="opacity:.85;text-align:center">Coach Card v132 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
+  <p class="hintline" style="opacity:.85;text-align:center">Coach Card v133 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
 
   <div class="card">
     <h3>Reset</h3>
@@ -4140,53 +4141,59 @@
     names.forEach(function(n){ if(out.indexOf(n) < 0) out.push(n); });
     return out;
   }
-  var kdragName = null, kGhostEl = null;
-  function keptHeads(){ return [].slice.call(document.querySelectorAll('#pbKept .kepthead')); }
-  function keptDropIndex(clientY){
-    var hs = keptHeads();
-    for(var i = 0; i < hs.length; i++){
-      var r = hs[i].getBoundingClientRect();
-      if(clientY < r.top + r.height/2) return i;
+  var koName = null, koGhost = null;
+  function koPills(){ return [].slice.call(document.querySelectorAll('#keptOrderBar .kopill')); }
+  function koDropIndex(cx, cy){
+    var ps = koPills();
+    for(var i = 0; i < ps.length; i++){
+      var r = ps[i].getBoundingClientRect();
+      if(cy < r.top - 4) return i;
+      if(cy <= r.bottom + 4 && cx < r.left + r.width/2) return i;
     }
-    return hs.length;
+    return ps.length;
   }
-  function keptDragPaint(clientY){
-    var hs = keptHeads(), idx = keptDropIndex(clientY);
-    hs.forEach(function(h, i){
-      h.style.borderTop = (i === idx) ? '3px solid var(--whistle)' : '';
-      h.style.borderBottom = (idx === hs.length && i === hs.length - 1) ? '3px solid var(--whistle)' : '';
+  function koPaint(cx, cy){
+    var ps = koPills(), idx = koDropIndex(cx, cy);
+    ps.forEach(function(pl, i){
+      pl.style.borderLeftColor = (i === idx) ? 'var(--whistle)' : '';
+      pl.style.borderLeftWidth = (i === idx) ? '3px' : '';
+      pl.style.borderRightColor = (idx === ps.length && i === ps.length - 1) ? 'var(--whistle)' : '';
+      pl.style.borderRightWidth = (idx === ps.length && i === ps.length - 1) ? '3px' : '';
     });
-    return idx;
   }
-  function keptDragClean(){
-    keptHeads().forEach(function(h){ h.style.borderTop = ''; h.style.borderBottom = ''; });
-    if(kGhostEl && kGhostEl.parentNode) kGhostEl.parentNode.removeChild(kGhostEl);
-    kdragName = null; kGhostEl = null;
+  function koClean(){
+    koPills().forEach(function(pl){
+      pl.style.borderLeftColor = ''; pl.style.borderLeftWidth = '';
+      pl.style.borderRightColor = ''; pl.style.borderRightWidth = '';
+      pl.classList.remove('dragging');
+    });
+    if(koGhost && koGhost.parentNode) koGhost.parentNode.removeChild(koGhost);
+    koName = null; koGhost = null;
   }
-  function startKeptDrag(ev){
-    var head = ev.target && ev.target.closest ? ev.target.closest('.kepthead') : null;
-    if(!head) return;
-    kdragName = head.dataset.fname;
-    try{ ev.target.setPointerCapture(ev.pointerId); }catch(e){}
-    kGhostEl = document.createElement('div');
-    kGhostEl.textContent = '≡ ' + kdragName;
-    kGhostEl.style.cssText = 'position:fixed;left:0;top:0;z-index:80;pointer-events:none;background:var(--whistle);color:var(--deeper);font-weight:800;font-size:13px;padding:8px 14px;border-radius:9px;transform:translate('+(ev.clientX+10)+'px,'+(ev.clientY-32)+'px)';
-    document.body.appendChild(kGhostEl);
-    var grip = ev.target;
-    grip.addEventListener('pointermove', function(mv){
-      if(!kdragName || !kGhostEl) return;
-      kGhostEl.style.transform = 'translate('+(mv.clientX+10)+'px,'+(mv.clientY-32)+'px)';
-      keptDragPaint(mv.clientY);
+  function startKoDrag(ev){
+    var pill = ev.target && ev.target.closest ? ev.target.closest('.kopill') : null;
+    if(!pill) return;
+    koName = pill.dataset.fname;
+    pill.classList.add('dragging');
+    try{ pill.setPointerCapture(ev.pointerId); }catch(e){}
+    koGhost = document.createElement('div');
+    koGhost.textContent = koName;
+    koGhost.style.cssText = 'position:fixed;left:0;top:0;z-index:80;pointer-events:none;background:var(--whistle);color:var(--deeper);font-weight:800;font-size:13px;padding:8px 14px;border-radius:999px;transform:translate('+(ev.clientX+8)+'px,'+(ev.clientY-36)+'px)';
+    document.body.appendChild(koGhost);
+    pill.addEventListener('pointermove', function(mv){
+      if(!koName || !koGhost) return;
+      koGhost.style.transform = 'translate('+(mv.clientX+8)+'px,'+(mv.clientY-36)+'px)';
+      koPaint(mv.clientX, mv.clientY);
       mv.preventDefault();
     });
-    grip.addEventListener('pointerup', function(up){
-      if(!kdragName){ keptDragClean(); return; }
-      var moving = kdragName;
-      var idx = keptDropIndex(up.clientY);
-      var shown = keptHeads().map(function(h){ return h.dataset.fname; });
-      keptDragClean();
+    pill.addEventListener('pointerup', function(up){
+      if(!koName){ koClean(); return; }
+      var moving = koName;
+      var idx = koDropIndex(up.clientX, up.clientY);
+      var shown = koPills().map(function(pl){ return pl.dataset.fname; });
+      koClean();
       var from = shown.indexOf(moving);
-      if(from > -1){
+      if(from > -1 && shown.length > 1){
         shown.splice(from, 1);
         if(idx > from) idx--;
         shown.splice(idx, 0, moving);
@@ -4194,7 +4201,7 @@
         save(); renderKept(); renderGameDay();
       }
     });
-    grip.addEventListener('pointercancel', keptDragClean);
+    pill.addEventListener('pointercancel', koClean);
     ev.preventDefault();
   }
   function renderKept(){
@@ -4202,17 +4209,27 @@
     var html = '', total = 0;
     var byName = {};
     FORMS.forEach(function(f){ byName[f.name] = f; });
+    var groups = [];
     keptFormOrder().forEach(function(nm){
       var f = byName[nm];
       if(!f) return;
       var items = playsOf(f).filter(function(p){ return state.kept[f.name+':'+p.n]; });
       if(!items.length) return;
+      groups.push({f:f, items:items});
       total += items.length;
-      html += '<h3 class="callhead kepthead" data-fname="'+esc(f.name)+'"><button type="button" class="grip" aria-label="Reorder '+esc(f.name)+'">≡</button><span>'+f.name+' · '+esc(f.sub)+'</span></h3>'+
-        items.map(function(p){ return playCardHtml(f, p, null, {by:true}); }).join('');
+    });
+    var orderBar = groups.length > 1
+      ? '<label class="flab">Formation order — drag a pill to sort the game plan</label>'+
+        '<div class="kobar" id="keptOrderBar">'+groups.map(function(g){
+          return '<span class="kopill" data-fname="'+esc(g.f.name)+'">'+esc(g.f.name)+'</span>';
+        }).join('')+'</div>'
+      : '';
+    groups.forEach(function(g){
+      html += '<h3 class="callhead">'+g.f.name+' · '+esc(g.f.sub)+'</h3>'+
+        g.items.map(function(p){ return playCardHtml(g.f, p, null, {by:true}); }).join('');
     });
     if(total){
-      host.innerHTML = '<div class="benchline" style="margin:0 0 4px">'+total+' play'+(total===1?'':'s')+' in the game plan.</div>'+html+
+      host.innerHTML = '<div class="benchline" style="margin:0 0 4px">'+total+' play'+(total===1?'':'s')+' in the game plan.</div>'+orderBar+html+
         '<button type="button" class="ghostbtn" id="addShared">⛶ Add a shared play</button>';
     } else {
       host.innerHTML = '<div class="card"><h3>No plays kept yet</h3>'+
@@ -4225,8 +4242,8 @@
     wirePlayCards(host,
       function(){ renderKept(); updateCount(); renderGameDay(); },
       function(){ renderKept(); renderGameDay(); });
-    host.querySelectorAll('.kepthead .grip').forEach(function(g){
-      g.addEventListener('pointerdown', startKeptDrag);
+    host.querySelectorAll('#keptOrderBar .kopill').forEach(function(pl){
+      pl.addEventListener('pointerdown', startKoDrag);
     });
   }
 
