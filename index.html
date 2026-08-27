@@ -254,6 +254,10 @@
   #topBanner .bmsg{flex:1;text-align:center}
   #topBanner .bx{flex:0 0 auto;background:none;border:1px solid var(--line);color:var(--paper-dim);
     border-radius:8px;width:28px;height:28px;font-size:13px;line-height:1;cursor:pointer;padding:0}
+  .gdbench{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 2px}
+  .gdchip{display:inline-block;background:var(--deeper);border:1px solid var(--line);color:var(--paper);
+    border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;cursor:grab;
+    touch-action:none;user-select:none;-webkit-user-select:none}
   .edjobs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px}
   .edjobs .joblabel{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-dim);font-weight:700;margin-right:2px}
   .edjobs button{background:var(--deeper);border:1px solid var(--line);color:var(--paper);
@@ -959,7 +963,7 @@
     <div id="snapList"></div>
   </div>
 
-  <p class="hintline" style="opacity:.65;text-align:center">Coach Card v130 · stuck on an old version? open the app with ?fresh added to the address</p>
+  <p class="hintline" style="opacity:.85;text-align:center">Coach Card v131 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
 
   <div class="card">
     <h3>Reset</h3>
@@ -1019,9 +1023,11 @@
       };
     })();
   }
-  /* recovery hatch: opening the app as ?fresh wipes the service worker and
-     every cache, then reloads clean — for devices stuck on an old version */
-  if(location.search.indexOf('fresh') > -1){
+  /* recovery: wipe the service worker and every cache, then reload clean —
+     for devices stuck on an old version. Runs from the ?fresh URL or the
+     Settings button (installed web apps have no address bar). Team data is
+     untouched; it lives in localStorage. */
+  function freshReload(){
     try{
       if('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations){
         navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); });
@@ -1029,9 +1035,16 @@
       if(window.caches && caches.keys){
         caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); });
       }
-      setTimeout(function(){ location.replace(location.pathname); }, 900);
     }catch(e){}
+    setTimeout(function(){ location.replace(location.pathname); }, 900);
   }
+  if(location.search && location.search.indexOf('fresh') > -1){ freshReload(); }
+  document.addEventListener('click', function(ev){
+    if(ev.target && ev.target.id === 'freshBtn'){
+      ev.target.textContent = 'Updating…';
+      freshReload();
+    }
+  });
   /* first uncaught error shows in the banner — old sideline devices can't open
      a console, so let the app say what actually broke */
   var errShown = false;
@@ -1704,6 +1717,26 @@
     if(s[5] === 1) return true;
     if(s[5] === 0) return false;
     return s[0] !== 'QB' && s[1][1] < 165;
+  }
+  /* drag ghosts built with DOM calls — old WebKit has no innerHTML on SVG */
+  function dragGhostFill(g, shape, label){
+    var NS2 = 'http://www.w3.org/2000/svg';
+    var base = document.createElementNS(NS2, shape === 'rect' ? 'rect' : 'circle');
+    if(shape === 'rect'){
+      base.setAttribute('x','-11'); base.setAttribute('y','-11');
+      base.setAttribute('width','22'); base.setAttribute('height','22'); base.setAttribute('rx','5');
+      base.setAttribute('fill','rgba(255,90,95,.9)');
+    } else {
+      base.setAttribute('r','13');
+      base.setAttribute('fill','rgba(255,201,60,.9)');
+    }
+    base.setAttribute('stroke','#0B211C'); base.setAttribute('stroke-width','1.5');
+    var t = document.createElementNS(NS2,'text');
+    t.setAttribute('y','4'); t.setAttribute('text-anchor','middle');
+    t.setAttribute('font-size','10'); t.setAttribute('font-weight','700');
+    t.setAttribute('font-family','Archivo,sans-serif'); t.setAttribute('fill','#0B211C');
+    t.textContent = label;
+    g.appendChild(base); g.appendChild(t);
   }
   function lineTick(x, y){
     var c = (state && state.losOn && state.losColor) ? state.losColor : null;
@@ -3348,8 +3381,7 @@
         try{ field.setPointerCapture(ev.pointerId); }catch(e){}
         ghost = document.createElementNS(NS,'g');
         ghost.setAttribute('pointer-events','none');
-        ghost.innerHTML = '<circle r="13" fill="rgba(255,201,60,.9)" stroke="#0B211C" stroke-width="1.5"/>'+
-          '<text y="4" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="#0B211C">'+esc(sl)+'</text>';
+        dragGhostFill(ghost, 'circle', esc(sl));
         ghost.setAttribute('transform','translate('+p[0]+','+p[1]+')');
         ring = document.createElementNS(NS,'circle');
         ring.setAttribute('r','17'); ring.setAttribute('fill','none');
@@ -3477,8 +3509,7 @@
         try{ field.setPointerCapture(ev.pointerId); }catch(e){}
         ghost = document.createElementNS(NS,'g');
         ghost.setAttribute('pointer-events','none');
-        ghost.innerHTML = '<rect x="-11" y="-11" width="22" height="22" rx="5" fill="rgba(255,90,95,.9)" stroke="#0B211C" stroke-width="1.5"/>'+
-          '<text y="4" text-anchor="middle" font-size="9" font-weight="700" font-family="Archivo,sans-serif" fill="#2A0E0F">'+esc(z)+'</text>';
+        dragGhostFill(ghost, 'rect', esc(z));
         ghost.setAttribute('transform','translate('+p[0]+','+p[1]+')');
         ring = document.createElementNS(NS,'circle');
         ring.setAttribute('r','18'); ring.setAttribute('fill','none');
@@ -3648,10 +3679,23 @@
       namesLocked = true;
       var gdLineupSvg = formationSvg(lf, namesForForm(cs, cs.form));
       namesLocked = false;
+      /* crop the lineup card to the players — no end zone, no empty grass */
+      var lys = lf.spots.map(function(s2){ return s2[1][1]; });
+      var cropTop = Math.max(0, Math.min.apply(null, lys) - 30);
+      var cropH = Math.min(230, Math.max.apply(null, lys) + 22) - cropTop;
+      gdLineupSvg = gdLineupSvg.replace('viewBox="0 0 300 230"', 'viewBox="0 '+cropTop+' 300 '+cropH+'"');
+      var benchChips = bench.length
+        ? '<label class="flab" style="margin-top:10px">Bench — drag a kid onto the field to sub them in</label>'+
+          '<div class="gdbench" id="gdBench">'+bench.map(function(p2){
+            var pc2 = (state.pcolors && p2.color) ? p2.color : null;
+            return '<span class="gdchip" data-pid="'+esc(p2.id)+'"'+(pc2?' style="background:'+pc2+';border-color:'+pc2+';color:#071714"':'')+'>'+esc(firstName(p2.name))+'</span>';
+          }).join('')+'</div>'
+        : '';
       fieldPane = fieldToggle+
         '<h3 class="callhead">'+esc(cs.label||'Series')+' — on the field'+(liveDiffers(cs)?' · subbed':'')+'</h3>'+
         '<div class="field" id="gdLineup" style="touch-action:none">'+gdLineupSvg+'</div>'+
-        '<p class="edhint">Drag a player onto a teammate to swap their spots.</p>'+
+        benchChips+
+        '<p class="edhint">Drag a player onto a teammate to swap spots — or drag a bench kid onto the field to sub them in.</p>'+
         lineup+benchHtml+subHtml;
     } else {
       fieldPane = fieldToggle+(customsGd.length
@@ -3828,7 +3872,9 @@
       var drag = null, ghost = null, ring = null;
       function evPos(ev){
         var r = svgEl.getBoundingClientRect();
-        return [(ev.clientX - r.left) / r.width * 300, (ev.clientY - r.top) / r.height * 230];
+        var vb = (svgEl.getAttribute('viewBox')||'0 0 300 230').split(' ');
+        return [ +vb[0] + (ev.clientX - r.left) / r.width * +vb[2],
+                 +vb[1] + (ev.clientY - r.top) / r.height * +vb[3] ];
       }
       function slotAt(x, y){
         var best = null, bd = 24;
@@ -3851,8 +3897,7 @@
         try{ host.setPointerCapture(ev.pointerId); }catch(e){}
         ghost = document.createElementNS(NS,'g');
         ghost.setAttribute('pointer-events','none');
-        ghost.innerHTML = '<circle r="13" fill="rgba(255,201,60,.9)" stroke="#0B211C" stroke-width="1.5"/>'+
-          '<text y="4" text-anchor="middle" font-size="10" font-weight="700" font-family="Archivo,sans-serif" fill="#0B211C">'+esc(s)+'</text>';
+        dragGhostFill(ghost, 'circle', esc(s));
         ghost.setAttribute('transform','translate('+p[0]+','+p[1]+')');
         ring = document.createElementNS(NS,'circle');
         ring.setAttribute('r','17'); ring.setAttribute('fill','none');
@@ -3895,6 +3940,62 @@
         }
       });
       host.addEventListener('pointercancel', cleanup);
+      /* bench chips: drag a sitting-out kid onto a spot to sub them in */
+      var benchHost = document.getElementById('gdBench');
+      if(benchHost){
+        var bDrag = null, bGhost = null, bRing = null;
+        var bClean = function(){
+          if(bGhost && bGhost.parentNode) bGhost.parentNode.removeChild(bGhost);
+          if(bRing && bRing.parentNode) bRing.parentNode.removeChild(bRing);
+          bDrag = null; bGhost = null; bRing = null;
+        };
+        benchHost.addEventListener('pointerdown', function(ev){
+          var chip = ev.target && ev.target.closest ? ev.target.closest('.gdchip') : null;
+          if(!chip) return;
+          bDrag = chip.dataset.pid;
+          try{ benchHost.setPointerCapture(ev.pointerId); }catch(e){}
+          bGhost = document.createElement('div');
+          bGhost.className = 'gdchip';
+          bGhost.textContent = chip.textContent;
+          bGhost.style.cssText = 'position:fixed;left:0;top:0;z-index:80;pointer-events:none;background:var(--whistle);border-color:var(--whistle);color:var(--deeper);transform:translate('+(ev.clientX+8)+'px,'+(ev.clientY-40)+'px)';
+          document.body.appendChild(bGhost);
+          bRing = document.createElementNS(NS,'circle');
+          bRing.setAttribute('r','17'); bRing.setAttribute('fill','none');
+          bRing.setAttribute('stroke','#FFC93C'); bRing.setAttribute('stroke-width','2.5');
+          bRing.setAttribute('stroke-dasharray','5 4');
+          bRing.setAttribute('visibility','hidden');
+          bRing.setAttribute('pointer-events','none');
+          svgEl.appendChild(bRing);
+          ev.preventDefault();
+        });
+        benchHost.addEventListener('pointermove', function(ev){
+          if(!bDrag || !bGhost) return;
+          bGhost.style.transform = 'translate('+(ev.clientX+8)+'px,'+(ev.clientY-40)+'px)';
+          var p2 = evPos(ev), t2 = slotAt(p2[0], p2[1]);
+          if(t2){
+            var sp2 = null;
+            lf.spots.forEach(function(s3){ if(s3[0]===t2) sp2 = s3[1]; });
+            bRing.setAttribute('cx', sp2[0]); bRing.setAttribute('cy', sp2[1]);
+            bRing.setAttribute('visibility','visible');
+          } else {
+            bRing.setAttribute('visibility','hidden');
+          }
+          ev.preventDefault();
+        });
+        benchHost.addEventListener('pointerup', function(ev){
+          var pid = bDrag;
+          var p3 = evPos(ev), t3 = pid ? slotAt(p3[0], p3[1]) : null;
+          bClean();
+          if(pid && t3){
+            var lv2 = ensureLive(cs);
+            Object.keys(lv2).forEach(function(k){ if(lv2[k] === pid) delete lv2[k]; });
+            lv2[t3] = pid;
+            if(!liveDiffers(cs)) delete cs.live;
+            save(); renderGameDay(); renderSeriesList();
+          }
+        });
+        benchHost.addEventListener('pointercancel', bClean);
+      }
     })();
 
     /* drag a defender onto another to swap assignments (zone + custom schemes) */
@@ -3934,8 +4035,7 @@
         try{ host.setPointerCapture(ev.pointerId); }catch(e){}
         ghost = document.createElementNS(NS,'g');
         ghost.setAttribute('pointer-events','none');
-        ghost.innerHTML = '<rect x="-11" y="-11" width="22" height="22" rx="5" fill="rgba(255,90,95,.9)" stroke="#0B211C" stroke-width="1.5"/>'+
-          '<text y="4" text-anchor="middle" font-size="9" font-weight="700" font-family="Archivo,sans-serif" fill="#2A0E0F">'+esc(z)+'</text>';
+        dragGhostFill(ghost, 'rect', esc(z));
         ghost.setAttribute('transform','translate('+p[0]+','+p[1]+')');
         ring = document.createElementNS(NS,'circle');
         ring.setAttribute('r','18'); ring.setAttribute('fill','none');
