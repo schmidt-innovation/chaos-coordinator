@@ -1,4 +1,4 @@
 {
-  "v": 136,
-  "note": "collapse a Kept formation to sort its plays as pills — order flows to game day and syncs"
+  "v": 137,
+  "note": "duplicates fixed: importing a playbook you already have adds nothing, sync merges reuse what's here, and Settings → Tidy up folds existing copies back together"
 }

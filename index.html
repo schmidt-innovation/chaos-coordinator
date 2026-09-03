@@ -937,7 +937,14 @@
     <div id="snapList"></div>
   </div>
 
-  <p class="hintline" style="opacity:.85;text-align:center">Coach Card v136 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
+  <div class="card">
+    <h3>Tidy up</h3>
+    <p>Folds duplicate copies back together: a “Trips Right 2” lined up exactly like “Trips Right” merges into it, plays with the same routes become one, and kept marks, order, and series calls follow. A backup goes to History first, and the cleaned playbook syncs to the team.</p>
+    <button type="button" id="tidyBtn">Remove duplicates</button>
+    <p class="hintline" id="tidyMsg" hidden></p>
+  </div>
+
+  <p class="hintline" style="opacity:.85;text-align:center">Coach Card v137 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
 
   <div class="card">
     <h3>Reset</h3>
@@ -1429,22 +1436,219 @@
     try{ return b64urlDecode(txt); }catch(e){ return null; }
   }
 
-  /* merge a playbook (offense) code from another coach into this device */
+  /* ---- dedupe helpers shared by share imports, sync merges, and Tidy up ----
+     Copies get a trailing number ("Trips Right 2"), so names are kin when one is
+     the other plus a number, or both are the same name plus a number — "Cover 3"
+     and "Cover 3 2" are kin, "Trips Right 2" and "Trips Right 3" are kin. Kin with
+     the same content is the same thing, whatever the copy number says. */
+  function nameFamily(n){ return String(n||'').replace(/\s+\d+$/, '').trim().toLowerCase(); }
+  function kin(a, b){
+    a = String(a||'').toLowerCase(); b = String(b||'').toLowerCase();
+    return a === b || nameFamily(a) === b || a === nameFamily(b) || nameFamily(a) === nameFamily(b);
+  }
+  /* split same-content items into kin clusters, shortest name first (the original) —
+     returns only clusters with something to fold */
+  function kinClusters(items, nameOf){
+    var left = items.slice(), out = [];
+    while(left.length){
+      var canon = left[0];
+      left.forEach(function(x){ if(nameOf(x).length < nameOf(canon).length) canon = x; });
+      var cl = [canon], rest = left.filter(function(x){ return x !== canon; }), grew = true;
+      while(grew){
+        grew = false;
+        rest = rest.filter(function(x){
+          if(cl.some(function(c){ return kin(nameOf(c), nameOf(x)); })){ cl.push(x); grew = true; return false; }
+          return true;
+        });
+      }
+      if(cl.length > 1) out.push(cl);
+      left = rest;
+    }
+    return out;
+  }
+  function sameJson(a, b){ return JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b); }
+  function sameForm(a, b){ return !!(a && b) && sameJson(a.spots, b.spots); }
+  function samePlay(a, b){ return !!(a && b) && a.t === b.t && sameJson(a.routes, b.routes); }
+  function sameDef(a, b){ return !!(a && b) && sameJson([a.pos, a.roles, a.sizes, a.moves], [b.pos, b.roles, b.sizes, b.moves]); }
+  /* the local custom formation that already IS this one: same name and alignment,
+     else a kin-named copy with the same alignment. A customForms index. */
+  function findFormTwin(cf){
+    var list = state.customForms||[], hit = -1;
+    list.forEach(function(lf, i){ if(hit < 0 && lf.name.toLowerCase() === String(cf.name).toLowerCase() && sameForm(lf, cf)) hit = i; });
+    if(hit < 0){ list.forEach(function(lf, i){ if(hit < 0 && kin(lf.name, cf.name) && sameForm(lf, cf)) hit = i; }); }
+    return hit;
+  }
+  function findPlayTwin(fi, cp){
+    var list = (state.custom||[]).filter(function(c){ return c.form === fi && c !== cp; });
+    var hit = list.filter(function(c){ return c.n.toLowerCase() === String(cp.n).toLowerCase() && samePlay(c, cp); })[0];
+    if(!hit){ hit = list.filter(function(c){ return kin(c.n, cp.n) && samePlay(c, cp); })[0]; }
+    return hit || null;
+  }
+  function findDefTwin(cd){
+    var list = (state.customDefs||[]).filter(function(d){ return d !== cd; });
+    var hit = list.filter(function(d){ return d.name.toLowerCase() === String(cd.name).toLowerCase() && sameDef(d, cd); })[0];
+    if(!hit){ hit = list.filter(function(d){ return kin(d.name, cd.name) && sameDef(d, cd); })[0]; }
+    return hit || null;
+  }
+  function freeFormName(nm, skipId){
+    var names = FORMS.filter(function(f){ return !(skipId && f.cfid === skipId); }).map(function(f){ return f.name.toLowerCase(); });
+    var base = nm, j = 2;
+    while(names.indexOf(nm.toLowerCase()) > -1){ nm = base+' '+j; j++; }
+    return nm;
+  }
+  function freePlayName(f, nm, skipCid){
+    var taken = playsOf(f).filter(function(p){ return !(skipCid && p.custom && p.cid === skipCid); }).map(function(p){ return p.n.toLowerCase(); });
+    var base = nm, j = 2;
+    while(taken.indexOf(nm.toLowerCase()) > -1){ nm = base+' '+j; j++; }
+    return nm;
+  }
+  function freeDefName(nm){
+    var names = allDefs().map(function(d){ return d.name.toLowerCase(); });
+    var base = nm, j = 2;
+    while(names.indexOf(nm.toLowerCase()) > -1){ nm = base+' '+j; j++; }
+    return nm;
+  }
+  /* rename a custom formation and carry every name-keyed reference along */
+  function renameForm(cf, name){
+    var old = cf.name;
+    if(old === name) return;
+    ['kept','alias','flip'].forEach(function(key){
+      var m = state[key] = state[key]||{};
+      Object.keys(m).forEach(function(k){
+        if(k.indexOf(old+':') === 0){ m[name+k.slice(old.length)] = m[k]; delete m[k]; }
+      });
+    });
+    if(state.playOrder && state.playOrder[old]){ state.playOrder[name] = state.playOrder[old]; delete state.playOrder[old]; }
+    if(state.formOrder){ state.formOrder = state.formOrder.map(function(x){ return x === old ? name : x; }); }
+    if(state.formKept && state.formKept[old]){ state.formKept[name] = true; delete state.formKept[old]; }
+    cf.name = name;
+  }
+  /* carry a play's kept mark, alias, flip, series calls, and order slot from one id to another */
+  function carryPlayRefs(fromFi, fromN, toFi, toN){
+    var fromF = FORMS[fromFi], toF = FORMS[toFi];
+    var oldId = fromF.name+':'+fromN, newId = toF.name+':'+toN;
+    if(oldId === newId) return;
+    ['kept','alias','flip'].forEach(function(key){
+      var m = state[key] = state[key]||{};
+      if(m[oldId] === undefined) return;
+      if(key === 'kept'){ m[newId] = !!(m[newId] || m[oldId]); }
+      else if(m[newId] === undefined){ m[newId] = m[oldId]; }
+      delete m[oldId];
+    });
+    state.series.forEach(function(s){
+      var ef = s.callForm != null ? s.callForm : s.form;
+      if(ef === fromFi && s.callPlay === fromN){ s.callPlay = toN; if(toFi !== fromFi){ s.callForm = toFi; } }
+    });
+    var po = state.playOrder = state.playOrder||{};
+    if(fromFi === toFi){ if(po[fromF.name]){ po[fromF.name] = po[fromF.name].map(function(x){ return x === fromN ? toN : x; }); } }
+    else {
+      if(po[fromF.name]){ po[fromF.name] = po[fromF.name].filter(function(x){ return x !== fromN; }); }
+      if(po[toF.name] && po[toF.name].indexOf(toN) < 0){ po[toF.name].push(toN); }
+    }
+  }
+  /* rename a custom play, or move it to formation fi, references and all */
+  function movePlay(c, fi, name){
+    carryPlayRefs(c.form, c.n, fi, name);
+    c.form = fi; c.n = name;
+  }
+  /* fold a play into its twin: the twin inherits its marks, the play goes away */
+  function foldPlay(c, into){
+    carryPlayRefs(c.form, c.n, into.form, into.n);
+    state.custom = (state.custom||[]).filter(function(x){ return x !== c; });
+  }
+  /* a play the team deleted: drop it and everything that pointed at it */
+  function removePlay(c){
+    var f = FORMS[c.form], id = f.name+':'+c.n;
+    ['kept','alias','flip'].forEach(function(key){ if(state[key]) delete state[key][id]; });
+    state.series.forEach(function(s){ var ef = s.callForm != null ? s.callForm : s.form; if(ef === c.form && s.callPlay === c.n) s.callPlay = null; });
+    var po = state.playOrder||{};
+    if(po[f.name]){ po[f.name] = po[f.name].filter(function(x){ return x !== c.n; }); }
+    state.custom = (state.custom||[]).filter(function(x){ return x !== c; });
+  }
+  /* drop custom formations by customForms index (a set), shifting every index after them */
+  function removeCustomForms(drop){
+    var stockN = STOCK_FORMS.length, newIdx = {}, keep = [];
+    (state.customForms||[]).forEach(function(cf, i){
+      if(drop[i]){
+        var nm = cf.name;
+        ['kept','alias','flip'].forEach(function(key){ Object.keys(state[key]||{}).forEach(function(k){ if(k.indexOf(nm+':') === 0) delete state[key][k]; }); });
+        if(state.playOrder) delete state.playOrder[nm];
+        if(state.formOrder) state.formOrder = state.formOrder.filter(function(x){ return x !== nm; });
+        if(state.formKept) delete state.formKept[nm];
+        return;
+      }
+      newIdx[stockN+i] = stockN + keep.length; keep.push(cf);
+    });
+    state.customForms = keep;
+    function remap(fi){ return fi < stockN ? fi : (newIdx[fi] != null ? newIdx[fi] : -1); }
+    state.custom = (state.custom||[]).filter(function(c){ c.form = remap(c.form); return c.form >= 0; });
+    state.series.forEach(function(s){
+      var nf = remap(s.form);
+      if(nf < 0){ s.form = 0; s.callPlay = null; } else { s.form = nf; }
+      if(s.callForm != null){ var nc = remap(s.callForm); if(nc < 0){ s.callForm = s.form; s.callPlay = null; } else { s.callForm = nc; } }
+    });
+    if(typeof mineActive === 'number'){ var ma = remap(mineActive); mineActive = ma < 0 ? 0 : ma; }
+    rebuildForms();
+  }
+  /* drop marks and order entries that point at formations or plays that no longer exist */
+  function pruneRefs(){
+    rebuildForms();
+    var byForm = {};
+    FORMS.forEach(function(f){ byForm[f.name.toLowerCase()] = playsOf(f).map(function(p){ return p.n.toLowerCase(); }); });
+    ['kept','alias','flip'].forEach(function(key){
+      var m = state[key]||{};
+      Object.keys(m).forEach(function(k){
+        var i = k.indexOf(':');
+        var pl = i < 0 ? null : byForm[k.slice(0, i).toLowerCase()];
+        if(!pl || pl.indexOf(k.slice(i+1).toLowerCase()) < 0) delete m[k];
+      });
+    });
+    if(state.formOrder){ state.formOrder = state.formOrder.filter(function(x){ return !!byForm[String(x).toLowerCase()]; }); }
+    if(state.playOrder){ Object.keys(state.playOrder).forEach(function(fn){ if(!byForm[fn.toLowerCase()]) delete state.playOrder[fn]; }); }
+    if(state.formKept){ Object.keys(state.formKept).forEach(function(fn){ if(!byForm[fn.toLowerCase()]) delete state.formKept[fn]; }); }
+  }
+  function mergeWords(ro){
+    function pl(n, w){ return n+' '+w+(n===1?'':'s'); }
+    var bits = [];
+    if(ro.plays || ro.forms || !(ro.playsHad || ro.formsHad)){ bits.push(pl(ro.plays||0,'play')+', '+pl(ro.forms||0,'formation')+' added'); }
+    if(ro.playsHad || ro.formsHad){ bits.push(pl(ro.playsHad||0,'play')+', '+pl(ro.formsHad||0,'formation')+' already here'); }
+    return bits.join(' · ');
+  }
+  function defWords(rd){
+    function pl(n){ return n+' defense'+(n===1?'':'s'); }
+    var bits = [];
+    if(rd.defs || !rd.had){ bits.push(pl(rd.defs||0)+' added'); }
+    if(rd.had){ bits.push(pl(rd.had)+' already here'); }
+    return bits.join(' · ');
+  }
+
+  /* merge a playbook (offense) code from another coach into this device —
+     formations and plays already here (same alignment, same routes — even as a
+     "Name 2" copy) are reused, so importing what you already have never breeds
+     duplicates; only a true collision (same name, different content) becomes a
+     renamed copy */
   function mergeOffense(o){
     var stockN = STOCK_FORMS.length;
-    var nameMap = {}, idxMap = {};
-    var existingNames = FORMS.map(function(f){ return f.name.toLowerCase(); });
+    var nameMap = {}, idxMap = {}, forms = 0, formsHad = 0;
+    state.customForms = state.customForms||[];
     (o.customForms||[]).forEach(function(cf, k){
-      var nm = cf.name, base = nm, j = 2;
-      while(existingNames.indexOf(nm.toLowerCase()) > -1){ nm = base+' '+j; j++; }
-      existingNames.push(nm.toLowerCase());
+      var twin = findFormTwin(cf);
+      if(twin > -1){
+        idxMap[stockN+k] = stockN + twin;
+        if(state.customForms[twin].name !== cf.name) nameMap[cf.name] = state.customForms[twin].name;
+        formsHad++;
+        return;
+      }
+      var nm = freeFormName(cf.name);
       if(nm !== cf.name) nameMap[cf.name] = nm;
       state.seq++;
       state.customForms.push({id:'f'+state.seq, name:nm, spots:cf.spots});
+      rebuildForms();
       idxMap[stockN+k] = stockN + state.customForms.length - 1;
+      forms++;
     });
     rebuildForms();
-    var keyMap = {}, plays = 0;
+    var keyMap = {}, plays = 0, playsHad = 0;
     (o.custom||[]).forEach(function(cp){
       var fi = cp.form;
       if(fi >= stockN){
@@ -1453,53 +1657,62 @@
       }
       var f = FORMS[fi];
       if(!f) return;
-      var pn = cp.n, base = pn, j = 2;
-      var taken = playsOf(f).map(function(p){ return p.n.toLowerCase(); });
-      while(taken.indexOf(pn.toLowerCase()) > -1){ pn = base+' '+j; j++; }
-      state.seq++;
-      state.custom.push({id:'c'+state.seq, form:fi, n:pn, t:cp.t, d:cp.d, routes:cp.routes, by:cp.by});
-      plays++;
       var oldFName = (cp.form >= stockN && o.customForms && o.customForms[cp.form-stockN])
         ? o.customForms[cp.form-stockN].name
         : (STOCK_FORMS[cp.form] ? STOCK_FORMS[cp.form].name : f.name);
+      var twin = findPlayTwin(fi, cp);
+      if(twin){ keyMap[oldFName+':'+cp.n] = f.name+':'+twin.n; playsHad++; return; }
+      var pn = freePlayName(f, cp.n);
+      state.seq++;
+      state.custom.push({id:'c'+state.seq, form:fi, n:pn, t:cp.t, d:cp.d, routes:cp.routes, by:cp.by});
+      plays++;
       keyMap[oldFName+':'+cp.n] = f.name+':'+pn;
     });
+    function mapKey(k){
+      if(keyMap[k]) return keyMap[k];
+      var parts = k.split(':');
+      var fn = nameMap[parts[0]] || parts[0];
+      return fn+':'+parts.slice(1).join(':');
+    }
     ['kept','alias','flip'].forEach(function(key){
       Object.keys(o[key]||{}).forEach(function(k){
         if(!o[key][k]) return;
-        var nk = keyMap[k];
-        if(!nk){
-          var parts = k.split(':');
-          var fn = nameMap[parts[0]] || parts[0];
-          nk = fn+':'+parts.slice(1).join(':');
-        }
-        state[key][nk] = o[key][k];
+        state[key] = state[key]||{};
+        state[key][mapKey(k)] = o[key][k];
       });
     });
     (o.formOrder||[]).forEach(function(n){
+      var nn = nameMap[n] || n;
       state.formOrder = state.formOrder||[];
-      if(state.formOrder.indexOf(n) < 0) state.formOrder.push(n);
+      if(state.formOrder.indexOf(nn) < 0) state.formOrder.push(nn);
     });
     Object.keys(o.playOrder||{}).forEach(function(fn){
+      var nfn = nameMap[fn] || fn;
+      var names = (o.playOrder[fn]||[]).map(function(pn){ return mapKey(fn+':'+pn).split(':').slice(1).join(':'); });
       state.playOrder = state.playOrder||{};
-      if(!state.playOrder[fn]){ state.playOrder[fn] = (o.playOrder[fn]||[]).slice(); }
+      if(!state.playOrder[nfn]){ state.playOrder[nfn] = names; }
       else {
-        (o.playOrder[fn]||[]).forEach(function(pn){ if(state.playOrder[fn].indexOf(pn) < 0) state.playOrder[fn].push(pn); });
+        names.forEach(function(pn){ if(state.playOrder[nfn].indexOf(pn) < 0) state.playOrder[nfn].push(pn); });
       }
     });
-    return {forms:(o.customForms||[]).length, plays:plays, kept:Object.keys(o.kept||{}).length};
+    pruneRefs();
+    return {forms:forms, plays:plays, formsHad:formsHad, playsHad:playsHad, kept:Object.keys(o.kept||{}).length};
   }
-  /* merge a defense code from another coach into this device */
+  /* merge a defense code from another coach into this device — same rule: what's
+     already here is reused, only true collisions become renamed copies */
   function mergeDefense(o){
-    var existing = allDefs().map(function(d){ return d.name.toLowerCase(); });
-    var count = 0;
+    var count = 0, had = 0;
+    state.customDefs = state.customDefs||[];
     (o.customDefs||[]).forEach(function(cd){
-      var nm = cd.name, base = nm, j = 2;
-      while(existing.indexOf(nm.toLowerCase()) > -1){ nm = base+' '+j; j++; }
-      existing.push(nm.toLowerCase());
-      state.seq++;
-      var nid = 'd'+state.seq;
-      state.customDefs.push({id:nid, name:nm, pos:cd.pos, roles:cd.roles, sizes:cd.sizes, moves:cd.moves});
+      var twin = findDefTwin(cd), nid;
+      if(twin){ nid = twin.id; had++; }
+      else {
+        var nm = freeDefName(cd.name);
+        state.seq++;
+        nid = 'd'+state.seq;
+        state.customDefs.push({id:nid, name:nm, pos:cd.pos, roles:cd.roles, sizes:cd.sizes, moves:cd.moves});
+        count++;
+      }
       if(o.keptDefs && o.keptDefs[cd.id]){
         if(!state.keptDefs) state.keptDefs = {};
         state.keptDefs[nid] = true;
@@ -1508,9 +1721,8 @@
         if(!state.defFlip) state.defFlip = {};
         state.defFlip[nid] = true;
       }
-      count++;
     });
-    return {defs:count};
+    return {defs:count, had:had};
   }
 
   function mergeLoaded(loaded){
@@ -3230,6 +3442,16 @@
     renderRoster(); renderSeriesList(); renderGameDay(); renderFormation(); renderStockPicker(); renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderDefList(); renderSnaps();
     codeMsg('Everything reset ✓ — the old setup is in History if you need it back.', true);
   }, 'Wipe everything?');
+  document.getElementById('tidyBtn').addEventListener('click', function(){
+    var r = tidyDuplicates();
+    var el = document.getElementById('tidyMsg');
+    var bits = [];
+    if(r.forms) bits.push(r.forms+' formation'+(r.forms===1?'':'s'));
+    if(r.plays) bits.push(r.plays+' play'+(r.plays===1?'':'s'));
+    if(r.defs) bits.push(r.defs+' defense'+(r.defs===1?'':'s'));
+    el.hidden = false;
+    el.textContent = bits.length ? 'Folded '+bits.join(', ')+' ✓' : 'No duplicates found — everything here is one of a kind.';
+  });
   armButton(document.getElementById('resetOff'), function(){
     takeSnapshot(true);
     state.custom = []; state.customForms = [];
@@ -4912,17 +5134,8 @@
       if(edState.editing){
         var cur = (state.custom||[]).filter(function(x){ return x.id === edState.editing; })[0];
         if(cur){
-          if(cur.n !== name){
-            var oldId = f3.name+':'+cur.n, newId = f3.name+':'+name;
-            ['kept','alias','flip'].forEach(function(key){
-              if(state[key] && state[key][oldId] !== undefined){
-                state[key][newId] = state[key][oldId];
-                delete state[key][oldId];
-              }
-            });
-            state.series.forEach(function(s){ if(s.callPlay === cur.n) s.callPlay = name; });
-          }
-          cur.n = name; cur.t = edState.t; cur.d = desc; cur.routes = routes;
+          if(cur.n !== name){ movePlay(cur, cur.form, name); }
+          cur.t = edState.t; cur.d = desc; cur.routes = routes;
           if(coachByName()){ cur.by = coachByName(); }
         }
       } else {
@@ -5054,17 +5267,7 @@
       var base = name, k = 2;
       while(taken.indexOf(name.toLowerCase()) > -1){ name = base+' '+k; k++; }
       if(cf){
-        if(cf.name !== name){
-          ['kept','alias','flip'].forEach(function(key){
-            Object.keys(state[key]||{}).forEach(function(kk){
-              if(kk.indexOf(cf.name+':') === 0){
-                state[key][name+kk.slice(cf.name.length)] = state[key][kk];
-                delete state[key][kk];
-              }
-            });
-          });
-        }
-        cf.name = name; cf.spots = fmState.spots;
+        renameForm(cf, name); cf.spots = fmState.spots;
       } else {
         state.seq++;
         state.customForms = state.customForms||[];
@@ -5443,67 +5646,314 @@
     if(state.current >= state.series.length) state.current = 0;
     clampSeriesForms();
   }
-  /* merge for pulls that land on top of local edits: identical things are skipped,
-     a name collision with different content becomes a renamed copy — nothing is lost */
+  /* merge for pulls that land on top of local edits — a three-way merge against
+     the last synced copy (the sync shadow): whatever we didn't touch takes the
+     team's version, edits and deletions alike; whatever only we changed keeps
+     ours; only a change on both sides becomes a renamed copy. Anything already
+     here, even as a "Name 2" copy, is reused — a merge never breeds duplicates.
+     Without a shadow (this device never synced) it falls back to keep-both. */
+  function syncBase(part){
+    var sh = state.sync && state.sync.shadow && state.sync.shadow[part];
+    if(!sh) return null;
+    try{ return JSON.parse(sh); }catch(e){ return null; }
+  }
+  function formNameRaw(o, idx){
+    var stockN = STOCK_FORMS.length;
+    if(idx < stockN) return STOCK_FORMS[idx] ? STOCK_FORMS[idx].name : null;
+    var cf = (o.customForms||[])[idx-stockN];
+    return cf ? String(cf.name) : null;
+  }
+  function formNameIn(o, idx){
+    var n = formNameRaw(o, idx);
+    return n == null ? null : n.toLowerCase();
+  }
+  function formIn(o, name){
+    return ((o && o.customForms)||[]).filter(function(f){ return String(f.name).toLowerCase() === String(name).toLowerCase(); })[0] || null;
+  }
+  function playIn(o, fname, pname){
+    if(!o) return null;
+    fname = String(fname).toLowerCase();
+    return (o.custom||[]).filter(function(c){ return formNameIn(o, c.form) === fname && String(c.n).toLowerCase() === String(pname).toLowerCase(); })[0] || null;
+  }
+  function defIn(o, name){
+    return ((o && o.customDefs)||[]).filter(function(d){ return String(d.name).toLowerCase() === String(name).toLowerCase(); })[0] || null;
+  }
   function syncMergeOffense(o){
     var stockN = STOCK_FORMS.length;
-    var idxMap = {};
+    var base = syncBase('off');
+    var idxMap = {};  /* their FORMS index → ours */
+    var nameMap = {}; /* their formation name (lower-cased) → ours */
+    var keyMap = {};  /* their "Formation:Play" id → ours */
+    var lfs = state.customForms = state.customForms||[];
+    state.custom = state.custom||[];
+    function theyAddedPlays(cf, k){
+      return (o.custom||[]).some(function(cp){
+        if(cp.form !== stockN + k) return false;
+        var bp = playIn(base, cf.name, cp.n);
+        return !(bp && samePlay(bp, cp));
+      });
+    }
+    function landed(k, li){
+      idxMap[stockN+k] = stockN + li;
+      nameMap[String(o.customForms[k].name).toLowerCase()] = lfs[li].name;
+    }
+    /* 1. their formations */
     (o.customForms||[]).forEach(function(cf, k){
-      var hit = -1;
-      state.customForms.forEach(function(lf, li){ if(hit < 0 && lf.name.toLowerCase() === cf.name.toLowerCase()) hit = li; });
-      if(hit > -1 && JSON.stringify(state.customForms[hit].spots) === JSON.stringify(cf.spots)){ idxMap[stockN+k] = stockN + hit; return; }
-      var nm = cf.name, base = nm, j = 2;
-      var names = FORMS.map(function(f){ return f.name.toLowerCase(); });
-      while(names.indexOf(nm.toLowerCase()) > -1){ nm = base+' '+j; j++; }
+      var twin = findFormTwin(cf);
+      if(twin > -1){ landed(k, twin); return; }
+      var mine = -1;
+      lfs.forEach(function(lf, li){ if(mine < 0 && lf.name.toLowerCase() === String(cf.name).toLowerCase()) mine = li; });
+      var bf = formIn(base, cf.name);
+      if(mine > -1){
+        var lf = lfs[mine];
+        if(bf && sameForm(lf, bf)){ lf.spots = cf.spots; landed(k, mine); return; } /* only they moved players */
+        if(bf && sameForm(cf, bf)){ landed(k, mine); return; }                /* only we did */
+        /* both did: keep both */
+      } else {
+        /* renamed on their side: an untouched local formation with this alignment whose name they no longer carry */
+        var ren = -1;
+        lfs.forEach(function(lf2, li){
+          if(ren > -1 || !sameForm(lf2, cf) || formIn(o, lf2.name)) return;
+          var b2 = formIn(base, lf2.name);
+          if(b2 && sameForm(lf2, b2)) ren = li;
+        });
+        if(ren > -1){ renameForm(lfs[ren], freeFormName(cf.name)); rebuildForms(); landed(k, ren); return; }
+        if(bf && sameForm(cf, bf) && !theyAddedPlays(cf, k)) return;         /* we deleted it, they didn't touch it */
+      }
       state.seq++;
-      state.customForms.push({id:'f'+state.seq, name:nm, spots:cf.spots});
-      idxMap[stockN+k] = stockN + state.customForms.length - 1;
+      lfs.push({id:'f'+state.seq, name:freeFormName(cf.name), spots:cf.spots});
       rebuildForms();
+      landed(k, lfs.length - 1);
     });
     rebuildForms();
+    var revIdx = {}; /* our FORMS index → the incoming indexes that landed on it */
+    for(var si=0; si<stockN; si++){ revIdx[si] = [si]; }
+    Object.keys(idxMap).forEach(function(k){ (revIdx[idxMap[k]] = revIdx[idxMap[k]]||[]).push(+k); });
+    function incomingHasPlay(fi, c){
+      var ks = revIdx[fi]||[];
+      return (o.custom||[]).some(function(cp){
+        if(ks.indexOf(cp.form) < 0) return false;
+        if(String(cp.n).toLowerCase() === c.n.toLowerCase()) return true;
+        return kin(cp.n, c.n) && samePlay(cp, c);
+      });
+    }
+    /* 2. their plays */
     (o.custom||[]).forEach(function(cp){
       var fi = cp.form;
       if(fi >= stockN){ fi = idxMap[fi]; if(fi == null) return; }
       var f = FORMS[fi];
       if(!f) return;
-      var dup = state.custom.filter(function(c){ return c.form === fi && c.n.toLowerCase() === cp.n.toLowerCase(); })[0];
-      if(dup && dup.t === cp.t && JSON.stringify(dup.routes) === JSON.stringify(cp.routes)) return;
-      var pn = cp.n, base2 = pn, j2 = 2;
-      var taken = playsOf(f).map(function(p){ return p.n.toLowerCase(); });
-      while(taken.indexOf(pn.toLowerCase()) > -1){ pn = base2+' '+j2; j2++; }
+      var theirKey = formNameRaw(o, cp.form)+':'+cp.n;
+      var twin = findPlayTwin(fi, cp);
+      if(twin){ keyMap[theirKey] = f.name+':'+twin.n; return; }                      /* already here */
+      var bp = playIn(base, formNameIn(o, cp.form), cp.n);
+      var mine = state.custom.filter(function(c){ return c.form === fi && c.n.toLowerCase() === String(cp.n).toLowerCase(); })[0];
+      if(mine){
+        keyMap[theirKey] = f.name+':'+mine.n;
+        if(bp && samePlay(mine, bp)){ mine.t = cp.t; mine.d = cp.d; mine.routes = cp.routes; if(cp.by) mine.by = cp.by; return; } /* only they changed it */
+        if(bp && samePlay(cp, bp)) return;                                          /* only we did */
+        /* both did: their version lands as a copy below, and their marks follow it */
+      } else {
+        /* renamed on their side: an untouched local play with these routes whose name they no longer carry */
+        var ren = state.custom.filter(function(c){
+          if(c.form !== fi || !samePlay(c, cp) || incomingHasPlay(fi, c)) return false;
+          var b2 = playIn(base, f.name, c.n);
+          return !!(b2 && samePlay(c, b2));
+        })[0];
+        if(ren){ var nn = freePlayName(f, cp.n, ren.id); movePlay(ren, fi, nn); keyMap[theirKey] = f.name+':'+nn; return; }
+        if(bp && samePlay(cp, bp)) return;                                          /* we deleted it, they didn't touch it */
+      }
       state.seq++;
+      var pn = freePlayName(f, cp.n);
       state.custom.push({id:'c'+state.seq, form:fi, n:pn, t:cp.t, d:cp.d, routes:cp.routes, by:cp.by});
+      keyMap[theirKey] = f.name+':'+pn;
     });
-    ['kept','alias','flip'].forEach(function(key){
-      Object.keys(o[key]||{}).forEach(function(k){
-        if(o[key][k] && state[key][k] === undefined){ state[key][k] = o[key][k]; }
+    /* 3. their deletions — only with a base to judge against and a well-formed payload */
+    if(base && Array.isArray(o.custom) && Array.isArray(o.customForms)){
+      state.custom.slice().forEach(function(c){
+        var f = FORMS[c.form];
+        if(!f || !(revIdx[c.form]||[]).length) return;                               /* the whole formation is judged below */
+        if(incomingHasPlay(c.form, c)) return;
+        var bp = playIn(base, f.name, c.n);
+        if(bp && samePlay(c, bp)) removePlay(c);
       });
-    });
-    (o.formOrder||[]).forEach(function(n){
-      state.formOrder = state.formOrder||[];
-      if(state.formOrder.indexOf(n) < 0) state.formOrder.push(n);
-    });
-    Object.keys(o.playOrder||{}).forEach(function(fn){
-      state.playOrder = state.playOrder||{};
-      if(!state.playOrder[fn]){ state.playOrder[fn] = (o.playOrder[fn]||[]).slice(); }
-      else {
-        (o.playOrder[fn]||[]).forEach(function(pn){ if(state.playOrder[fn].indexOf(pn) < 0) state.playOrder[fn].push(pn); });
+      var drop = {}, any = false;
+      lfs.forEach(function(cf, i){
+        if((revIdx[stockN+i]||[]).length) return;
+        var bf = formIn(base, cf.name);
+        if(!(bf && sameForm(cf, bf))) return;
+        var bpn = (base.custom||[]).filter(function(c){ return formNameIn(base, c.form) === cf.name.toLowerCase(); });
+        var untouched = state.custom.filter(function(c){ return c.form === stockN + i; }).every(function(c){
+          return bpn.some(function(b){ return b.n.toLowerCase() === c.n.toLowerCase() && samePlay(b, c); });
+        });
+        if(!untouched) return;
+        drop[i] = true; any = true;
+      });
+      if(any){ state.custom = state.custom.filter(function(c){ return !drop[c.form - stockN]; }); removeCustomForms(drop); }
+    }
+    /* 4. marks and ordering, in our names: untouched here takes theirs, otherwise ours stands */
+    function mapFormName(n){ return nameMap[String(n).toLowerCase()] || n; }
+    function mapKey(k){
+      if(keyMap[k] !== undefined) return keyMap[k];
+      var i = k.indexOf(':');
+      return i < 0 ? k : mapFormName(k.slice(0, i))+k.slice(i);
+    }
+    ['kept','alias','flip'].forEach(function(key){
+      var loc = state[key] = state[key]||{}, inc = o[key]||{}, bs = base ? (base[key]||{}) : null;
+      var landedOn = {};
+      Object.keys(inc).forEach(function(k){
+        var lk = mapKey(k);
+        landedOn[lk] = 1;
+        if(bs){ if(sameJson(loc[lk], bs[lk])){ loc[lk] = inc[k]; } }
+        else if(inc[k] && loc[lk] === undefined){ loc[lk] = inc[k]; }
+      });
+      if(bs){
+        Object.keys(bs).forEach(function(k){
+          if(landedOn[k] || inc[k] !== undefined) return;
+          if(sameJson(loc[k], bs[k])) delete loc[k];                                /* a mark they dropped */
+        });
       }
     });
+    var theirOrder = [];
+    (o.formOrder||[]).forEach(function(n){ var m = mapFormName(n); if(theirOrder.indexOf(m) < 0) theirOrder.push(m); });
+    state.formOrder = state.formOrder||[];
+    if(base && sameJson(state.formOrder, base.formOrder||[])){ state.formOrder = theirOrder; }
+    else { theirOrder.forEach(function(n){ if(state.formOrder.indexOf(n) < 0) state.formOrder.push(n); }); }
+    state.playOrder = state.playOrder||{};
+    Object.keys(o.playOrder||{}).forEach(function(fn){
+      var lfn = mapFormName(fn), theirs = [];
+      (o.playOrder[fn]||[]).forEach(function(pn){
+        var lk = mapKey(fn+':'+pn), m = lk.slice(lk.indexOf(':')+1);
+        if(theirs.indexOf(m) < 0) theirs.push(m);
+      });
+      if(base && sameJson(state.playOrder[lfn], (base.playOrder||{})[lfn])){ state.playOrder[lfn] = theirs; return; }
+      if(!state.playOrder[lfn]){ state.playOrder[lfn] = theirs; }
+      else { theirs.forEach(function(pn){ if(state.playOrder[lfn].indexOf(pn) < 0) state.playOrder[lfn].push(pn); }); }
+    });
+    pruneRefs();
     clampSeriesForms();
   }
   function syncMergeDefense(o){
+    var base = syncBase('def');
+    var idMap = {}; /* their def id → ours */
+    var lds = state.customDefs = state.customDefs||[];
     (o.customDefs||[]).forEach(function(cd){
-      var dup = (state.customDefs||[]).filter(function(d){ return d.name.toLowerCase() === cd.name.toLowerCase(); })[0];
-      if(dup && JSON.stringify([dup.pos,dup.roles,dup.sizes,dup.moves]) === JSON.stringify([cd.pos,cd.roles,cd.sizes,cd.moves])) return;
-      var nm = cd.name, base = nm, j = 2;
-      var names = allDefs().map(function(d){ return d.name.toLowerCase(); });
-      while(names.indexOf(nm.toLowerCase()) > -1){ nm = base+' '+j; j++; }
+      var twin = findDefTwin(cd);
+      if(twin){ idMap[cd.id] = twin.id; return; }
+      var mine = defIn(state, cd.name), bd = defIn(base, cd.name);
+      if(mine){
+        if(bd && sameDef(mine, bd)){ mine.pos = cd.pos; mine.roles = cd.roles; mine.sizes = cd.sizes; mine.moves = cd.moves; idMap[cd.id] = mine.id; return; }
+        if(bd && sameDef(cd, bd)){ idMap[cd.id] = mine.id; return; }
+      } else {
+        var ren = lds.filter(function(d){
+          if(!sameDef(d, cd) || defIn(o, d.name)) return false;
+          var b2 = defIn(base, d.name);
+          return !!(b2 && sameDef(d, b2));
+        })[0];
+        if(ren){ ren.name = freeDefName(cd.name); idMap[cd.id] = ren.id; return; }
+        if(bd && sameDef(cd, bd)) return;
+      }
       state.seq++;
       var nid = 'd'+state.seq;
-      state.customDefs.push({id:nid, name:nm, pos:cd.pos, roles:cd.roles, sizes:cd.sizes, moves:cd.moves});
-      if(o.keptDefs && o.keptDefs[cd.id]){ state.keptDefs = state.keptDefs||{}; state.keptDefs[nid] = true; }
+      lds.push({id:nid, name:freeDefName(cd.name), pos:cd.pos, roles:cd.roles, sizes:cd.sizes, moves:cd.moves});
+      idMap[cd.id] = nid;
     });
+    if(base && Array.isArray(o.customDefs)){
+      lds.slice().forEach(function(d){
+        if(defIn(o, d.name)) return;
+        if(o.customDefs.some(function(cd){ return kin(cd.name, d.name) && sameDef(cd, d); })) return;
+        var bd = defIn(base, d.name);
+        if(!(bd && sameDef(d, bd))) return;
+        state.customDefs = lds = lds.filter(function(x){ return x !== d; });
+        if(state.keptDefs) delete state.keptDefs[d.id];
+        if(state.defFlip) delete state.defFlip[d.id];
+      });
+    }
+    var live = {};
+    lds.forEach(function(d){ live[d.id] = 1; });
+    ['keptDefs','defFlip'].forEach(function(key){
+      var loc = state[key] = state[key]||{}, inc = o[key]||{}, bs = base ? (base[key]||{}) : null;
+      var landedOn = {};
+      Object.keys(inc).forEach(function(id){
+        var lid = idMap[id] || id;
+        landedOn[lid] = 1;
+        if(bs){ if(sameJson(loc[lid], bs[lid])){ loc[lid] = inc[id]; } }
+        else if(inc[id] && loc[lid] === undefined){ loc[lid] = inc[id]; }
+      });
+      if(bs){ Object.keys(bs).forEach(function(id){ if(!landedOn[id] && inc[id] === undefined && sameJson(loc[id], bs[id])) delete loc[id]; }); }
+      Object.keys(loc).forEach(function(id){ if(!live[id]) delete loc[id]; });
+    });
+  }
+  /* ================= Tidy up: fold duplicate copies back together =================
+     Kin-named formations with the same alignment ("Trips Right 2" beside
+     "Trips Right") fold into one: plays move over, plays with the same routes
+     become one, and kept marks, aliases, flips, ordering, and series calls follow.
+     Kin-named plays with the same routes inside one formation fold too, and so
+     do defenses. A History backup is pinned first; the result syncs to the team. */
+  function tidyDuplicates(){
+    var stockN = STOCK_FORMS.length;
+    var n = {forms:0, plays:0, defs:0};
+    takeSnapshot(true);
+    rebuildForms();
+    state.custom = state.custom||[]; state.customForms = state.customForms||[]; state.customDefs = state.customDefs||[];
+    /* 1. formations: same alignment, kin names — the shortest name is the original */
+    var byContent = {}, canonOf = {};
+    state.customForms.forEach(function(cf, i){ var g = JSON.stringify(cf.spots); (byContent[g] = byContent[g]||[]).push(i); });
+    Object.keys(byContent).forEach(function(g){
+      kinClusters(byContent[g], function(i){ return state.customForms[i].name; }).forEach(function(cl){
+        cl.slice(1).forEach(function(i){ canonOf[i] = cl[0]; });
+      });
+    });
+    var drop = {};
+    Object.keys(canonOf).forEach(function(k){
+      var i = +k, fromFi = stockN + i, toFi = stockN + canonOf[k];
+      var fromName = state.customForms[i].name, toName = state.customForms[canonOf[k]].name;
+      state.custom.filter(function(c){ return c.form === fromFi; }).forEach(function(c){
+        var twin = findPlayTwin(toFi, c);
+        if(twin){ foldPlay(c, twin); n.plays++; }
+        else { movePlay(c, toFi, freePlayName(FORMS[toFi], c.n)); }
+      });
+      var po = state.playOrder||{};
+      if(po[fromName]){ po[toName] = (po[toName]||[]).concat(po[fromName].filter(function(x){ return (po[toName]||[]).indexOf(x) < 0; })); }
+      if(state.formKept && state.formKept[fromName]){ state.formKept[toName] = true; }
+      state.series.forEach(function(s){
+        if(s.form === fromFi) s.form = toFi;
+        if(s.callForm === fromFi) s.callForm = toFi;
+      });
+      drop[i] = true; n.forms++;
+    });
+    if(n.forms) removeCustomForms(drop);
+    /* 2. plays inside each formation: same routes, kin names */
+    rebuildForms();
+    FORMS.forEach(function(f){
+      var groups = {};
+      state.custom.filter(function(c){ return c.form === f.idx; }).forEach(function(c){ var g = c.t+'|'+JSON.stringify(c.routes); (groups[g] = groups[g]||[]).push(c); });
+      Object.keys(groups).forEach(function(g){
+        kinClusters(groups[g], function(c){ return c.n; }).forEach(function(cl){
+          cl.slice(1).forEach(function(c){ foldPlay(c, cl[0]); n.plays++; });
+        });
+      });
+    });
+    /* 3. defenses */
+    var dg = {};
+    state.customDefs.forEach(function(d){ var g = JSON.stringify([d.pos, d.roles, d.sizes, d.moves]); (dg[g] = dg[g]||[]).push(d); });
+    Object.keys(dg).forEach(function(g){
+      kinClusters(dg[g], function(d){ return d.name; }).forEach(function(cl){
+        var keep = cl[0];
+        cl.slice(1).forEach(function(gone){
+          state.keptDefs = state.keptDefs||{}; state.defFlip = state.defFlip||{};
+          if(state.keptDefs[gone.id]) state.keptDefs[keep.id] = true;
+          if(state.defFlip[gone.id] && state.defFlip[keep.id] === undefined) state.defFlip[keep.id] = true;
+          delete state.keptDefs[gone.id]; delete state.defFlip[gone.id];
+          state.series.forEach(function(s){ if(s.def && s.def.scheme === gone.id) s.def.scheme = keep.id; });
+          state.customDefs = state.customDefs.filter(function(x){ return x !== gone; });
+          n.defs++;
+        });
+      });
+    });
+    pruneRefs();
+    saveNow(); syncRerender();
+    return n;
   }
   var syncT = null, syncBusy = false, syncEditName = false, syncEditLabel = false;
   function fmtSyncTime(t){
@@ -5533,15 +5983,16 @@
     syncT = setTimeout(syncPush, 3000);
   }
   function applyIncomingPart(part, blob, viaMerge){
-    var o = null;
-    try{ o = JSON.parse(lzUnpack(blob)); }catch(e){}
+    var json = null, o = null;
+    try{ json = lzUnpack(blob); o = JSON.parse(json); }catch(e){}
     if(!o) return;
     if(part === 'off'){
-      if(viaMerge){ syncMergeOffense(o); }
-      else { applyOffReplace(o); syncShadow().off = partJson('off'); }
+      if(viaMerge){ syncMergeOffense(o); } else { applyOffReplace(o); }
+      /* after a merge the team's copy is the new base: the push that follows carries our extras on top of it */
+      syncShadow().off = viaMerge ? json : partJson('off');
     } else if(part === 'def'){
-      if(viaMerge){ syncMergeDefense(o); }
-      else { applyDefReplace(o); syncShadow().def = partJson('def'); }
+      if(viaMerge){ syncMergeDefense(o); } else { applyDefReplace(o); }
+      syncShadow().def = viaMerge ? json : partJson('def');
     } else {
       /* roster with local edits pending: mine wins — the push (with the fresh
          baseRev) sends it up, and the server history keeps theirs */
@@ -5905,14 +6356,14 @@
       var ro = mergeOffense(loaded);
       saveNow(); rebuildForms();
       renderKept(); renderMinePicker(); renderMineFcard(); renderMine(); renderGameDay(); renderPlays();
-      codeMsg('Playbook merged ✓ — '+ro.plays+' custom play'+(ro.plays===1?'':'s')+', '+ro.forms+' formation'+(ro.forms===1?'':'s')+', '+ro.kept+' kept.', true);
+      codeMsg('Playbook merged ✓ — '+mergeWords(ro)+'.', true);
       return;
     }
     if(loaded.part === 'def'){
       var rd = mergeDefense(loaded);
       saveNow();
       renderDefList(); renderGameDay(); renderSeriesList();
-      codeMsg('Defense merged ✓ — '+rd.defs+' defense'+(rd.defs===1?'':'s')+' added.', true);
+      codeMsg('Defense merged ✓ — '+defWords(rd)+'.', true);
       return;
     }
     if(loaded.part === 'play'){
@@ -6115,13 +6566,13 @@
       if(shared.part === 'off'){
         closeShareModal();
         var ro = mergeOffShared(shared);
-        toast('Playbook merged ✓ — '+ro.plays+' play'+(ro.plays===1?'':'s')+', '+ro.forms+' formation'+(ro.forms===1?'':'s'));
+        toast('Playbook merged ✓ — '+mergeWords(ro));
         return;
       }
       if(shared.part === 'def'){
         closeShareModal();
         var rd = mergeDefShared(shared);
-        toast('Defense merged ✓ — '+rd.defs+' defense'+(rd.defs===1?'':'s')+' added');
+        toast('Defense merged ✓ — '+defWords(rd));
         return;
       }
       /* a full team code: confirm before replacing this device */
@@ -6281,11 +6732,11 @@
     } else if(shared && shared.part === 'off'){
       var ro = mergeOffShared(shared);
       showTab('playbook'); showPbTab('kept');
-      toast('Playbook merged ✓ — '+ro.plays+' play'+(ro.plays===1?'':'s')+', '+ro.forms+' formation'+(ro.forms===1?'':'s'));
+      toast('Playbook merged ✓ — '+mergeWords(ro));
     } else if(shared && shared.part === 'def'){
-      mergeDefShared(shared);
+      var rd = mergeDefShared(shared);
       showTab('defense');
-      toast('Defense merged ✓');
+      toast('Defense merged ✓ — '+defWords(rd));
     } else if(shared && shared.part === 'team'){
       showTab('settings');
       promptJoinTeam(shared);
