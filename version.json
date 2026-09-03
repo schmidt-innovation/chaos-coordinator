@@ -1,4 +1,4 @@
 {
-  "v": 137,
-  "note": "duplicates fixed: importing a playbook you already have adds nothing, sync merges reuse what's here, and Settings → Tidy up folds existing copies back together"
+  "v": 138,
+  "note": "game-day defense subs no longer overwrite the series lineup: On the field → Defense gets its own Reset to series lineup"
 }

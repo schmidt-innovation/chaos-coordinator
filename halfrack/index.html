@@ -687,7 +687,7 @@
     <p class="hintline" id="tidyMsg" hidden></p>
   </div>
 
-  <p class="hintline" style="opacity:.85;text-align:center">Half Rack v137 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
+  <p class="hintline" style="opacity:.85;text-align:center">Half Rack v138 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
 
   <div class="card">
     <h3>Reset</h3>
@@ -2691,6 +2691,12 @@
           if(s.live && s.live.slots){
             Object.keys(s.live.slots).forEach(function(k){ if(s.live.slots[k]===id) delete s.live.slots[k]; });
           }
+          if(s.def && s.def.slots){
+            Object.keys(s.def.slots).forEach(function(k){ if(s.def.slots[k]===id) delete s.def.slots[k]; });
+          }
+          if(s.def && s.def.live && s.def.live.slots){
+            Object.keys(s.def.live.slots).forEach(function(k){ if(s.def.live.slots[k]===id) delete s.def.live.slots[k]; });
+          }
         });
         save(); renderRoster(); renderSeriesList(); renderGameDay();
       }, '✕?');
@@ -2843,10 +2849,28 @@
   function sDef(s){
     if(!s.def || !s.def.scheme){ s.def = {scheme:defaultSchemeKey(), slots:{}}; }
     if(!s.def.slots) s.def.slots = {};
+    if(s.def.live && !s.def.live.slots) delete s.def.live;
     var all = allDefs(), ok = false;
     for(var i=0;i<all.length;i++){ if(all[i].key === s.def.scheme){ ok = true; break; } }
     if(!ok){ s.def.scheme = defaultSchemeKey(); }
     return s.def;
+  }
+  /* game-day defense subs live in def.live.slots, just like the offense: the planned
+     lineup survives the game, and reset = drop the override */
+  function defLiveSlots(d){ return (d.live && d.live.slots) ? d.live.slots : d.slots; }
+  function ensureDefLive(d){
+    if(!d.live){
+      d.live = {slots:{}};
+      Object.keys(d.slots).forEach(function(k){ d.live.slots[k] = d.slots[k]; });
+    }
+    return d.live.slots;
+  }
+  function defLiveDiffers(d){
+    if(!d.live) return false;
+    var keys = {};
+    Object.keys(d.slots).forEach(function(k){ keys[k] = 1; });
+    Object.keys(d.live.slots).forEach(function(k){ keys[k] = 1; });
+    return Object.keys(keys).some(function(k){ return d.slots[k] !== d.live.slots[k]; });
   }
   /* game-day subs live in s.live.slots so the planned lineup survives; reset = drop the override */
   function liveSlots(s){ return (s.live && s.live.slots) ? s.live.slots : s.slots; }
@@ -2929,7 +2953,7 @@
     }).join('');
   }
   function defFieldSvg(s){
-    var d = sDef(s);
+    var d = sDef(s), dsl = defLiveSlots(d);
     var dm = defByKey(d.scheme);
     var inner = '';
     function rushArrows(){
@@ -2947,14 +2971,14 @@
       inner += oppBase();
       var used = {};
       pos2.forEach(function(p,i){
-        var v = d.slots['D'+(i+1)];
+        var v = dsl['D'+(i+1)];
         if(v) used[v] = true;
       });
       var free = onFieldIds(s).filter(function(id){ return !used[id]; });
       pos2.forEach(function(p,i){
         var key = 'D'+(i+1);
-        if(!d.slots[key] && free.length){ d.slots[key] = free.shift(); }
-        inner += '<g class="pmk" data-slot="D'+(i+1)+'" data-ox="'+p[0]+'" data-oy="'+p[1]+'">'+dot(p, String(i+1), 'd', pNameOf(d.slots[key]))+'</g>';
+        if(!dsl[key] && free.length){ dsl[key] = free.shift(); }
+        inner += '<g class="pmk" data-slot="D'+(i+1)+'" data-ox="'+p[0]+'" data-oy="'+p[1]+'">'+dot(p, String(i+1), 'd', pNameOf(dsl[key]))+'</g>';
       });
     } else if(d.scheme === 'zone233'){
       inner += '<g fill="rgba(255,90,95,.13)" stroke="rgba(255,90,95,.5)" stroke-width="1" stroke-dasharray="5 4">'+
@@ -2965,11 +2989,11 @@
       inner += rushArrows();
       inner += oppBase();
       var used2 = {};
-      Object.keys(Z233_POS).forEach(function(k){ if(d.slots[k]) used2[d.slots[k]] = true; });
+      Object.keys(Z233_POS).forEach(function(k){ if(dsl[k]) used2[dsl[k]] = true; });
       var free2 = onFieldIds(s).filter(function(id){ return !used2[id]; });
       Object.keys(Z233_POS).forEach(function(k){
-        if(!d.slots[k] && free2.length){ d.slots[k] = free2.shift(); }
-        inner += dot(Z233_POS[k], k, 'd', pNameOf(d.slots[k]));
+        if(!dsl[k] && free2.length){ dsl[k] = free2.shift(); }
+        inner += dot(Z233_POS[k], k, 'd', pNameOf(dsl[k]));
       });
     } else {
       /* one each: 2 rushers + 6 man */
@@ -2979,13 +3003,13 @@
       });
       inner += oppBase();
       var usedM = {};
-      ['R1','R2'].forEach(function(k){ if(d.slots[k]) usedM[d.slots[k]] = true; });
+      ['R1','R2'].forEach(function(k){ if(dsl[k]) usedM[dsl[k]] = true; });
       var freeM = onFieldIds(s).filter(function(id){ return !usedM[id]; });
       ['R1','R2'].forEach(function(k,i){
-        if(!d.slots[k] && freeM.length){ d.slots[k] = freeM.shift(); usedM[d.slots[k]] = true; }
-        inner += dot([[120,82],[180,94]][i], k, 'd', pNameOf(d.slots[k]));
+        if(!dsl[k] && freeM.length){ dsl[k] = freeM.shift(); usedM[dsl[k]] = true; }
+        inner += dot([[120,82],[180,94]][i], k, 'd', pNameOf(dsl[k]));
       });
-      var others = onFieldIds(s).filter(function(id){ return id !== d.slots.R1 && id !== d.slots.R2; }).slice(0,6);
+      var others = onFieldIds(s).filter(function(id){ return id !== dsl.R1 && id !== dsl.R2; }).slice(0,6);
       MAN_POS.forEach(function(p,i){
         inner += dot(p, String(i+1), 'd', pNameOf(others[i]));
       });
@@ -3029,7 +3053,10 @@
       var bench = benchOf(s);
       var d = sDef(s);
       var defOpts = opts; /* whole roster, same as the offense selects */
-      var zoneSlotsHtml = '<div class="slots">'+defByKey('zone233').slots.map(function(sl){
+      /* plan the defense game day will actually call: a custom scheme once any exist, else the stock zone */
+      var pdm = defByKey(d.scheme);
+      if(customDefSchemes().length && !pdm.custom){ pdm = defByKey(gameDayDefList()[0].key); }
+      var zoneSlotsHtml = '<div class="slots">'+pdm.slots.map(function(sl){
         var sel = d.slots[sl[0]]||'';
         return '<div class="slot"><label class="flab"><b>'+sl[0]+'</b> · '+sl[1]+'</label>'+
           '<select class="tin dpsel" data-slot="'+sl[0]+'" aria-label="'+sl[1]+'">'+
@@ -3047,7 +3074,7 @@
           '<span style="margin-left:auto;font-weight:600;font-size:12px;color:var(--paper-dim)">'+esc(f.name)+' · '+filled+'/'+order.length+'</span></button></div>'+
           (open
             ? '<div class="slots">'+slotsHtml.replace(/<select /g,'<select disabled ')+'</div>'+
-              '<label class="flab">Defense zones &middot; when they have the ball</label>'+
+              '<label class="flab">Defense &middot; '+esc(pdm.name)+' &middot; when they have the ball</label>'+
               zoneSlotsHtml.replace(/<select /g,'<select disabled ')+
               '<div class="benchline" style="margin-bottom:0">Sitting out: <b>'+(bench.length?bench.map(function(p){return esc(firstName(p.name));}).join(', '):'—')+'</b></div>'
             : '')+
@@ -3057,7 +3084,7 @@
         '<div class="shead"><input class="tin slabel" type="text" value="'+esc(s.label)+'" aria-label="Series name">'+
         '<button type="button" class="iconbtn sdel" aria-label="Delete series">✕</button></div>'+
         '<div class="slots">'+slotsHtml+'</div>'+
-        '<label class="flab">Defense zones &middot; when they have the ball</label>'+
+        '<label class="flab">Defense &middot; '+esc(pdm.name)+' &middot; when they have the ball</label>'+
         zoneSlotsHtml+
         '<div class="benchline" style="margin-bottom:0">Sitting out: <b>'+(bench.length?bench.map(function(p){return esc(firstName(p.name));}).join(', '):'—')+'</b></div>'+
         '</div>';
@@ -3088,12 +3115,14 @@
       card.querySelectorAll('.dpsel').forEach(function(sel){
         sel.addEventListener('change', function(){
           var d = sDef(s), slot = sel.dataset.slot, pid = sel.value;
+          if(customDefSchemes().length && !defByKey(d.scheme).custom){ d.scheme = gameDayDefList()[0].key; } /* the plan names the scheme it fills */
           if(pid){
             Object.keys(d.slots).forEach(function(k){ if(k!==slot && d.slots[k]===pid) delete d.slots[k]; });
             d.slots[slot] = pid;
           } else {
             delete d.slots[slot];
           }
+          delete d.live; /* a planned change drops the game-day override, like the offense */
           save(); renderSeriesList(); renderGameDay();
         });
       });
@@ -3415,7 +3444,7 @@
       field.addEventListener('pointerdown', function(ev){
         var p = evPos(ev);
         var z = zoneAt(p[0], p[1]);
-        if(!z || !d.slots[z]) return;
+        if(!z || !defLiveSlots(d)[z]) return;
         drag = z;
         try{ field.setPointerCapture(ev.pointerId); }catch(e){}
         ghost = document.createElementNS(NS,'g');
@@ -3452,9 +3481,10 @@
         var from = drag;
         cleanup();
         if(t && t !== from){
-          var tmp = d.slots[t];
-          if(d.slots[from]) d.slots[t] = d.slots[from]; else delete d.slots[t];
-          if(tmp) d.slots[from] = tmp; else delete d.slots[from];
+          var ds = ensureDefLive(d), tmp = ds[t];
+          if(ds[from]) ds[t] = ds[from]; else delete ds[t];
+          if(tmp) ds[from] = tmp; else delete ds[from];
+          if(!defLiveDiffers(d)) delete d.live;
           save();
           renderGameDay(); renderSeriesList();
           renderM();
@@ -3561,13 +3591,14 @@
       var defOptsGd = onFieldIds(cs).map(function(id){ return playerById(id); }).filter(function(p){ return p && p.name.trim(); });
       if(!defOptsGd.length) defOptsGd = namedPlayers();
       dSlotsUi = '<div class="slots">'+dMeta.slots.map(function(sl){
-        var selv = dCur.slots[sl[0]]||'';
+        var selv = defLiveSlots(dCur)[sl[0]]||'';
         return '<div class="slot"><label class="flab"><b>'+sl[0]+'</b> · '+sl[1]+'</label>'+
           '<select class="tin gdps" data-slot="'+sl[0]+'" aria-label="'+sl[1]+'">'+
           '<option value="">—</option>'+
           defOptsGd.map(function(p){ return '<option value="'+esc(p.id)+'"'+(p.id===selv?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('')+
           '</select></div>';
-      }).join('')+'</div>';
+      }).join('')+'</div>'+
+        (defLiveDiffers(dCur) ? '<button type="button" class="ghostbtn solid" id="gdDefReset" style="border-color:var(--whistle);color:var(--whistle);margin:2px 0 8px">↺ Reset to series lineup</button>' : '');
     }
     var defEmpty = '<div class="card" style="margin-top:14px"><h3>No custom defenses yet</h3>'+
       '<p>Game day calls your own defenses. Build one in the Defense tab — zones, man coverage, blitzes — and call it from here.</p>'+
@@ -3617,7 +3648,7 @@
         lineup+benchHtml+subHtml;
     } else {
       fieldPane = fieldToggle+(customsGd.length
-        ? '<h3 class="callhead">'+esc(dMeta.name)+' — on the field</h3>'+
+        ? '<h3 class="callhead">'+esc(dMeta.name)+' — on the field'+(defLiveDiffers(dCur)?' · subbed':'')+'</h3>'+
           defField+
           (schemePosMap(dCur) ? '<p class="edhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
           dSlotsUi
@@ -3749,6 +3780,13 @@
         save(); renderGameDay(); renderSeriesList();
       });
     }
+    var drl = document.getElementById('gdDefReset');
+    if(drl){
+      drl.addEventListener('click', function(){
+        delete sDef(cs).live;
+        save(); renderGameDay(); renderSeriesList();
+      });
+    }
     var drb = document.getElementById('gdDefRun');
     if(drb){
       drb.addEventListener('click', function(){ openDefModal(); });
@@ -3765,13 +3803,14 @@
     }
     gd.querySelectorAll('.gdps').forEach(function(sel){
       sel.addEventListener('change', function(){
-        var d = sDef(cs), slot = sel.dataset.slot, pid = sel.value;
+        var d = sDef(cs), ds = ensureDefLive(d), slot = sel.dataset.slot, pid = sel.value;
         if(pid){
-          dMeta.slots.forEach(function(sl){ if(sl[0]!==slot && d.slots[sl[0]]===pid) delete d.slots[sl[0]]; });
-          d.slots[slot] = pid;
+          dMeta.slots.forEach(function(sl){ if(sl[0]!==slot && ds[sl[0]]===pid) delete ds[sl[0]]; });
+          ds[slot] = pid;
         } else {
-          delete d.slots[slot];
+          delete ds[slot];
         }
+        if(!defLiveDiffers(d)) delete d.live;
         save(); renderGameDay(); renderSeriesList();
       });
     });
@@ -3956,7 +3995,7 @@
       host.addEventListener('pointerdown', function(ev){
         var p = evPos(ev);
         var z = zoneAt(p[0], p[1]);
-        if(!z || !dz.slots[z]) return;
+        if(!z || !defLiveSlots(dz)[z]) return;
         drag = z;
         try{ host.setPointerCapture(ev.pointerId); }catch(e){}
         ghost = document.createElementNS(NS,'g');
@@ -3993,9 +4032,10 @@
         var from = drag;
         cleanup();
         if(t && t !== from){
-          var tmp = dz.slots[t];
-          if(dz.slots[from]) dz.slots[t] = dz.slots[from]; else delete dz.slots[t];
-          if(tmp) dz.slots[from] = tmp; else delete dz.slots[from];
+          var ds = ensureDefLive(dz), tmp = ds[t];
+          if(ds[from]) ds[t] = ds[from]; else delete ds[t];
+          if(tmp) ds[from] = tmp; else delete ds[from];
+          if(!defLiveDiffers(dz)) delete dz.live;
           save(); renderGameDay(); renderSeriesList();
         }
       });
