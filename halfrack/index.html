@@ -300,6 +300,13 @@
   .pmodal-inner{margin:auto;width:100%}
   .pmodal .play,.pmodal .card{margin:0}
   .pmodal .field{max-width:calc((100vh - 210px) * 1.3);margin-left:auto;margin-right:auto}
+  /* a device following a team read-only (parent link): every control that would
+     change team data goes away — the server refuses its pushes regardless */
+  body.viewer .coachonly,body.viewer #rosterLock,body.viewer #seriesLock,body.viewer .dhint,
+  body.viewer .keep,body.viewer .pedit,body.viewer .pdel,body.viewer .rname,
+  body.viewer .mineAdd,body.viewer .mineFmEdit,body.viewer .mineFmDel,body.viewer .newf,body.viewer #newDef,
+  body.viewer .dedit,body.viewer .ddel,body.viewer #addShared,
+  body.viewer #gdResetLineup,body.viewer #gdDefReset,body.viewer #modalResetPm{display:none !important}
   @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
   @media(min-width:620px){
     body{font-size:17px}
@@ -647,7 +654,7 @@
     <p class="hintline" id="syncStatus" hidden></p>
   </div>
 
-  <div class="card">
+  <div class="card coachonly">
     <h3>Share &amp; transfer</h3>
     <p id="saveStatus"></p>
     <div class="btns" style="margin:0">
@@ -664,7 +671,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card coachonly">
     <h3>Team file</h3>
     <p>A small file with the whole setup — stash it in Drive, iCloud, or email. Importing one replaces this device's setup, with a backup saved to History first.</p>
     <div class="btns" style="margin:0">
@@ -674,22 +681,22 @@
     <input type="file" id="fileIn" accept=".json,application/json" hidden>
   </div>
 
-  <div class="card">
+  <div class="card coachonly">
     <h3>History</h3>
     <p>Automatic backups kept on this device — one as you work (at most every 10 minutes) plus one before every load, import, or reset. If something gets deleted by accident, restore from before it happened.</p>
     <div id="snapList"></div>
   </div>
 
-  <div class="card">
+  <div class="card coachonly">
     <h3>Tidy up</h3>
     <p>Folds duplicate copies back together: a “Trips Right 2” lined up exactly like “Trips Right” merges into it, plays with the same routes become one, and kept marks, order, and series calls follow. A backup goes to History first, and the cleaned playbook syncs to the team.</p>
     <button type="button" id="tidyBtn">Remove duplicates</button>
     <p class="hintline" id="tidyMsg" hidden></p>
   </div>
 
-  <p class="hintline" style="opacity:.85;text-align:center">Half Rack v138 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
+  <p class="hintline" style="opacity:.85;text-align:center">Half Rack v139 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
 
-  <div class="card">
+  <div class="card coachonly">
     <h3>Reset</h3>
     <p>Every reset saves a backup to History first, so it can be undone.</p>
     <div class="btns" style="margin:0">
@@ -3234,7 +3241,7 @@
         '<div class="tag'+(play.t==='run'?' run':'')+'">'+(play.t==='run'?'Run':'Pass')+'</div>'+
         (fl?'<div class="tag">Flipped ↔</div>':'')+'</div>'+
         '<div class="field" id="modalField" style="touch-action:none">'+playFieldSvg(cf, play, names)+'</div>'+
-        '<p class="edhint">Drag a player onto a teammate to swap spots — for this play only.'+(hasOv?' <b style="color:var(--whistle)">Custom spots on.</b>':'')+'</p>'+
+        '<p class="edhint dhint">Drag a player onto a teammate to swap spots — for this play only.'+(hasOv?' <b style="color:var(--whistle)">Custom spots on.</b>':'')+'</p>'+
         '<div class="btns"><button type="button" id="modalRun">Run it ▶</button>'+
         '<button type="button" id="modalFlip">Flip ↔</button>'+
         (hasOv?'<button type="button" id="modalResetPm">↺ Series lineup</button>':'')+
@@ -3312,6 +3319,7 @@
         drag = null; ghost = null; ring = null;
       }
       field.addEventListener('pointerdown', function(ev){
+        if(syncViewer()) return;
         stopRunners(field);
         var ids = playIds(cs, cf, play);
         var p = evPos(ev);
@@ -3393,7 +3401,7 @@
         '<div class="phead"><h3>'+esc(dm.name)+'</h3><div class="tag run">Defense</div>'+
         (dm.custom && state.defFlip && state.defFlip[d.scheme] ? '<div class="tag">Flipped ↔</div>' : '')+'</div>'+
         '<div class="field" id="modalField" style="touch-action:none">'+defFieldSvg(cs)+'</div>'+
-        (schemePosMap(d) ? '<p class="edhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
+        (schemePosMap(d) ? '<p class="edhint dhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
         '<div class="btns"><button type="button" id="modalRun">Run it ▶</button>'+
         (dm.custom?'<button type="button" id="modalFlip">Flip ↔</button>':'')+
         '<button type="button" id="modalClose">Close</button></div>'+
@@ -3444,7 +3452,7 @@
       field.addEventListener('pointerdown', function(ev){
         var p = evPos(ev);
         var z = zoneAt(p[0], p[1]);
-        if(!z || !defLiveSlots(d)[z]) return;
+        if(!z || !defLiveSlots(d)[z] || syncViewer()) return;
         drag = z;
         try{ field.setPointerCapture(ev.pointerId); }catch(e){}
         ghost = document.createElementNS(NS,'g');
@@ -3612,7 +3620,7 @@
         }).join('')+
         '</div>'+
         defField+
-        (schemePosMap(dCur) ? '<p class="edhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
+        (schemePosMap(dCur) ? '<p class="edhint dhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
         '<div class="btns" style="margin:8px 0 0"><button type="button" id="gdDefRun">Run it ▶</button>'+
         (dMeta.custom ? '<button type="button" id="gdDefFlip">Flip ↔'+
           (state.defFlip && state.defFlip[dCur.scheme] ? ' ✓' : '')+'</button>' : '')+'</div>'+
@@ -3634,7 +3642,7 @@
       var cropH = Math.min(230, Math.max.apply(null, lys) + 22) - cropTop;
       gdLineupSvg = gdLineupSvg.replace('viewBox="0 0 300 230"', 'viewBox="0 '+cropTop+' 300 '+cropH+'"');
       var benchChips = bench.length
-        ? '<label class="flab" style="margin-top:10px">Bench — drag a kid onto the field to sub them in</label>'+
+        ? '<label class="flab" style="margin-top:10px">Bench'+(syncViewer()?'':' — drag a kid onto the field to sub them in')+'</label>'+
           '<div class="gdbench" id="gdBench">'+bench.map(function(p2){
             var pc2 = (state.pcolors && p2.color) ? p2.color : null;
             return '<span class="gdchip" data-pid="'+esc(p2.id)+'"'+(pc2?' style="background:'+pc2+';border-color:'+pc2+';color:#071714"':'')+'>'+esc(firstName(p2.name))+'</span>';
@@ -3644,13 +3652,13 @@
         '<h3 class="callhead">'+esc(cs.label||'Series')+' — on the field'+(liveDiffers(cs)?' · subbed':'')+'</h3>'+
         '<div class="field" id="gdLineup" style="touch-action:none">'+gdLineupSvg+'</div>'+
         benchChips+
-        '<p class="edhint">Drag a player onto a teammate to swap spots — or drag a bench kid onto the field to sub them in.</p>'+
+        '<p class="edhint dhint">Drag a player onto a teammate to swap spots — or drag a bench kid onto the field to sub them in.</p>'+
         lineup+benchHtml+subHtml;
     } else {
       fieldPane = fieldToggle+(customsGd.length
         ? '<h3 class="callhead">'+esc(dMeta.name)+' — on the field'+(defLiveDiffers(dCur)?' · subbed':'')+'</h3>'+
           defField+
-          (schemePosMap(dCur) ? '<p class="edhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
+          (schemePosMap(dCur) ? '<p class="edhint dhint">Drag a kid onto a teammate to swap spots.</p>' : '')+
           dSlotsUi
         : defEmpty);
     }
@@ -3857,7 +3865,7 @@
       host.addEventListener('pointerdown', function(ev){
         var p = evPos(ev);
         var s = slotAt(p[0], p[1]);
-        if(!s || !liveSlots(cs)[s]) return;
+        if(!s || !liveSlots(cs)[s] || syncViewer()) return;
         drag = s;
         try{ host.setPointerCapture(ev.pointerId); }catch(e){}
         ghost = document.createElementNS(NS,'g');
@@ -3916,7 +3924,7 @@
         };
         benchHost.addEventListener('pointerdown', function(ev){
           var chip = ev.target && ev.target.closest ? ev.target.closest('.gdchip') : null;
-          if(!chip) return;
+          if(!chip || syncViewer()) return;
           bDrag = chip.dataset.pid;
           try{ benchHost.setPointerCapture(ev.pointerId); }catch(e){}
           bGhost = document.createElement('div');
@@ -3995,7 +4003,7 @@
       host.addEventListener('pointerdown', function(ev){
         var p = evPos(ev);
         var z = zoneAt(p[0], p[1]);
-        if(!z || !defLiveSlots(dz)[z]) return;
+        if(!z || !defLiveSlots(dz)[z] || syncViewer()) return;
         drag = z;
         try{ host.setPointerCapture(ev.pointerId); }catch(e){}
         ghost = document.createElementNS(NS,'g');
@@ -4101,6 +4109,7 @@
      keys carried in data-key, the new order handed to onDrop */
   var pillDragKey = null, pillGhost = null;
   function startPillDrag(ev, onDrop){
+    if(syncViewer()) return;
     var pill = ev.target && ev.target.closest ? ev.target.closest('.kopill') : null;
     if(!pill) return;
     var bar = pill.parentNode;
@@ -4187,14 +4196,14 @@
       total += items.length;
     });
     var allOpen = groups.every(function(g){ return !keptCollapsed[g.f.name]; });
-    var orderBar = groups.length > 1
+    var orderBar = groups.length > 1 && !syncViewer()
       ? '<label class="flab">Formation order — drag a pill to sort the game plan</label>'+
         '<div class="kobar" id="keptOrderBar">'+groups.map(function(g){
           return '<span class="kopill" data-key="'+esc(g.f.name)+'">'+esc(g.f.name)+'</span>';
         }).join('')+'</div>'
       : '';
     var togAll = groups.length
-      ? '<button type="button" class="ghostbtn" id="keptTogAll" style="margin:0 0 12px;padding:8px 12px">'+(allOpen?'▸ Collapse all — sort the plays':'▾ Expand all')+'</button>'
+      ? '<button type="button" class="ghostbtn" id="keptTogAll" style="margin:0 0 12px;padding:8px 12px">'+(allOpen?(syncViewer()?'▸ Collapse all':'▸ Collapse all — sort the plays'):'▾ Expand all')+'</button>'
       : '';
     groups.forEach(function(g){
       var open = !keptCollapsed[g.f.name];
@@ -5334,6 +5343,15 @@
     return out.length ? out.join(' · ') : 'up to date';
   }
   function syncOn(){ return !!(state.sync && state.sync.teamId && state.sync.secret); }
+  /* a parent's device: it holds the team's view secret and only ever pulls.
+     Nothing done here reaches the team, and each pull puts back whatever was
+     poked locally, so the phone always shows what the coaches have */
+  function syncViewer(){ return syncOn() && !!state.sync.readOnly; }
+  function applyViewerUi(){
+    var on = syncViewer();
+    if(on){ state.rosterLock = true; state.seriesLock = true; }
+    if(on){ document.body.classList.add('viewer'); } else { document.body.classList.remove('viewer'); }
+  }
   function coachByName(){ return (state.sync && state.sync.label) ? state.sync.label : ''; }
   function partPayload(part){
     if(part === 'off') return {v:2, part:'off', kept:state.kept, alias:state.alias, flip:state.flip, formOrder:state.formOrder, playOrder:state.playOrder, custom:state.custom, customForms:state.customForms};
@@ -5707,7 +5725,7 @@
     return SYNC_PARTS.filter(function(p){ return partJson(p) !== sh[p]; });
   }
   function scheduleSyncPush(){
-    if(!syncOn()) return;
+    if(!syncOn() || syncViewer()) return;
     clearTimeout(syncT);
     syncT = setTimeout(syncPush, 3000);
   }
@@ -5727,6 +5745,16 @@
          baseRev) sends it up, and the server history keeps theirs */
       if(!viaMerge){ applyRosterReplace(o); syncShadow().roster = partJson('roster'); }
     }
+  }
+  /* viewer devices: put a part back to the team's last-synced copy */
+  function revertPartToShadow(part){
+    var sh = syncShadow()[part];
+    if(!sh || partJson(part) === sh) return false;
+    var o = null;
+    try{ o = JSON.parse(sh); }catch(e){}
+    if(!o) return false;
+    if(part === 'off'){ applyOffReplace(o); } else if(part === 'def'){ applyDefReplace(o); } else { applyRosterReplace(o); }
+    return true;
   }
   function pushPart(part, depth){
     var s = state.sync;
@@ -5748,7 +5776,7 @@
     });
   }
   function syncPush(){
-    if(!syncOn()) return;
+    if(!syncOn() || syncViewer()) return;
     if(syncBusy){ scheduleSyncPush(); return; }
     var parts = syncDirtyParts();
     if(!parts.length){ return; }
@@ -5784,7 +5812,9 @@
         return;
       }
       if(res.name && res.name !== s.name){ s.name = res.name; }
-      var dirty = syncDirtyParts(), got = 0, gotParts = {};
+      if(res.readOnly === true && !s.readOnly){ s.readOnly = true; applyViewerUi(); }
+      var viewer = syncViewer();
+      var dirty = viewer ? [] : syncDirtyParts(), got = 0, gotParts = {}, putBack = 0;
       var beforePlays = syncIdSet(state.custom), beforeDefs = syncIdSet(state.customDefs);
       SYNC_PARTS.forEach(function(part){
         var inc = res.parts && res.parts[part];
@@ -5793,15 +5823,16 @@
         s.revs[part] = inc.rev;
         got++; gotParts[part] = 1;
       });
+      if(viewer){ SYNC_PARTS.forEach(function(part){ if(!gotParts[part] && revertPartToShadow(part)){ putBack++; } }); }
       s.lastSync = Date.now();
       saveNow();
+      if(got || putBack){ syncRerender(); }
       if(got){
-        syncRerender();
         showBanner('Synced from “'+(s.name||'your team')+'” ✓ — '+syncChangeSummary(gotParts, beforePlays, beforeDefs));
       }
       syncMsg('Synced ✓ '+fmtSyncTime(s.lastSync));
       renderSyncCard();
-      syncPush(); /* drain anything local the pull didn't cover */
+      syncPush(); /* drain anything local the pull didn't cover (a no-op on a viewer) */
     }).catch(function(){
       syncBusy = false;
       syncMsg(manual ? 'Offline — try again with a connection.' : 'Offline');
@@ -5830,16 +5861,79 @@
       state.sunlight = prefs.sunlight; state.rosterLock = prefs.rosterLock; state.seriesLock = prefs.seriesLock;
       state.losOn = prefs.losOn; if(prefs.losColor){ state.losColor = prefs.losColor; }
       rebuildForms();
-      state.sync = {teamId: info.teamId, secret: info.secret, app: SYNC_APP, name: res.name || info.name || 'Team', label: (who||'').trim().slice(0,40), revs:{}, shadow:{}, lastSync: Date.now()};
+      state.sync = {teamId: info.teamId, secret: info.secret, app: SYNC_APP, name: res.name || info.name || 'Team', label: (who||'').trim().slice(0,40), revs:{}, shadow:{}, lastSync: Date.now(), readOnly: !!info.readOnly};
       SYNC_PARTS.forEach(function(part){
         var inc = res.parts && res.parts[part];
         if(inc){ applyIncomingPart(part, inc.blob, false); state.sync.revs[part] = inc.rev; }
       });
+      applyViewerUi();
       saveNow(); syncRerender();
+      if(info.readOnly){
+        showTab('gameday');
+        codeMsg('Following “'+state.sync.name+'” ✓ — view only.', true);
+        showBanner('Following “'+state.sync.name+'” ✓ — this phone updates as the coaches make changes.');
+        return;
+      }
       showTab('settings');
       codeMsg('Joined “'+state.sync.name+'” ✓ — this device now syncs with the team.', true);
       syncPush(); /* fill in empty docs for any part the team hasn't pushed yet */
     }).catch(function(){ codeMsg('Offline — try the invite again with a connection.', false); });
+  }
+  /* a short code, typed or from a #j= link: the server says which team it is
+     and whether it's a coach invite or a parent (view-only) one */
+  function redeemJoinCode(code){
+    syncMsg('Checking code…');
+    syncCall('join', {code: code}).then(function(res){
+      if(res.teamId && res.secret){
+        if(res.app && res.app !== SYNC_APP){ syncMsg('That invite is for the other coach app — open it there instead.', true); return; }
+        syncMsg('');
+        var ji = document.getElementById('syncJoinIn');
+        if(ji){ ji.value = ''; }
+        promptJoinTeam(res);
+      } else {
+        syncMsg(res.error || 'That code didn\'t work — ask for a fresh one.', true);
+      }
+    }).catch(function(){ syncMsg('Offline — try again with a connection.', true); });
+  }
+  /* the parent link: a short code in the URL, so it travels as one line of a
+     text. The server keeps it good for a year; every tap follows the team view-only */
+  function openViewInviteModal(code){
+    var url = hashLink('#j='+code);
+    var pretty = code.slice(0,4)+'-'+code.slice(4);
+    var team = state.sync.name || 'the team';
+    var msg = team+' playbook — tap to follow along: '+url;
+    var qs = qrSvgHtml(url);
+    var canText = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:700px"><div class="card" style="margin:0">'+
+      '<h3>Share with parents</h3>'+
+      '<p style="margin:0 0 10px">Anyone with this link follows <b>'+esc(team)+'</b> view-only — the roster, series, plays, and game-day calls, kept up to date as you make changes. Nothing they do reaches the team. The link is good for a year, so post it once in the team group chat.</p>'+
+      '<label class="flab">Text to send</label>'+
+      '<textarea class="tin" id="viOut" readonly rows="3" style="font-size:13px;resize:none;margin-bottom:10px;font-family:inherit" aria-label="Text to send">'+esc(msg)+'</textarea>'+
+      '<div class="btns" style="margin:0 0 12px">'+
+      (canText?'<button type="button" id="viSms">Text it</button>':'')+
+      (navigator.share?'<button type="button" id="viShare">Share…</button>':'')+
+      '<button type="button" id="viCopy">Copy text</button>'+
+      '<button type="button" id="viClose">Close</button></div>'+
+      (qs ? qs : '')+
+      '<p class="edhint" style="text-align:center;margin:0">Or they scan this, or type <b style="font-size:18px;letter-spacing:3px;color:var(--whistle)">'+esc(pretty)+'</b> into <b>Team sync → Join a team</b>.</p>'+
+      '</div></div>';
+    shareModal.hidden = false;
+    var smsB = document.getElementById('viSms');
+    if(smsB){ smsB.addEventListener('click', function(){ location.href = 'sms:?&body='+encodeURIComponent(msg); }); }
+    var shB = document.getElementById('viShare');
+    if(shB){ shB.addEventListener('click', function(){ try{ navigator.share({text: msg}); }catch(e){} }); }
+    document.getElementById('viCopy').addEventListener('click', function(){
+      var okB = document.getElementById('viCopy');
+      function fb(){
+        var outT = document.getElementById('viOut');
+        outT.focus(); outT.select();
+        try{ document.execCommand('copy'); okB.textContent = 'Copied ✓'; }catch(e){}
+      }
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(msg).then(function(){ okB.textContent = 'Copied ✓'; }, fb);
+      } else { fb(); }
+    });
+    document.getElementById('viClose').addEventListener('click', closeShareModal);
   }
   function teamInviteLink(){
     var s = state.sync;
@@ -5848,7 +5942,23 @@
   function promptJoinTeam(info){
     if(!(info && info.teamId && info.secret)){ codeMsg('That invite didn\'t work — ask for a fresh one.', false); return; }
     if(state.sync && String(state.sync.teamId) === String(info.teamId)){
-      codeMsg('Already syncing with “'+state.sync.name+'” ✓', true);
+      /* already in — a viewer handed a coach invite is the one case that goes on (and joins for real) */
+      if(!state.sync.readOnly || info.readOnly){
+        codeMsg(state.sync.readOnly
+          ? 'Already following “'+state.sync.name+'” ✓'
+          : 'Already syncing with “'+state.sync.name+'” ✓'+(info.readOnly ? ' — the parent link is for other phones.' : ''), true);
+        return;
+      }
+    }
+    if(info.readOnly){
+      shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
+        '<h3>Follow “'+esc(info.name||'this team')+'”?</h3>'+
+        '<p>This phone will show the team\'s roster, series, plays, and game-day calls, and keep itself up to date as the coaches make changes. It\'s view only — nothing done here reaches the team.</p>'+
+        '<div class="btns"><button type="button" id="stJoin" style="border-color:var(--whistle);color:var(--whistle)">Follow team</button>'+
+        '<button type="button" id="stCancel">Cancel</button></div></div></div>';
+      shareModal.hidden = false;
+      document.getElementById('stJoin').addEventListener('click', function(){ closeShareModal(); joinTeam(info, ''); });
+      document.getElementById('stCancel').addEventListener('click', closeShareModal);
       return;
     }
     shareModal.innerHTML = '<div class="pmodal-inner" style="max-width:460px"><div class="card" style="margin:0">'+
@@ -5880,10 +5990,19 @@
         '<label class="flab" style="margin-top:12px">Join a team</label>'+
         '<div class="rrow" style="margin-bottom:0"><input class="tin" id="syncJoinIn" type="text" autocomplete="off" placeholder="Invite code or link">'+
         '<button type="button" class="iconbtn" id="syncJoinGo" aria-label="Join team" style="width:auto;padding:0 14px">Join</button></div>'+
-        '<p class="edhint">Codes and links come from a teammate\'s <b>Invite a coach</b> — their invite QR works too (⛶ in Share &amp; transfer).</p>';
+        '<p class="edhint">Codes and links come from a coach\'s <b>Invite a coach</b> or <b>Share with parents</b> — their invite QR works too (⛶ in Share &amp; transfer).</p>';
       return;
     }
     var s = state.sync;
+    if(s.readOnly){
+      host.innerHTML = '<div class="tplate"><div class="tname"><b>'+esc(s.name||'Your team')+'</b></div>'+
+        '<div class="tmeta">Following · view only · '+(s.lastSync ? 'updated '+fmtSyncTime(s.lastSync) : 'not updated yet')+'</div></div>'+
+        '<p>This phone shows the team\'s roster, series, plays, and game-day calls as the coaches update them. It checks for changes whenever you open the app, and every minute while it\'s open.</p>'+
+        '<div class="btns" style="margin:0">'+
+        '<button type="button" id="syncNow">Check now</button>'+
+        '<button type="button" id="syncLeave">Stop following</button></div>';
+      return;
+    }
     var plate;
     if(syncEditName){
       plate = '<div class="tplate plain">'+
@@ -5905,6 +6024,7 @@
     host.innerHTML = plate +
       '<div class="btns" style="margin:0">'+
       '<button type="button" id="syncInvite">Invite a coach</button>'+
+      '<button type="button" id="syncViewInvite">Share with parents</button>'+
       '<button type="button" id="syncNow">Sync now</button>'+
       '<button type="button" id="syncLeave">Leave team</button></div>';
   }
@@ -5924,22 +6044,21 @@
           : '');
         openLinkShareModal('Invite a coach', invUrl, hint);
       }).catch(function(){ openLinkShareModal('Invite a coach', invUrl, invHint); });
+    } else if(t.id === 'syncViewInvite'){
+      syncMsg('Making a parent link…');
+      syncCall('invite', {teamId: state.sync.teamId, secret: state.sync.secret, readOnly: true}).then(function(res){
+        /* only a link the server itself marked read-only is safe to hand out */
+        if(!(res.code && res.readOnly === true)){ syncMsg(res.error || 'Couldn\'t make a parent link — try again in a bit.', true); return; }
+        syncMsg('');
+        openViewInviteModal(res.code);
+      }).catch(function(){ syncMsg('Offline — try again with a connection.', true); });
     } else if(t.id === 'syncJoinGo'){
       var rawIn = (document.getElementById('syncJoinIn').value||'').trim();
       if(!rawIn) return;
-      var codeIn = rawIn.toUpperCase().replace(/[^A-Z0-9]/g,'');
-      if(/^[A-Z0-9]{8}$/.test(codeIn) && rawIn.indexOf('#') === -1){
-        syncMsg('Checking code…');
-        syncCall('join', {code: codeIn}).then(function(res){
-          if(res.teamId && res.secret){
-            if(res.app && res.app !== SYNC_APP){ syncMsg('That invite is for the other coach app — open it there instead.', true); return; }
-            syncMsg('');
-            document.getElementById('syncJoinIn').value = '';
-            promptJoinTeam(res);
-          } else {
-            syncMsg(res.error || 'That code didn\'t work — codes last 24 hours.', true);
-          }
-        }).catch(function(){ syncMsg('Offline — try again with a connection.', true); });
+      var jm = rawIn.match(/#j=([A-Za-z0-9-]+)/);
+      var codeIn = (jm ? jm[1] : rawIn).toUpperCase().replace(/[^A-Z0-9]/g,'');
+      if(/^[A-Z0-9]{8}$/.test(codeIn) && (jm || rawIn.indexOf('#') === -1)){
+        redeemJoinCode(codeIn);
         return;
       }
       var lm = rawIn.match(/#p=([^&#\s]+)/);
@@ -5979,14 +6098,17 @@
     } else if(t.id === 'syncNow'){
       syncPull(true);
     } else if(t.id === 'syncLeave'){
+      var wasViewer = syncViewer();
       if(t.dataset.arm){
         state.sync = null;
         syncEditName = false; syncEditLabel = false;
-        saveNow(); renderSyncCard();
-        syncMsg('Left the team — this device keeps its setup but no longer syncs.');
+        applyViewerUi();
+        saveNow();
+        if(wasViewer){ syncRerender(); } else { renderSyncCard(); }
+        syncMsg(wasViewer ? 'Stopped following — this phone keeps a copy of the team but no longer updates.' : 'Left the team — this device keeps its setup but no longer syncs.');
       } else {
-        t.dataset.arm = '1'; t.textContent = 'Really leave?';
-        setTimeout(function(){ delete t.dataset.arm; t.textContent = 'Leave team'; }, 2500);
+        t.dataset.arm = '1'; t.textContent = wasViewer ? 'Really stop?' : 'Really leave?';
+        setTimeout(function(){ delete t.dataset.arm; t.textContent = wasViewer ? 'Stop following' : 'Leave team'; }, 2500);
       }
     }
   });
@@ -6000,6 +6122,11 @@
       syncPull();
     }
   });
+  /* a following phone on the sideline keeps up with the coaches' calls while
+     the app is open — about once a minute; only parts with something new come down */
+  setInterval(function(){
+    if(syncViewer() && document.visibilityState !== 'hidden' && Date.now() - (state.sync.lastSync||0) > 55000){ syncPull(); }
+  }, 60000);
 
   function renderSaveCard(){
     document.getElementById('saveStatus').innerHTML = (canPersist
@@ -6431,6 +6558,7 @@
 
   /* ================= init ================= */
   loadState();
+  applyViewerUi();
   applySun();
   rebuildForms();
   renderSaveCard();
@@ -6449,6 +6577,17 @@
   if(!lineupReady()){ showTab('gameplan'); } else { setTimeout(drawVisible,140); }
   /* a scanned/tapped play link: add the play, land on Kept */
   (function(){
+    /* a texted parent link (or a coach code link): #j=CODE — the server turns
+       the code into the team, then the usual follow/join prompt */
+    var jm = (location.hash||'').match(/^#j=([A-Za-z0-9-]+)/);
+    if(jm){
+      var jcode = jm[1].toUpperCase().replace(/[^A-Z0-9]/g,'');
+      saveNow(); /* off the #j= hash first, so a reload doesn't redeem it again */
+      showTab('settings');
+      if(/^[A-Z0-9]{8}$/.test(jcode)){ redeemJoinCode(jcode); }
+      else { syncMsg('That didn\'t look like an invite — paste the whole link or the 8-character code.', true); }
+      return;
+    }
     var pm = (location.hash||'').match(/^#p=(.+)$/);
     if(!pm) return;
     var shared = decodeCode(pm[1]);

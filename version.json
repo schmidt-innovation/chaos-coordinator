@@ -1,4 +1,4 @@
 {
-  "v": 138,
-  "note": "game-day defense subs no longer overwrite the series lineup: On the field → Defense gets its own Reset to series lineup"
+  "v": 139,
+  "note": "Share with parents: a read-only team link (Settings → Team sync) parents tap to follow the roster, plays, and game-day calls — good for a year, texts as one line"
 }
