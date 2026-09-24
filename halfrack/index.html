@@ -293,6 +293,7 @@
   .pgrid button.iskept{border-color:var(--whistle)}
   .pgrid button[aria-pressed="true"]{background:var(--whistle);color:var(--deeper);border-color:var(--whistle)}
   .pgrid button[aria-pressed="true"] .mini{border-color:rgba(11,33,28,.45);color:var(--deeper)}
+  .pgrid button .fvf{display:block;margin-top:3px;font-family:"Archivo",sans-serif;font-size:10px;font-weight:600;letter-spacing:.06em;opacity:.75}
   .play{scroll-margin-top:118px}
 
   .pmodal{position:fixed;top:0;left:0;right:0;bottom:0;z-index:60;background:rgba(7,23,20,.94);overflow:auto;padding:14px;display:flex}
@@ -694,7 +695,7 @@
     <p class="hintline" id="tidyMsg" hidden></p>
   </div>
 
-  <p class="hintline" style="opacity:.85;text-align:center">Half Rack v139 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
+  <p class="hintline" style="opacity:.85;text-align:center">Half Rack v140 · <button type="button" id="freshBtn" class="ghostbtn" style="display:inline-block;width:auto;padding:6px 12px;margin:0;font-size:12px">⟳ Force update</button></p>
 
   <div class="card coachonly">
     <h3>Reset</h3>
@@ -1288,6 +1289,7 @@
     state.series.forEach(function(s){
       var ef = s.callForm != null ? s.callForm : s.form;
       if(ef === fromFi && s.callPlay === fromN){ s.callPlay = toN; if(toFi !== fromFi){ s.callForm = toFi; } }
+      if(s.favs && s.favs[oldId]){ s.favs[newId] = true; delete s.favs[oldId]; }
     });
     var po = state.playOrder = state.playOrder||{};
     if(fromFi === toFi){ if(po[fromF.name]){ po[fromF.name] = po[fromF.name].map(function(x){ return x === fromN ? toN : x; }); } }
@@ -1310,7 +1312,7 @@
   function removePlay(c){
     var f = FORMS[c.form], id = f.name+':'+c.n;
     ['kept','alias','flip'].forEach(function(key){ if(state[key]) delete state[key][id]; });
-    state.series.forEach(function(s){ var ef = s.callForm != null ? s.callForm : s.form; if(ef === c.form && s.callPlay === c.n) s.callPlay = null; });
+    state.series.forEach(function(s){ var ef = s.callForm != null ? s.callForm : s.form; if(ef === c.form && s.callPlay === c.n) s.callPlay = null; if(s.favs) delete s.favs[id]; });
     var po = state.playOrder||{};
     if(po[f.name]){ po[f.name] = po[f.name].filter(function(x){ return x !== c.n; }); }
     state.custom = (state.custom||[]).filter(function(x){ return x !== c; });
@@ -1351,6 +1353,13 @@
         var i = k.indexOf(':');
         var pl = i < 0 ? null : byForm[k.slice(0, i).toLowerCase()];
         if(!pl || pl.indexOf(k.slice(i+1).toLowerCase()) < 0) delete m[k];
+      });
+    });
+    state.series.forEach(function(s){
+      Object.keys(s.favs||{}).forEach(function(k){
+        var i = k.indexOf(':');
+        var pl = i < 0 ? null : byForm[k.slice(0, i).toLowerCase()];
+        if(!pl || pl.indexOf(k.slice(i+1).toLowerCase()) < 0) delete s.favs[k];
       });
     });
     if(state.formOrder){ state.formOrder = state.formOrder.filter(function(x){ return !!byForm[String(x).toLowerCase()]; }); }
@@ -2537,7 +2546,7 @@
         state.custom = (state.custom||[]).filter(function(c){ return c.id !== cid; });
         delete state.kept[id]; delete state.alias[id]; delete state.flip[id];
         var pn = id.split(':').slice(1).join(':');
-        state.series.forEach(function(s){ if(s.callPlay === pn) s.callPlay = null; });
+        state.series.forEach(function(s){ if(s.callPlay === pn) s.callPlay = null; if(s.favs) delete s.favs[id]; });
         save();
         if(afterRename) afterRename();
       });
@@ -3196,6 +3205,7 @@
     state.kept = {}; state.alias = {}; state.flip = {}; state.formKept = {};
     state.series.forEach(function(s){
       s.callPlay = null;
+      delete s.favs;
       if(s.form >= STOCK_FORMS.length){ s.form = 0; }
       if(s.callForm != null && s.callForm >= STOCK_FORMS.length){ s.callForm = s.form; }
     });
@@ -3665,6 +3675,7 @@
 
     var sideTabs = '<div class="picker" id="gdSideTabs" role="group" aria-label="Game day sections">'+
       '<button type="button" data-gt="field" aria-pressed="'+(gdTab==='field')+'">On the field</button>'+
+      '<button type="button" data-gt="fav" aria-pressed="'+(gdTab==='fav')+'">♥ Favorites</button>'+
       '<button type="button" data-gt="off" aria-pressed="'+(gdTab==='off')+'">🏈 Offense</button>'+
       '<button type="button" data-gt="def" aria-pressed="'+(gdTab==='def')+'">🛡 Defense</button></div>';
 
@@ -3678,21 +3689,19 @@
         }).join('')+'</div>'
       : '';
 
-    var allPlays = playsOf(cf);
-    var formKept = allPlays.filter(function(p){ return state.kept[cf.name+':'+p.n]; });
-    var pool = formKept.length ? formKept : [];
-    var gdOrd = (state.playOrder && state.playOrder[cf.name]) || [];
-    var sorted = pool.slice().sort(function(a,b){
-      var ka = state.kept[cf.name+':'+a.n]?0:1, kb = state.kept[cf.name+':'+b.n]?0:1;
-      if(ka !== kb) return ka-kb;
-      if(!ka){
-        var ia = gdOrd.indexOf(a.n), ib = gdOrd.indexOf(b.n);
+    /* a formation's kept plays in the coach's Kept-tab order */
+    function keptSorted(f){
+      var ord = (state.playOrder && state.playOrder[f.name]) || [];
+      return playsOf(f).filter(function(p){ return state.kept[f.name+':'+p.n]; }).sort(function(a,b){
+        var ia = ord.indexOf(a.n), ib = ord.indexOf(b.n);
         if(ia < 0) ia = 9999;
         if(ib < 0) ib = 9999;
-        if(ia !== ib) return ia-ib;
-      }
-      return 0;
-    });
+        return ia-ib;
+      });
+    }
+    var pool = keptSorted(cf);
+    var sorted = pool;
+    var favs = cs.favs || {};
     var play = null;
     if(cs.callPlay){
       for(var pi=0;pi<pool.length;pi++){ if(pool[pi].n===cs.callPlay){ play = pool[pi]; break; } }
@@ -3716,9 +3725,40 @@
         sorted.map(function(p){
           var on = !!state.kept[cf.name+':'+p.n];
           var sel = !!(play && play.n===p.n);
+          var fv = !!favs[cf.name+':'+p.n];
           return '<button type="button" data-n="'+esc(p.n)+'"'+(on?' class="iskept"':'')+' aria-pressed="'+sel+'">'+
-            '<span>'+(on?'★ ':'')+esc(displayName(cf,p))+(state.flip&&state.flip[cf.name+':'+p.n]?' ↔':'')+'</span><span class="mini'+(p.t==='run'?' run':'')+'">'+(p.t==='run'?'Run':'Pass')+'</span></button>';
+            '<span>'+(on?'★ ':'')+esc(displayName(cf,p))+(state.flip&&state.flip[cf.name+':'+p.n]?' ↔':'')+(fv?' ♥':'')+'</span><span class="mini'+(p.t==='run'?' run':'')+'">'+(p.t==='run'?'Run':'Pass')+'</span></button>';
         }).join('')+'</div>';
+    }
+
+    /* favorites: plays flagged for THIS series, every formation in one list */
+    var serName = cs.label||('Series '+(state.current+1));
+    var favBtn = (play && !syncViewer())
+      ? '<button type="button" class="ghostbtn solid'+(favs[cf.name+':'+play.n]?' gold':'')+'" id="gdFav" aria-pressed="'+!!favs[cf.name+':'+play.n]+'" style="margin:0 0 12px">'+
+        (favs[cf.name+':'+play.n] ? '♥ Favorite for '+esc(serName)+' — tap to remove' : '♡ Favorite for '+esc(serName))+'</button>'
+      : '';
+    var favItems = [];
+    keptFormIdx.forEach(function(fi){
+      var ff = FORMS[fi];
+      keptSorted(ff).forEach(function(p){ if(favs[ff.name+':'+p.n]) favItems.push({fi:fi, f:ff, p:p}); });
+    });
+    var favOn = !!(play && favs[cf.name+':'+play.n]);
+    var favPane;
+    if(!favItems.length){
+      favPane = '<div class="card" style="margin-top:14px"><h3>No favorites for '+esc(serName)+' yet</h3>'+
+        '<p>On the Offense tab, call a play and tap <b>♡ Favorite</b> to flag it for this series. Each series keeps its own favorites, all in one list — no digging through formations.</p>'+
+        '<button type="button" class="ghostbtn solid gold" id="gdGoOffense">Open the Offense tab →</button></div>';
+    } else {
+      favPane = '<h3 class="callhead">'+esc(serName)+' — favorites</h3>'+
+        '<div class="pgrid" id="gdfavgrid" role="group" aria-label="Call a favorite">'+
+        favItems.map(function(it){
+          var sel = !!(play && it.fi===cs.callForm && play.n===it.p.n);
+          return '<button type="button" data-fi="'+it.fi+'" data-n="'+esc(it.p.n)+'" class="iskept" aria-pressed="'+sel+'">'+
+            '<span>'+esc(displayName(it.f,it.p))+(state.flip&&state.flip[it.f.name+':'+it.p.n]?' ↔':'')+
+            '<span class="fvf">'+esc(it.f.name)+'</span></span>'+
+            '<span class="mini'+(it.p.t==='run'?' run':'')+'">'+(it.p.t==='run'?'Run':'Pass')+'</span></button>';
+        }).join('')+'</div>'+
+        (favOn ? favBtn : '');
     }
 
     var playHtml = play
@@ -3729,7 +3769,9 @@
       ? defPane
       : (gdTab==='field'
         ? fieldPane
-        : picker+grid+'<div id="gdplay">'+playHtml+'</div>'));
+        : (gdTab==='fav'
+          ? favPane+'<div id="gdplay">'+(favOn ? playHtml : (favItems.length ? '<div class="empty">Tap a favorite above to put it on the board.</div>' : ''))+'</div>'
+          : picker+grid+favBtn+'<div id="gdplay">'+playHtml+'</div>')));
 
     gd.querySelectorAll('.serbar button').forEach(function(b){
       b.addEventListener('click', function(){
@@ -3835,6 +3877,25 @@
         save(); renderGameDay({scrollToPlay:true});
       });
     });
+    gd.querySelectorAll('#gdfavgrid button').forEach(function(b){
+      b.addEventListener('click', function(){
+        cs.callForm = +b.dataset.fi;
+        cs.callPlay = b.dataset.n;
+        save(); renderGameDay({scrollToPlay:true});
+      });
+    });
+    var gfv = document.getElementById('gdFav');
+    if(gfv && play){
+      gfv.addEventListener('click', function(){
+        var fk = cf.name+':'+play.n;
+        if(!cs.favs) cs.favs = {};
+        if(cs.favs[fk]) delete cs.favs[fk]; else cs.favs[fk] = true;
+        if(!Object.keys(cs.favs).length) delete cs.favs;
+        save(); renderGameDay();
+      });
+    }
+    var gob = document.getElementById('gdGoOffense');
+    if(gob){ gob.addEventListener('click', function(){ gdTab = 'off'; renderGameDay(); }); }
     /* drag a dot onto another to swap the two kids' positions */
     (function wireLineupDrag(){
       var host = document.getElementById('gdLineup');
@@ -4055,7 +4116,7 @@
     var boardKeep = gd.querySelector('#gdplay .keep');
     if(boardKeep) boardKeep.parentNode.removeChild(boardKeep);
     /* the board's replay becomes "Run it" and opens the modal */
-    if(gdTab === 'off' && play){
+    if((gdTab === 'off' || (gdTab === 'fav' && favOn)) && play){
       var boardBtn = gd.querySelector('#gdplay .replay');
       if(boardBtn){
         var nb = boardBtn.cloneNode(false);
